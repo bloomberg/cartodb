@@ -1458,8 +1458,8 @@
     },
     "cartoassets": {
       "version": "0.1.30",
-      "from": "cartodb/CartoAssets#master",
-      "resolved": "git://github.com/cartodb/CartoAssets.git#6b684d46e2fad7ae7d59a11b00e998daca8c5d2c"
+      "from": "git://bbgithub.dev.bloomberg.com/datavis-cartodb/CartoAssets.git#master",
+      "resolved": "git://bbgithub.dev.bloomberg.com/datavis-cartodb/CartoAssets.git#0d0e528fae272c160cefb6507b9b03c15f7b26bc"
     },
     "cartodb-deep-insights.js": {
       "version": "0.0.1",
@@ -1524,8 +1524,8 @@
             },
             "cartoassets": {
               "version": "0.1.30",
-              "from": "cartodb/CartoAssets#master",
-              "resolved": "git://github.com/cartodb/CartoAssets.git#6b684d46e2fad7ae7d59a11b00e998daca8c5d2c"
+              "from": "git://bbgithub.dev.bloomberg.com/datavis-cartodb/CartoAssets.git#master",
+              "resolved": "git://bbgithub.dev.bloomberg.com/datavis-cartodb/CartoAssets.git#0d0e528fae272c160cefb6507b9b03c15f7b26bc"
             },
             "d3.cartodb": {
               "version": "1.0.2",
@@ -2548,8 +2548,8 @@
         },
         "cartoassets": {
           "version": "0.1.30",
-          "from": "cartodb/CartoAssets#master",
-          "resolved": "git://github.com/cartodb/CartoAssets.git#6b684d46e2fad7ae7d59a11b00e998daca8c5d2c"
+          "from": "git://bbgithub.dev.bloomberg.com/datavis-cartodb/CartoAssets.git#master",
+          "resolved": "git://bbgithub.dev.bloomberg.com/datavis-cartodb/CartoAssets.git#0d0e528fae272c160cefb6507b9b03c15f7b26bc"
         },
         "d3": {
           "version": "3.5.8",
