@@ -1,7 +1,9 @@
 require 'active_record'
+require_relative '../../helpers/data_services_metrics_helper'
 
 module Carto
   class Organization < ActiveRecord::Base
+    include DataServicesMetricsHelper
 
     has_many :users, inverse_of: :organization, order: :username
     belongs_to :owner, class_name: Carto::User, inverse_of: :owned_organization
@@ -18,12 +20,31 @@ module Carto
     def get_geocoding_calls(options = {})
       date_to = (options[:to] ? options[:to].to_date : Date.today)
       date_from = (options[:from] ? options[:from].to_date : owner.last_billing_cycle)
+      if owner.has_feature_flag?('new_geocoder_quota')
+        get_organization_geocoding_data(self, date_from, date_to)
+      else
+        users.
+          joins(:geocodings).
+          where('geocodings.kind' => 'high-resolution').
+          where('geocodings.created_at >= ? and geocodings.created_at <= ?', date_from, date_to + 1.days).
+          sum("processed_rows + cache_hits".lit).to_i
+      end
+    end
 
-      users.
-        joins(:geocodings).
-        where('geocodings.kind' => 'high-resolution').
-        where('geocodings.created_at >= ? and geocodings.created_at <= ?', date_from, date_to + 1.days).
-        sum("processed_rows + cache_hits".lit).to_i
+    def period_end_date
+      owner.period_end_date
+    end
+
+    def get_new_system_geocoding_calls(options = {})
+      date_to = (options[:to] ? options[:to].to_date : Date.current)
+      date_from = (options[:from] ? options[:from].to_date : owner.last_billing_cycle)
+      get_organization_geocoding_data(self, date_from, date_to)
+    end
+
+    def get_here_isolines_calls(options = {})
+      date_to = (options[:to] ? options[:to].to_date : Date.today)
+      date_from = (options[:from] ? options[:from].to_date : owner.last_billing_cycle)
+      get_organization_here_isolines_data(self, date_from, date_to)
     end
 
     def twitter_imports_count(options = {})
@@ -34,6 +55,16 @@ module Carto
 
     def is_owner_user?(user)
       self.owner_id == user.id
+    end
+
+    def remaining_geocoding_quota(options = {})
+      remaining = geocoding_quota.to_i - get_geocoding_calls(options)
+      (remaining > 0 ? remaining : 0)
+    end
+
+    def remaining_here_isolines_quota(options = {})
+      remaining = here_isolines_quota.to_i - get_here_isolines_calls(options)
+      (remaining > 0 ? remaining : 0)
     end
 
     def signup_page_enabled
@@ -50,6 +81,14 @@ module Carto
 
     def name_to_display
       display_name.nil? ? name : display_name
+    end
+
+    def assigned_quota
+      self.users.sum(:quota_in_bytes).to_i
+    end
+
+    def unassigned_quota
+      self.quota_in_bytes - assigned_quota
     end
 
     private

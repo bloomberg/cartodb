@@ -9,6 +9,7 @@ describe Url::ArcGIS do
 
   before(:all) do
     @url = 'http://myserver/arcgis/rest/services/MyFakeService/featurename'
+    @invalid_url = 'http://myserver/mysite/rest/myfakefolder/MyFakeService/featurename'
     @user = CartoDB::Datasources::Doubles::User.new
   end
 
@@ -145,6 +146,10 @@ describe Url::ArcGIS do
         arcgis.send(:get_subresource_metadata, @url, sub_id)
       }.to raise_error InvalidServiceError
 
+      # Invalid ArcGIS URL
+      expect {
+        arcgis.send(:get_resource_metadata, @invalid_url)
+      }.to raise_error InvalidInputDataError
     end
 
     it 'tests metadata retrieval' do
@@ -279,6 +284,28 @@ describe Url::ArcGIS do
 
       Typhoeus.stub(/\/arcgis\/rest\//) do |request|
         body = File.read(File.join(File.dirname(__FILE__), "../fixtures/arcgis_ids_list.json"))
+        Typhoeus::Response.new(
+          code: 200,
+          headers: { 'Content-Type' => 'application/json' },
+          body: body
+        )
+      end
+
+      expected_ids = [1,2,3,4,5,6,7,8,9,10]
+
+      respose_ids = arcgis.send(:get_ids_list, id)
+
+      respose_ids.nil?.should be false
+      respose_ids.should eq expected_ids
+    end
+
+    it 'tests the get_ids_list() private method on out-of-order ids' do
+      arcgis = Url::ArcGIS.get_new(@user)
+
+      id = arcgis.send(:sanitize_id, @url)
+
+      Typhoeus.stub(/\/arcgis\/rest\//) do |request|
+        body = File.read(File.join(File.dirname(__FILE__), "../fixtures/arcgis_unordered_ids_list.json"))
         Typhoeus::Response.new(
           code: 200,
           headers: { 'Content-Type' => 'application/json' },

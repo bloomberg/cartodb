@@ -1,4 +1,8 @@
 defaults: &defaults
+  # If uncommented, most images like static map previews and twitter card image urls will use this CDN urls
+  #cdn_url:
+  #  http:             "http.cdn.host"
+  #  https:            "https.cdn.host"
   http_client_logs: true
   ogr2ogr:
     binary:           'which ogr2ogr2'
@@ -10,10 +14,12 @@ defaults: &defaults
   subdomainless_urls: false
   http_port:           3000 # nil|integer. HTTP port to use when building urls. Leave empty to use default (80)
   https_port:          # nil|integer. HTTPS port to use when building urls. Leave empty to use default (443)
-  maps_api_cdn_template: # nil|string. E.g. '{protocol}://{zone}.cartocdn/{user}' (`/api/v1/...` fragment added via code)
   secret_token:       '71c2b25921b84a1cb21c71503ab8fb23'
   account_host:       'localhost.lan:3000'
   account_path:       '/account'
+  data_library:
+    username:         'common-data'
+    path:             '/data-library'
   disable_file:       '~/disable'
   watcher:
     ttl:              60
@@ -166,6 +172,7 @@ defaults: &defaults
       api_key: ''
       table_name: ''
   importer:
+    blacklisted_ip_addr: []
     content_guessing:        # Depends on geocoding
       enabled:         false # Disabled if false or not present
       threshold:       0.9   # 90% or more matches
@@ -177,6 +184,12 @@ defaults: &defaults
       bucket_name:
       url_ttl:
       async_long_uploads: false
+      proxy_uri:
+      s3_endpoint: "s3.amazonaws.com"
+      s3_port:
+      s3_force_path_style: false
+      use_ssl: True
+
     unp_temporal_folder: '/tmp/imports/'
     # It must end in `/uploads` and be accessible via HTTP, if relative will default to Rails.Root/#{uploads_path}
     uploads_path: 'public/uploads'
@@ -202,6 +215,7 @@ defaults: &defaults
     data:
       kind: "carto"
       options:
+        # attribution:        'CartoDB attribution'
         query:              ""
         opacity:            0.99
         auto_bound:         false
@@ -241,9 +255,6 @@ defaults: &defaults
   gdrive:
     api_key: ""
     app_id: ""
-  bitly:
-    login: ""
-    key: ""
   # This enables a support chat within editor
   # Use your Olark api id to enable it. If you remove this entry or don't define an app key, it won't be activated.
   olark:
@@ -252,6 +263,10 @@ defaults: &defaults
   users_dumps:
     service:
       port: 00000
+  http_header_authentication:
+    header: # name of the trusted, safe header that your server adds to the request
+    field: # 'email' / 'username' / 'id' / 'auto' (autodetection)
+    autocreation: # true / false (true requires field to be email)
   oauth:
     # If the client_id/app_key is not set won't appear at the UI. @see application_helper.rb -> frontend_config
     # Must be the same as CartoDB::Datasources::xxxx DATASOURCE_NAME constants
@@ -268,6 +283,11 @@ defaults: &defaults
       app_key:              ''
       app_secret:           ''
       callback_url:         ''
+    box:
+      application_name:     ''
+      client_id:            ''
+      client_secret:        ''
+      box_host:             "app.box.com"
     instagram:
       app_key:              ''
       app_secret:           ''
@@ -313,7 +333,7 @@ defaults: &defaults
         maxZoom: '18'
         name: 'Positron'
         className: 'positron_rainbow_labels'
-        attribution: '© <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href= "http://cartodb.com/attributions#basemaps">CartoDB</a>'
+        attribution: '© <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="http://cartodb.com/attributions#basemaps">CartoDB</a>'
         labels:
           url: 'http://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png'
       dark_matter_rainbow_labels:
@@ -323,7 +343,7 @@ defaults: &defaults
         maxZoom: '18'
         name: 'Dark matter'
         className: 'dark_matter_rainbow_labels'
-        attribution: '© <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href= "http://cartodb.com/attributions#basemaps">CartoDB</a>'
+        attribution: '© <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="http://cartodb.com/attributions#basemaps">CartoDB</a>'
         labels:
           url: 'http://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}.png'
       positron_rainbow:
@@ -333,7 +353,7 @@ defaults: &defaults
         maxZoom: '18'
         name: 'Positron (labels below)'
         className: 'positron_rainbow'
-        attribution: '© <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href= "http://cartodb.com/attributions#basemaps">CartoDB</a>'
+        attribution: '© <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="http://cartodb.com/attributions#basemaps">CartoDB</a>'
       dark_matter_rainbow:
         url: 'http://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
         subdomains: 'abcd'
@@ -441,6 +461,9 @@ defaults: &defaults
         name: 'Watercolor'
         className: 'watercolor_stamen'
         attribution: 'Map tiles by <a href="http://stamen.com">Stamen Design</a>, under <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="http://openstreetmap.org">OpenStreetMap</a>, under <a href="http://www.openstreetmap.org/copyright">ODbL</a>.'
+  overviews:
+    min_rows: 2000000
+    statement_timeout: 1800000
 
 development:
   <<: *defaults

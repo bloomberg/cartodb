@@ -1,3 +1,5 @@
+require "resolv"
+
 module CartoDB
 
   begin
@@ -58,7 +60,15 @@ module CartoDB
   # "Smart" subdomain extraction from the request, depending on configuration and /u/xxx url fragment
   def self.extract_subdomain(request)
     user_domain = self.username_from_request(request)
-    user_domain.nil? ? self.subdomain_from_request(request) : user_domain
+    if user_domain.nil?
+      if subdomainless_urls? && ip?(request.host)
+        ''
+      else
+        subdomain_from_request(request)
+      end
+    else
+      user_domain
+    end
   end
 
   # Raw subdomain extraction from request
@@ -109,6 +119,10 @@ module CartoDB
     @@account_path ||= self.get_account_path
   end
 
+  def self.data_library_path
+    @@data_library_path ||= self.get_data_library_path
+  end
+
   def self.request_host=(value)
     @@request_host=value
   end
@@ -152,10 +166,22 @@ module CartoDB
   def self.domainless_base_url(subdomain, protocol_override=nil)
     protocol = self.protocol(protocol_override)
     port = protocol == 'http' ? self.http_port : self.https_port
-    request_subdomain = self.request_host.sub(self.session_domain, '')
-    request_subdomain += '.' if (request_subdomain.length > 0 && !request_subdomain.end_with?('.'))
+    if ip?(request_host)
+      "#{protocol}://#{request_host}#{port}/user/#{subdomain}"
+    else
+      request_subdomain = request_host.sub(session_domain, '')
+      request_subdomain += '.' if request_subdomain.length > 0 && !request_subdomain.end_with?('.')
 
-    "#{protocol}://#{request_subdomain}#{self.session_domain}#{port}/user/#{subdomain}"
+      if !subdomain.nil? && subdomain != ''
+        "#{protocol}://#{request_subdomain}#{session_domain}#{port}/user/#{subdomain}"
+      else
+        "#{protocol}://#{request_subdomain}#{session_domain}#{port}"
+      end
+    end
+  end
+
+  def self.ip?(string)
+    !!(string =~ Resolv::IPv4::Regex)
   end
 
   def self.username_from_request(request)
@@ -205,6 +231,10 @@ module CartoDB
 
   def self.get_account_path
     Cartodb.config[:account_path]
+  end
+
+  def self.get_data_library_path
+    Cartodb.config[:data_library] && Cartodb.config[:data_library]['path']
   end
 
 end

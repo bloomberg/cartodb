@@ -3,6 +3,7 @@
 class Admin::ClientApplicationsController < Admin::AdminController
   ssl_required :oauth, :api_key, :regenerate_api_key, :regenerate_oauth
 
+  before_filter :invalidate_browser_cache
   before_filter :login_required
 
   layout 'application'
@@ -24,7 +25,7 @@ class Admin::ClientApplicationsController < Admin::AdminController
       current_user.regenerate_api_key
       flash_message = "Your API key has been successfully generated"
     rescue Errno::ECONNREFUSED => e
-      CartoDB::Logger.info "Could not clear varnish cache", "#{e.inspect}"
+      CartoDB::StdoutLogger.info "Could not clear varnish cache", "#{e.inspect}"
       if Rails.env.development?
         current_user.set_map_key
         flash_message = "Your API key has been regenerated succesfully but the varnish cache has not been invalidated."

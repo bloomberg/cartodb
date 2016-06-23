@@ -3,11 +3,19 @@ require 'rspec/core'
 require 'rspec/expectations'
 require 'rspec/mocks'
 require_relative '../../spec_helper'
+require 'helpers/unique_names_helper'
 
 describe CartoDB::TableRelator do
+  include UniqueNamesHelper
   describe '.rows_and_size' do
-    before(:each) do
+    before(:all) do
       CartoDB::UserModule::DBService.any_instance.stubs(:enable_remote_db_user).returns(true)
+
+      @user = FactoryGirl.create(:valid_user)
+    end
+
+    after(:all) do
+      @user.destroy
     end
 
     before do
@@ -15,12 +23,12 @@ describe CartoDB::TableRelator do
     end
 
     it 'checks row_count_and_size relator method' do
-      $user_1.in_database { |database| @db = database }
+      @user.in_database { |database| @db = database }
 
-      table_name  = "test_#{rand(999)}"
+      table_name = unique_name('table')
 
       table = create_table({
-                               :user_id => $user_1.id,
+                               user_id: @user.id,
                                name: table_name
                            })
 
@@ -136,4 +144,3 @@ describe CartoDB::TableRelator do
     end
   end
 end
-

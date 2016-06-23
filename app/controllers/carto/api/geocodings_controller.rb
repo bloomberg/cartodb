@@ -10,7 +10,10 @@ module Carto
       def index
         # data_import_id is set for content guessing geocodes
         # TODO: agree on a more flexible API with params
-        geocodings = Carto::Geocoding.where("user_id = ? AND (state NOT IN (?)) AND (data_import_id IS NULL)", current_user.id, ['failed', 'finished', 'cancelled']).all
+        geocodings = Carto::Geocoding.where(
+          "user_id = ? AND (state NOT IN (?)) AND (data_import_id IS NULL)",
+          current_user.id, ['failed', 'finished', 'cancelled']
+        ).all
         render json: { geocodings: geocodings }, root: false
       end
 
@@ -66,9 +69,13 @@ module Carto
         return head(400) if input.nil? && params[:table_name].present?
         render(json: []) and return if input.nil? || input.empty?
 
-        list = input.map{ |v| "'#{ v }'" }.join(",")
+        list = input.map { |v| "'#{v.to_s.gsub("'", "''")}'" }.join(",")
 
-        services = CartoDB::SQLApi.new({ username: 'geocoding', timeout: GEOCODING_SQLAPI_CALLS_TIMEOUT}).fetch("SELECT (admin0_available_services(Array[#{list}])).*")
+        internal_geocoder_api_config = CartoDB::GeocoderConfig.instance.get['internal']
+          .symbolize_keys
+          .merge(timeout: GEOCODING_SQLAPI_CALLS_TIMEOUT)
+        services = CartoDB::SQLApi.new(internal_geocoder_api_config)
+          .fetch("SELECT (admin0_available_services(Array[#{list}])).*")
 
         geometries = []
         points = services.select { |s| s['postal_code_points'] }.size

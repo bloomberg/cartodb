@@ -76,12 +76,13 @@ class Api::Json::VisualizationsController < Api::ApplicationController
 
   def update
     @stats_aggregator.timing('visualizations.update') do
-
       begin
         vis, = @stats_aggregator.timing('locate') do
           locator.get(@table_id, CartoDB.extract_subdomain(request))
         end
-        return(head 404) unless vis
+
+        return head(404) unless vis
+        return head(403) unless payload[:id] == vis.id
         return head(403) unless vis.has_permission?(current_user, Visualization::Member::PERMISSION_READWRITE)
 
         vis_data = payload
@@ -145,8 +146,9 @@ class Api::Json::VisualizationsController < Api::ApplicationController
         vis,  = @stats_aggregator.timing('locate') do
           locator.get(@table_id, CartoDB.extract_subdomain(request))
         end
-        return(head 404) unless vis
-        return(head 403) unless vis.is_owner?(current_user)
+
+        return head(404) unless vis
+        return head(403) unless vis.is_owner?(current_user)
 
         track_event(vis, 'Deleted')
         unless vis.table.nil?
@@ -154,7 +156,7 @@ class Api::Json::VisualizationsController < Api::ApplicationController
             # Remove dependent visualizations as well, if any
             track_event(dependent_vis, 'Deleted')
           }
-        end 
+        end
 
         @stats_aggregator.timing('delete') do
           vis.delete
@@ -249,6 +251,18 @@ class Api::Json::VisualizationsController < Api::ApplicationController
           send_like_email(vis, current_viewer, vis_preview_image)
         end
 
+        custom_properties = {
+          action: 'like',
+          vis_id: vis.id,
+          vis_name: vis.name,
+          vis_type: vis.type == 'derived' ? 'map' : 'dataset',
+          vis_author: vis.user.username,
+          vis_author_email: vis.user.email,
+          vis_author_id: vis.user.id
+        }
+
+        Cartodb::EventTracker.new.send_event(current_viewer, 'Liked map', custom_properties)
+
         render_jsonp({
                        id:    vis.id,
                        likes: vis.likes.count,
@@ -281,6 +295,18 @@ class Api::Json::VisualizationsController < Api::ApplicationController
              .fetch
              .invalidate_cache
         end
+
+        custom_properties = {
+          action: 'remove',
+          vis_id: vis.id,
+          vis_name: vis.name,
+          vis_type: vis.type == 'derived' ? 'map' : 'dataset',
+          vis_author: vis.user.username,
+          vis_author_email: vis.user.email,
+          vis_author_id: vis.user.id
+        }
+
+        Cartodb::EventTracker.new.send_event(current_viewer, 'Liked map', custom_properties)
 
         render_jsonp({
                        id:    vis.id,

@@ -4,13 +4,18 @@ require 'active_record'
 require_relative 'user_service'
 require_relative 'user_db_service'
 require_relative 'synchronization_oauth'
+require_relative '../../helpers/data_services_metrics_helper'
 
 # TODO: This probably has to be moved as the service of the proper User Model
 class Carto::User < ActiveRecord::Base
   extend Forwardable
+  include DataServicesMetricsHelper
 
   MIN_PASSWORD_LENGTH = 6
+  MAX_PASSWORD_LENGTH = 64
   GEOCODING_BLOCK_SIZE = 1000
+  HERE_ISOLINES_BLOCK_SIZE = 1000
+
   # INFO: select filter is done for security and performance reasons. Add new columns if needed.
   DEFAULT_SELECT = "users.email, users.username, users.admin, users.organization_id, users.id, users.avatar_url," +
                    "users.api_key, users.database_schema, users.database_name, users.name, users.location," +
@@ -65,6 +70,7 @@ class Carto::User < ActiveRecord::Base
 
   def password=(value)
     return if !value.nil? && value.length < MIN_PASSWORD_LENGTH
+    return if !value.nil? && value.length >= MAX_PASSWORD_LENGTH
 
     @password = value
     self.salt = new_record? ? service.class.make_token : ::User.filter(:id => self.id).select(:salt).first.salt
@@ -141,7 +147,7 @@ class Carto::User < ActiveRecord::Base
   end
 
   def remove_logo?
-    /(FREE|MAGELLAN|JOHN SNOW|ACADEMY|ACADEMIC|ON HOLD)/i.match(self.account_type) ? false : true
+    Carto::AccountType.new.remove_logo?(self)
   end
 
   def organization_username
@@ -227,9 +233,18 @@ class Carto::User < ActiveRecord::Base
 
   def remaining_geocoding_quota(options = {})
     if organization.present?
-      remaining = organization.geocoding_quota.to_i - organization.get_geocoding_calls(options)
+      remaining = organization.remaining_geocoding_quota(options)
     else
       remaining = geocoding_quota - get_geocoding_calls(options)
+    end
+    (remaining > 0 ? remaining : 0)
+  end
+
+  def remaining_here_isolines_quota(options = {})
+    if organization.present?
+      remaining = organization.remaining_here_isolines_quota(options)
+    else
+      remaining = here_isolines_quota - get_here_isolines_calls(options)
     end
     (remaining > 0 ? remaining : 0)
   end
@@ -271,8 +286,24 @@ class Carto::User < ActiveRecord::Base
   def get_geocoding_calls(options = {})
     date_to = (options[:to] ? options[:to].to_date : Date.today)
     date_from = (options[:from] ? options[:from].to_date : last_billing_cycle)
-    self.geocodings.where(kind: 'high-resolution').where('created_at >= ? and created_at <= ?', date_from, date_to + 1.days)
-      .sum("processed_rows + cache_hits".lit).to_i
+    if has_feature_flag?('new_geocoder_quota')
+      get_user_geocoding_data(self, date_from, date_to)
+    else
+      self.geocodings.where(kind: 'high-resolution').where('created_at >= ? and created_at <= ?', date_from, date_to + 1.days)
+        .sum("processed_rows + cache_hits".lit).to_i
+    end
+  end
+
+  def get_new_system_geocoding_calls(options = {})
+    date_to = (options[:to] ? options[:to].to_date : Date.current)
+    date_from = (options[:from] ? options[:from].to_date : last_billing_cycle)
+    get_user_geocoding_data(self, date_from, date_to)
+  end
+
+  def get_here_isolines_calls(options = {})
+    date_to = (options[:to] ? options[:to].to_date : Date.today)
+    date_from = (options[:from] ? options[:from].to_date : last_billing_cycle)
+    get_user_here_isolines_data(self, date_from, date_to)
   end
 
   #TODO: Remove unused param `use_total`
@@ -292,13 +323,12 @@ class Carto::User < ActiveRecord::Base
     self.organization.present?
   end
 
+  def belongs_to_organization?(organization)
+    self.organization_user? && organization != nil && self.organization_id == organization.id
+  end
+
   def soft_geocoding_limit?
-    if self[:soft_geocoding_limit].nil?
-      plan_list = "ACADEMIC|Academy|Academic|INTERNAL|FREE|AMBASSADOR|ACADEMIC MAGELLAN|PARTNER|FREE|Magellan|Academy|ACADEMIC|AMBASSADOR"
-      (self.account_type =~ /(#{plan_list})/ ? false : true)
-    else
-      self[:soft_geocoding_limit]
-    end
+    Carto::AccountType.new.soft_geocoding_limit?(self)
   end
   alias_method :soft_geocoding_limit, :soft_geocoding_limit?
 
@@ -306,6 +336,16 @@ class Carto::User < ActiveRecord::Base
     !self.soft_geocoding_limit?
   end
   alias_method :hard_geocoding_limit, :hard_geocoding_limit?
+
+  def soft_here_isolines_limit?
+    Carto::AccountType.new.soft_here_isolines_limit?(self)
+  end
+  alias_method :soft_here_isolines_limit, :soft_here_isolines_limit?
+
+  def hard_here_isolines_limit?
+    !self.soft_here_isolines_limit?
+  end
+  alias_method :hard_here_isolines_limit, :hard_here_isolines_limit?
 
   def soft_twitter_datasource_limit?
     self.soft_twitter_datasource_limit  == true
@@ -325,11 +365,7 @@ class Carto::User < ActiveRecord::Base
   end
 
   def dedicated_support?
-    /(FREE|MAGELLAN|JOHN SNOW|ACADEMY|ACADEMIC|ON HOLD)/i.match(self.account_type) ? false : true
-  end
-
-  def remove_logo?
-    /(FREE|MAGELLAN|JOHN SNOW|ACADEMY|ACADEMIC|ON HOLD)/i.match(self.account_type) ? false : true
+    Carto::AccountType.new.dedicated_support?(self)
   end
 
   def arcgis_datasource_enabled?
@@ -342,6 +378,10 @@ class Carto::User < ActiveRecord::Base
 
     return true if self.private_tables_enabled # Note private_tables_enabled => private_maps_enabled
     return false
+  end
+
+  def viewable_by?(user)
+    self.id == user.id || (has_organization? && self.organization.owner.id == user.id)
   end
 
   # Some operations, such as user deletion, won't ask for password confirmation if password is not set (because of Google sign in, for example)

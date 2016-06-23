@@ -5,7 +5,7 @@
         <li class="js-logo">
           <a href="<%= cartodb_com_hosted? ? CartoDB.url(self, 'root') : "http://cartodb.com" %>">
             <span class="Logo Logo--avatar">
-              <i class="iconFont iconFont-CartoFante Logo-icon Logo-icon--dark"></i>
+              <i class="CDB-IconFont CDB-IconFont-cartoFante Logo-icon Logo-icon--dark"></i>
             </span>
           </a>
         </li>
@@ -16,48 +16,44 @@
           </li>
         <% else %>
           <li class="Header-navigationItem js-user-tour u-hideOnTablet">
-            <a href="http://cartodb.com" class="Header-navigationLink js-dropdown-target">Product <i class="Header-darrow iconFont iconFont-ArrowMenu"></i></a>
+            <a href="http://cartodb.com" class="Header-navigationLink js-dropdown-target">Product <i class="Header-darrow CDB-IconFont CDB-IconFont-caretDown"></i></a>
           </li>
 
           <li class="Header-navigationItem js-user-industries u-hideOnTablet">
-            <a href="#/industries" class="Header-navigationLink js-dropdown-target">Industries <i class="Header-darrow iconFont iconFont-ArrowMenu"></i></a>
+            <a href="#/industries" class="Header-navigationLink js-dropdown-target">Solutions <i class="Header-darrow CDB-IconFont CDB-IconFont-caretDown"></i></a>
           </li>
 
-          <% if !@viewed_user.nil? && @viewed_user.has_feature_flag?('explore_site') %>
-            <li class="Header-navigationItem js-user-explore u-hideOnTablet">
-              <a href="//cartodb.com/explore" class="Header-navigationLink">Explore</a>
-            </li>
-          <% end %>
+          <li class="Header-navigationItem js-user-discover u-hideOnTablet">
+            <a href="#/discover" class="Header-navigationLink js-dropdown-target">Discover <i class="Header-darrow CDB-IconFont CDB-IconFont-caretDown"></i></a>
+          </li>
 
-          <li class="Header-navigationItem u-hideOnTablet">
-            <a href="http://cartodb.com/gallery/" class="Header-navigationLink">Gallery</a>
+          <li class="Header-navigationItem js-user-resources u-hideOnTablet">
+            <a href="#/resources" class="Header-navigationLink js-dropdown-target">Learn <i class="Header-darrow CDB-IconFont CDB-IconFont-caretDown"></i></a>
           </li>
 
           <li class="Header-navigationItem u-hideOnTablet">
             <a href="http://cartodb.com/pricing/" class="Header-navigationLink">Pricing</a>
-          </li>
-
-          <li class="Header-navigationItem js-user-resources u-hideOnTablet">
-            <a href="#/resources" class="Header-navigationLink js-dropdown-target">Resources <i class="Header-darrow iconFont iconFont-ArrowMenu"></i></a>
           </li>
         <% end %>
       </ul>
     </div>
 
     <div class="Header-settings">
+      <% if current_user.has_feature_flag?('bbg_profile_menu') %>
       <ul class="Header-settingsList js-user-settings">
         <li class="Header-settingsItem js-login">
-          <a href="<%= CartoDB.url(self, 'login') %>" class="Header-settingsLink">Login</a>
+          <a href="<%= login_url %>" class="Header-settingsLink">Login</a>
         </li>
 
         <% unless cartodb_com_hosted? %>
           <li class="Header-settingsItem">
-            <a href="http://cartodb.com/signup" class="Button Button--headerPositive">
+            <a href="http://cartodb.com/signup" class="PublicButton PublicButton--sMedium PublicButton--cWhite is-hover is-hover--dark">
               <span>Sign up</span>
             </a>
           </li>
         <% end %>
       </ul>
+      <% end %>
     </div>
   </div>
 </div>

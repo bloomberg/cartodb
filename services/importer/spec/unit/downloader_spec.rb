@@ -1,5 +1,7 @@
 # encoding: utf-8
+require_relative '../../../../spec/spec_helper_min'
 require_relative '../../lib/importer/downloader'
+require_relative '../../../../lib/carto/url_validator'
 
 include CartoDB::Importer2
 
@@ -79,6 +81,13 @@ describe Downloader do
       downloader.source_file.filename.should eq 'ngos.csv'
     end
 
+    it 'ignores extra type parameters in Content-Type header' do
+      stub_download(url: @file_url_without_extension, filepath: @file_filepath_without_extension, headers: { 'Content-Type' => 'vnd.ms-excel;charset=UTF-8' })
+      downloader = Downloader.new(@file_url_without_extension)
+      downloader.run
+      downloader.send(:content_type).should eq 'vnd.ms-excel'
+    end
+
     it 'uses Content-Type header extension for files with different extension' do
       stub_download(
           url: @file_url_with_wrong_extension,
@@ -114,6 +123,32 @@ describe Downloader do
       downloader = Downloader.new(url_tgz_without_extension)
       downloader.run
       downloader.source_file.filename.should eq 'ok_data.csv.gz'
+    end
+
+    it 'uses the geojson extension if the header is text/plain' do
+      url_geojson = "http://www.example.com/tm_world_borders_simpl_0_8.geojson"
+      filepath_geojson  = path_to('tm_world_borders_simpl_0_8.geojson')
+      stub_download(
+          url: url_geojson,
+          filepath: filepath_geojson,
+          headers: { 'Content-Type' => 'text/plain' }
+      )
+      downloader = Downloader.new(url_geojson)
+      downloader.run
+      downloader.source_file.filename.should eq 'tm_world_borders_simpl_0_8.geojson'
+    end
+
+    it 'uses the kml extension if the header is text/plain' do
+      url_kml = "http://www.example.com/abandoned.kml"
+      filepath_kml  = path_to('abandoned.kml')
+      stub_download(
+          url: url_kml,
+          filepath: filepath_kml,
+          headers: { 'Content-Type' => 'text/plain' }
+      )
+      downloader = Downloader.new(url_kml)
+      downloader.run
+      downloader.source_file.filename.should eq 'abandoned.kml'
     end
 
     it 'extracts the source_file name from Content-Disposition header' do
@@ -249,6 +284,14 @@ describe Downloader do
       downloader = Downloader.new(@file_url)
       downloader.send(:name_from, headers, "#{@file_url}?foo=bar&woo=wee")
         .should eq 'ne_110m_lakes.zip'
+    end
+
+    it 'matches longer extension available from filename' do
+      headers = {}
+      hard_url = "https://cartofante.net/my_file.xlsx"
+
+      downloader = Downloader.new(hard_url)
+      downloader.send(:name_from, headers, hard_url).should eq 'my_file.xlsx'
     end
   end #name_from
 

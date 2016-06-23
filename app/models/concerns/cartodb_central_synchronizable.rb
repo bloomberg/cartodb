@@ -15,8 +15,12 @@ module Concerns
 
     def create_in_central
       return true unless sync_data_with_cartodb_central?
-      if self.is_a?(::User) && organization.present?
-        cartodb_central_client.create_organization_user(organization.name, allowed_attributes_to_central(:create))
+      if self.is_a?(::User)
+        if organization.present?
+          cartodb_central_client.create_organization_user(organization.name, allowed_attributes_to_central(:create))
+        else
+          CartoDB.notify_debug("User creations at box without organization are not notified to Central", user: self)
+        end
       elsif self.is_a?(Organization)
         raise "Can't create organizations in editor"
       end
@@ -62,14 +66,16 @@ module Concerns
           :geocoding_block_price, :map_view_block_price,
           :twitter_datasource_enabled, :twitter_datasource_block_size,
           :twitter_datasource_block_price, :twitter_datasource_quota,
-          :google_maps_key, :google_maps_private_key, :auth_username_password_enabled, :auth_google_enabled]
+          :google_maps_key, :google_maps_private_key, :auth_username_password_enabled,
+          :auth_google_enabled, :here_isolines_quota, :here_isolines_block_price]
         when :update
           [:seats, :quota_in_bytes, :display_name, :description, :website,
           :discus_shortname, :twitter_username, :geocoding_quota, :map_view_quota,
           :geocoding_block_price, :map_view_block_price,
           :twitter_datasource_enabled, :twitter_datasource_block_size,
           :twitter_datasource_block_price, :twitter_datasource_quota,
-          :google_maps_key, :google_maps_private_key, :auth_username_password_enabled, :auth_google_enabled]
+          :google_maps_key, :google_maps_private_key, :auth_username_password_enabled,
+          :auth_google_enabled, :here_isolines_quota, :here_isolines_block_price]
         end
       elsif self.is_a?(::User)
         [:account_type, :admin, :crypted_password, :database_host,
@@ -86,7 +92,7 @@ module Concerns
         :google_sign_in, :last_password_change_date,
         :google_maps_key, :google_maps_private_key,
         :arcgis_datasource_enabled,
-        :private_maps_enabled]
+        :private_maps_enabled, :here_isolines_quota, :here_isolines_block_price, :soft_here_isolines_limit]
       end
     end
 
@@ -109,7 +115,8 @@ module Concerns
           :user_timeout, :username, :website, :soft_geocoding_limit,
           :twitter_datasource_enabled, :soft_twitter_datasource_limit,
           :arcgis_datasource_enabled, :google_sign_in, :last_password_change_date,
-          :google_maps_key, :google_maps_private_key
+          :google_maps_key, :google_maps_private_key, :here_isolines_quota, :here_isolines_block_price,
+          :soft_here_isolines_limit
         )
         case action
         when :create

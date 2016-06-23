@@ -125,28 +125,30 @@ module CartoDB
       end
 
       def normalize(temporary_filepath)
-        temporary_csv = ::CSV.open(temporary_filepath, 'w', col_sep: OUTPUT_DELIMITER)
-        File.open(filepath, 'rb', external_encoding: encoding)
-        .each_line(line_delimiter) { |line|
-          row = parsed_line(line)
-          next unless row
-          temporary_csv << multiple_column(row)
-        }
+
+        temporary_csv = CSV.open(temporary_filepath, 'w', col_sep: OUTPUT_DELIMITER, encoding: 'UTF-8')
+
+        CSV.open(filepath, "rb:#{encoding}", col_sep: @delimiter) do |input|
+          loop do
+            begin
+              row = input.shift
+              break unless row
+            rescue CSV::MalformedCSVError
+              next
+            end
+            temporary_csv << multiple_column(row)
+          end
+        end
+
+        # TODO: it would be nice to detect and  warn the user about ignored
+        # malformed rows (but probably not about malformed empty lines, such
+        # as trailing \n\r\n seen in some cases)
 
         temporary_csv.close
 
         @delimiter = OUTPUT_DELIMITER
       rescue ArgumentError, Encoding::UndefinedConversionError, Encoding::InvalidByteSequenceError => e
         raise EncodingDetectionError
-      end
-
-      def   parsed_line(line)
-        ::CSV.parse_line(line.chomp.encode('UTF-8',
-                         :fallback => {
-                             REVERSE_LINE_FEED.force_encoding("Windows-1252") => ""
-                         }), csv_options)
-      rescue => e
-        nil
       end
 
       def temporary_filepath(filename_prefix = '')
@@ -160,15 +162,6 @@ module CartoDB
         }
       end
 
-      def line_delimiter
-        windows_eol? ? "\r" : $/
-      end
-
-      def windows_eol?
-        return false if first_line =~ /\n/
-        !!(first_line =~ %r{\r})
-      end
-
       def needs_normalization?
         (!ACCEPTABLE_ENCODINGS.include?(encoding))  ||
         (delimiter != DEFAULT_DELIMITER)            ||
@@ -176,7 +169,9 @@ module CartoDB
       end
 
       def single_column?
-        ::CSV.parse(first_line, csv_options).first.length < 2
+        columns = ::CSV.parse(first_line, csv_options)
+        raise EmptyFileError.new if !columns.any?
+        columns.first.length < 2
       end
 
       def multiple_column(row)
@@ -215,8 +210,9 @@ module CartoDB
       def first_line
         return @first_line if @first_line
         stream.rewind
-        @first_line ||= stream.gets
+        @first_line ||= stream.gets || ''
         stream.rewind
+        @first_line
       end
 
       def release
@@ -260,6 +256,10 @@ module CartoDB
       end
 
       def remove_quoted_strings(input)
+        # Note that CSV quoted strings can use double quotes, `""`
+        # as a way of escaping a single quote `"`
+        # Since we're just removing all quoted strings, this simple
+        # approach works in that case too.
         input.gsub(/"[^\\"]*"/, '')
       end
 
@@ -268,4 +268,3 @@ module CartoDB
     end
   end
 end
-

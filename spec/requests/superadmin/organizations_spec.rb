@@ -5,6 +5,7 @@ feature "Superadmin's organization API" do
   before(:all) do
     # Capybara.current_driver = :rack_test
     @organization = create_organization_with_users(name: 'vizzuality')
+    @organization2 = create_organization_with_users(name: 'vizzuality-2')
     @org_atts = @organization.values
   end
 
@@ -29,6 +30,44 @@ feature "Superadmin's organization API" do
       organization.should be_present
       organization.id.should == response.body[:id]
       organization.destroy
+    end
+  end
+
+  scenario "organization with owner creation success" do
+    org_atts = FactoryGirl.build(:organization, name: 'wadus').values
+    user = FactoryGirl.create(:user_with_private_tables)
+    org_atts[:owner_id] = user.id
+
+    post_json superadmin_organizations_path, { organization: org_atts }, superadmin_headers do |response|
+      response.status.should == 201
+      response.body[:name].should == 'wadus'
+
+      # Double check that the organization has been created properly
+      organization = Organization.filter(name: org_atts[:name]).first
+      organization.should be_present
+      organization.id.should == response.body[:id]
+
+      organization.owner_id.should == user.id
+      user.reload
+      user.organization_id.should == organization.id
+      organization.destroy_cascade
+    end
+  end
+
+  scenario "organization with owner creation failure" do
+    org_atts = FactoryGirl.build(:organization, name: 'wadus-fail').values
+    user = FactoryGirl.create(:user_with_private_tables)
+    org_atts[:owner_id] = user.id
+
+    simulated_error = StandardError.new('promote_user_to_admin failure simulation')
+    CartoDB::UserOrganization.any_instance.stubs(:promote_user_to_admin).raises(simulated_error)
+
+    post_json superadmin_organizations_path, { organization: org_atts }, superadmin_headers do |response|
+      response.status.should == 500
+
+      Organization.filter(name: org_atts[:name]).first.should be_nil
+      user.reload
+      user.organization_id.should be_nil
     end
   end
 
@@ -57,8 +96,12 @@ feature "Superadmin's organization API" do
   end
 
   describe "GET /superadmin/organization" do
+
+    before(:all) do
+      @organization.owner.stubs(:has_feature_flag?).with('new_geocoder_quota').returns(true)
+    end
+
     it "gets all organizations" do
-      @organization2 = FactoryGirl.create(:organization, name: 'wadus')
       get_json superadmin_organizations_path, {}, superadmin_headers do |response|
         response.status.should == 200
         response.body.map { |u| u["name"] }.should include(@organization.name, @organization2.name)
@@ -92,6 +135,19 @@ feature "Superadmin's organization API" do
   describe 'users destruction logic' do
     include_context 'organization with users helper'
 
+    it 'blocks deletion of a user with shared entities' do
+      table = create_random_table(@org_user_1)
+      share_table(table, @org_user_1, @org_user_2)
+
+      expect do
+        @org_user_1.destroy
+      end.to raise_error(CartoDB::BaseCartoDBError, "Cannot delete user, has shared entities")
+    end
+  end
+
+  describe 'sharing users destruction logic' do
+    include_context 'organization with users helper'
+
     it 'keeps a table shared with an user when that user is deleted' do
       table = create_random_table(@org_user_1)
       share_table(table, @org_user_1, @org_user_2)
@@ -101,9 +157,41 @@ feature "Superadmin's organization API" do
 
       expect {
         @org_user_1.destroy
-      }.to raise_error(CartoDB::BaseCartoDBError, "Cannot delete user, has shared entities")
+      }.not_to raise_error(CartoDB::BaseCartoDBError, "Cannot delete user, has shared entities")
     end
+  end
 
+  describe 'users with shares destruction logic' do
+    include_context 'organization with users helper'
+
+    it 'cleans sharing information when recipient user is deleted' do
+      table = create_random_table(@org_user_1)
+      share_table(table, @org_user_1, @org_user_2)
+
+      Carto::SharedEntity.where(recipient_id: @org_user_2.id).count.should == 1
+
+      permission = table.map.visualizations.first.permission
+      acl = JSON.parse(permission.access_control_list)
+      acl[0]['id'].should == @org_user_2.id
+
+      @org_user_2.destroy
+
+      # Table is kept
+      Carto::UserTable.where(id: table.id).first.should_not be_nil
+
+      # Share is removed
+      Carto::SharedEntity.where(recipient_id: @org_user_2.id).count.should == 0
+
+      # User is removed from ACL
+      table.reload
+      permission = table.map.visualizations.first.permission
+      acl = JSON.parse(permission.access_control_list)
+      acl.count.should == 0
+
+      expect {
+        @org_user_1.destroy
+      }.not_to raise_error(CartoDB::BaseCartoDBError, "Cannot delete user, has shared entities")
+    end
   end
 
 

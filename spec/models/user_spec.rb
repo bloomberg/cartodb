@@ -1,6 +1,17 @@
 # coding: UTF-8
+
+require 'ostruct'
 require_relative '../spec_helper'
 require_relative 'user_shared_examples'
+require_relative '../../services/dataservices-metrics/lib/here_isolines_usage_metrics'
+require 'factories/organizations_contexts'
+require_relative '../../app/model_factories/layer_factory'
+require_dependency 'cartodb/redis_vizjson_cache'
+require 'helpers/unique_names_helper'
+require 'factories/users_helper'
+require 'factories/database_configuration_contexts'
+
+include UniqueNamesHelper
 
 describe 'refactored behaviour' do
 
@@ -39,6 +50,7 @@ describe User do
     stub_named_maps_calls
     CartoDB::Varnish.any_instance.stubs(:send_command).returns(true)
     CartoDB::UserModule::DBService.any_instance.stubs(:enable_remote_db_user).returns(true)
+    Table.any_instance.stubs(:update_cdb_tablemetadata)
   end
 
   after(:all) do
@@ -167,9 +179,6 @@ describe User do
       organization.reload
       user1.reload
 
-      # Don't remove this line or the spec will fail (magic):
-      puts "Organization users: #{organization.users.count}"
-
       user2 = new_user
       user2.organization = organization
       user2.valid?.should be_false
@@ -233,14 +242,14 @@ describe User do
       it 'user email is not valid if organization has whitelisted domains and email is not under that domain' do
         @organization.whitelisted_email_domains = [ 'organization.org' ]
         user = FactoryGirl.build(:valid_user, organization: @organization)
-        user.valid?.should == false
+        user.valid?.should eq false
         user.errors[:email].should_not be_nil
       end
 
       it 'user email is valid if organization has whitelisted domains and email is under that domain' do
         user = FactoryGirl.build(:valid_user, organization: @organization)
         @organization.whitelisted_email_domains = [ user.email.split('@')[1] ]
-        user.valid?.should == true
+        user.valid?.should eq true
         user.errors[:email].should == []
       end
     end
@@ -407,6 +416,23 @@ describe User do
     user.destroy
   end
 
+  it "should validate password presence and length" do
+    user = ::User.new
+    user.username = "adminipop"
+    user.email = "adminipop@example.com"
+
+    user.valid?.should be_false
+    user.errors[:password].should be_present
+
+    user.password = 'short'
+    user.valid?.should be_false
+    user.errors[:password].should be_present
+
+    user.password = 'manolo' * 11
+    user.valid?.should be_false
+    user.errors[:password].should be_present
+  end
+
   it "should set default statement timeout values" do
     @user.in_database["show statement_timeout"].first[:statement_timeout].should == "5min"
     @user.in_database(as: :public_user)["show statement_timeout"].first[:statement_timeout].should == "5min"
@@ -503,8 +529,15 @@ describe User do
   end
 
   describe "avatar checks" do
+    let(:user1) do
+      create_user(email: 'ewdewfref34r43r43d32f45g5@example.com', username: 'u1', password: 'foobar')
+    end
+
+    after(:each) do
+      user1.destroy
+    end
+
     it "should load a cartodb avatar url" do
-      user1 = create_user(email: 'ewdewfref34r43r43d32f45g5@example.com', username: 'u1', password: 'foobar')
       avatar_kind = Cartodb.config[:avatars]['kinds'][0]
       avatar_color = Cartodb.config[:avatars]['colors'][0]
       avatar_base_url = Cartodb.config[:avatars]['base_url']
@@ -514,42 +547,36 @@ describe User do
       user1.avatar_url = nil
       user1.save
       user1.reload_avatar
-      user1.avatar_url.should == "//#{avatar_base_url}/avatar_#{avatar_kind}_#{avatar_color}.png"
-      user1.destroy
+      user1.avatar_url.should == "#{avatar_base_url}/avatar_#{avatar_kind}_#{avatar_color}.png"
     end
+
     it "should load a the user gravatar url" do
-      user1 = create_user(email: 'ewdewfref34r43r43d32f45g5@example.com', username: 'u1', password: 'foobar')
       gravatar_url = %r{gravatar.com}
       Typhoeus.stub(gravatar_url, { method: :get }).and_return(Typhoeus::Response.new(code: 200))
       user1.reload_avatar
       user1.avatar_url.should == "//#{user1.gravatar_user_url}"
-      user1.destroy
     end
   end
 
   describe '#overquota' do
-    it "should return users over their map view quota, excluding organization users" do
-      ::User.overquota.should be_empty
-      ::User.any_instance.stubs(:get_api_calls).returns (0..30).to_a
-      ::User.any_instance.stubs(:map_view_quota).returns 10
-      ::User.overquota.map(&:id).should include(@user.id)
-      ::User.overquota.size.should == ::User.reject{|u| u.organization_id.present? }.count
-    end
-
-    it "should return users near their map view quota" do
-      ::User.any_instance.stubs(:get_api_calls).returns([81])
-      ::User.any_instance.stubs(:map_view_quota).returns(100)
+    it "should return users near their geocoding quota" do
+      ::User.any_instance.stubs(:get_api_calls).returns([0])
+      ::User.any_instance.stubs(:map_view_quota).returns(120)
+      ::User.any_instance.stubs(:get_geocoding_calls).returns(81)
+      ::User.any_instance.stubs(:geocoding_quota).returns(100)
       ::User.overquota.should be_empty
       ::User.overquota(0.20).map(&:id).should include(@user.id)
       ::User.overquota(0.20).size.should == ::User.reject{|u| u.organization_id.present? }.count
       ::User.overquota(0.10).should be_empty
     end
 
-    it "should return users near their geocoding quota" do
+    it "should return users near their here isolines quota" do
       ::User.any_instance.stubs(:get_api_calls).returns([0])
       ::User.any_instance.stubs(:map_view_quota).returns(120)
-      ::User.any_instance.stubs(:get_geocoding_calls).returns(81)
+      ::User.any_instance.stubs(:get_geocoding_calls).returns(0)
       ::User.any_instance.stubs(:geocoding_quota).returns(100)
+      ::User.any_instance.stubs(:get_here_isolines_calls).returns(81)
+      ::User.any_instance.stubs(:here_isolines_quota).returns(100)
       ::User.overquota.should be_empty
       ::User.overquota(0.20).map(&:id).should include(@user.id)
       ::User.overquota(0.20).size.should == ::User.reject{|u| u.organization_id.present? }.count
@@ -630,6 +657,36 @@ describe User do
 
     it "should return 0 when no geocodings" do
       @user.get_geocoding_calls(from: Time.now - 15.days, to: Time.now - 10.days).should eq 0
+    end
+  end
+
+  describe '#get_here_isolines_calls' do
+    before do
+      delete_user_data @user
+      @mock_redis = MockRedis.new
+      @usage_metrics = CartoDB::HereIsolinesUsageMetrics.new(@user.username, nil, @mock_redis)
+      CartoDB::HereIsolinesUsageMetrics.stubs(:new).returns(@usage_metrics)
+      @user.stubs(:last_billing_cycle).returns(Date.today)
+      @user.period_end_date = (DateTime.current + 1) << 1
+      @user.save.reload
+    end
+
+    it "should return the sum of here isolines rows for the current billing period" do
+      @usage_metrics.incr(:here_isolines, :isolines_generated, 10, DateTime.current)
+      @usage_metrics.incr(:here_isolines, :isolines_generated, 100, (DateTime.current - 2))
+      @user.get_here_isolines_calls.should eq 10
+    end
+
+    it "should return the sum of here isolines rows for the specified period" do
+      @usage_metrics.incr(:here_isolines, :isolines_generated, 10, DateTime.current)
+      @usage_metrics.incr(:here_isolines, :isolines_generated, 100, (DateTime.current - 2))
+      @usage_metrics.incr(:here_isolines, :isolines_generated, 100, (DateTime.current - 7))
+      @user.get_here_isolines_calls(from: Time.now-5.days).should eq 110
+      @user.get_here_isolines_calls(from: Time.now-5.days, to: Time.now - 2.days).should eq 100
+    end
+
+    it "should return 0 when no here isolines actions" do
+      @user.get_here_isolines_calls(from: Time.now - 15.days, to: Time.now - 10.days).should eq 0
     end
   end
 
@@ -1010,9 +1067,6 @@ describe User do
       .with("#{doomed_user.database_name}.*")
       .returns(true)
     CartoDB::Varnish.any_instance.expects(:purge)
-      .with("^#{doomed_user.database_name}:(.*public(\\\\\")?\\.clubbing.*)|(table)$")
-      .returns(true)
-    CartoDB::Varnish.any_instance.expects(:purge)
       .with(".*#{uuid}:vizjson")
       .times(2 + 5)
       .returns(true)
@@ -1092,6 +1146,26 @@ describe User do
       @user.hard_geocoding_limit.should be_false
     end
 
+    it 'returns true when for enterprise accounts unless it has been manually set to false' do
+      ['ENTERPRISE', 'ENTERPRISE LUMP-SUM', 'Enterprise Medium Lumpsum AWS'].each do |account_type|
+        @user.stubs(:account_type).returns(account_type)
+
+        @user.soft_geocoding_limit = nil
+
+        @user.soft_geocoding_limit?.should be_false
+        @user.soft_geocoding_limit.should be_false
+        @user.hard_geocoding_limit?.should be_true
+        @user.hard_geocoding_limit.should be_true
+
+        @user.soft_geocoding_limit = true
+
+        @user.soft_geocoding_limit?.should be_true
+        @user.soft_geocoding_limit.should be_true
+        @user.hard_geocoding_limit?.should be_false
+        @user.hard_geocoding_limit.should be_false
+      end
+    end
+
     it 'returns false when the plan is CORONELLI or MERCATOR unless it has been manually set to true' do
       @user.stubs(:account_type).returns('CORONELLI')
       @user.hard_geocoding_limit?.should be_false
@@ -1105,6 +1179,44 @@ describe User do
       @user.stubs(:account_type).returns('MERCATOR')
       @user.hard_geocoding_limit?.should be_true
     end
+  end
+
+  describe '#hard_here_isolines_limit?' do
+
+    before(:each) do
+      @user_account = create_user
+    end
+
+    it 'returns true with every plan unless it has been manually set to false' do
+      @user_account[:soft_here_isolines_limit].should be_nil
+      @user_account.stubs(:account_type).returns('AMBASSADOR')
+      @user_account.soft_here_isolines_limit?.should be_false
+      @user_account.soft_here_isolines_limit.should be_false
+      @user_account.hard_here_isolines_limit?.should be_true
+      @user_account.hard_here_isolines_limit.should be_true
+
+      @user_account.stubs(:account_type).returns('FREE')
+      @user_account.soft_here_isolines_limit?.should be_false
+      @user_account.soft_here_isolines_limit.should be_false
+      @user_account.hard_here_isolines_limit?.should be_true
+      @user_account.hard_here_isolines_limit.should be_true
+
+      @user_account.hard_here_isolines_limit = false
+      @user_account[:soft_here_isolines_limit].should_not be_nil
+
+      @user_account.stubs(:account_type).returns('AMBASSADOR')
+      @user_account.soft_here_isolines_limit?.should be_true
+      @user_account.soft_here_isolines_limit.should be_true
+      @user_account.hard_here_isolines_limit?.should be_false
+      @user_account.hard_here_isolines_limit.should be_false
+
+      @user_account.stubs(:account_type).returns('FREE')
+      @user_account.soft_here_isolines_limit?.should be_true
+      @user_account.soft_here_isolines_limit.should be_true
+      @user_account.hard_here_isolines_limit?.should be_false
+      @user_account.hard_here_isolines_limit.should be_false
+    end
+
   end
 
   describe '#link_ghost_tables' do
@@ -1302,12 +1414,7 @@ describe User do
 
       # Grant permission
       user2_vis  = CartoDB::Visualization::Collection.new.fetch(user_id: @user2.id, name: table3.name).first
-      permission = CartoDB::Permission.new(
-        owner_id:       @user2.id,
-        owner_username: @user2.username,
-        entity_id:      user2_vis.id,
-        entity_type:    CartoDB::Permission::ENTITY_TYPE_VISUALIZATION
-      )
+      permission = user2_vis.permission
       permission.acl = [
         {
           type: CartoDB::Permission::TYPE_USER,
@@ -1338,6 +1445,43 @@ describe User do
 
       @user.tables.all.each { |t| t.destroy }
       @user2.tables.all.each { |t| t.destroy }
+    end
+  end
+
+  describe '#destroy' do
+    it 'deletes database role' do
+      u1 = create_user(email: 'ddr@example.com', username: 'ddr', password: 'admin123')
+      role = u1.database_username
+      db = u1.in_database
+      db_service = u1.db_service
+
+      db_service.role_exists?(db, role).should == true
+
+      u1.destroy
+
+      expect do
+      db_service.role_exists?(db, role).should == false
+      end.to raise_error(/role "#{role}" does not exist/)
+      db.disconnect
+    end
+
+    describe "on organizations" do
+      include_context 'organization with users helper'
+
+      it 'deletes database role' do
+        role = @org_user_1.database_username
+        db = @org_user_1.in_database
+        db_service = @org_user_1.db_service
+
+        db_service.role_exists?(db, role).should == true
+
+        @org_user_1.destroy
+
+        expect do
+          db_service.role_exists?(db, role).should == false
+        end.to raise_error(/role "#{role}" does not exist/)
+        db.disconnect
+      end
     end
   end
 
@@ -1480,7 +1624,7 @@ describe User do
     @user.errors.fetch(:new_password).nil?.should eq false
     expect {
       @user.save(raise_on_failure: true)
-    }.to raise_exception(Sequel::ValidationFailed, "new_password New password and confirm password are not the same")
+    }.to raise_exception(Sequel::ValidationFailed, "new_password New password doesn't match confirmation")
 
     @user.change_password('aaaaaa', 'aaabbb', 'bbbaaa')
     @user.valid?.should eq false
@@ -1488,35 +1632,43 @@ describe User do
     @user.errors.fetch(:new_password).nil?.should eq false
     expect {
       @user.save(raise_on_failure: true)
-    }.to raise_exception(Sequel::ValidationFailed, "old_password Old password not valid, new_password New password and confirm password are not the same")
+    }.to raise_exception(Sequel::ValidationFailed, "old_password Old password not valid, new_password New password doesn't match confirmation")
 
     @user.change_password(@user_password, 'tiny', 'tiny')
     @user.valid?.should eq false
     @user.errors.fetch(:new_password).nil?.should eq false
     expect {
       @user.save(raise_on_failure: true)
-    }.to raise_exception(Sequel::ValidationFailed, "new_password New password is too short (6 chars min)")
+    }.to raise_exception(Sequel::ValidationFailed, "new_password Must be at least 6 characters long")
+
+    long_password = 'long' * 20
+    @user.change_password(@user_password, long_password, long_password)
+    @user.valid?.should eq false
+    @user.errors.fetch(:new_password).nil?.should eq false
+    expect {
+      @user.save(raise_on_failure: true)
+    }.to raise_exception(Sequel::ValidationFailed, "new_password Must be at most 64 characters long")
 
     @user.change_password('aaaaaa', nil, nil)
     @user.valid?.should eq false
     @user.errors.fetch(:old_password).nil?.should eq false
     expect {
       @user.save(raise_on_failure: true)
-    }.to raise_exception(Sequel::ValidationFailed, "old_password Old password not valid, new_password Missing new password")
+    }.to raise_exception(Sequel::ValidationFailed, "old_password Old password not valid, new_password New password can't be blank")
 
     @user.change_password(@user_password, nil, nil)
     @user.valid?.should eq false
     @user.errors.fetch(:new_password).nil?.should eq false
     expect {
       @user.save(raise_on_failure: true)
-    }.to raise_exception(Sequel::ValidationFailed, "new_password Missing new password")
+    }.to raise_exception(Sequel::ValidationFailed, "new_password New password can't be blank")
 
     @user.change_password(nil, nil, nil)
     @user.valid?.should eq false
     @user.errors.fetch(:old_password).nil?.should eq false
     expect {
       @user.save(raise_on_failure: true)
-    }.to raise_exception(Sequel::ValidationFailed, "old_password Old password not valid, new_password Missing new password")
+    }.to raise_exception(Sequel::ValidationFailed, "old_password Old password not valid, new_password New password can't be blank")
 
     @user.change_password(nil, new_valid_password, new_valid_password)
     @user.valid?.should eq false
@@ -1524,7 +1676,6 @@ describe User do
     expect {
       @user.save(raise_on_failure: true)
     }.to raise_exception(Sequel::ValidationFailed, "old_password Old password not valid")
-
 
     @user.change_password(@user_password, new_valid_password, new_valid_password)
     @user.valid?.should eq true
@@ -1576,24 +1727,34 @@ describe User do
       end
 
       collection = CartoDB::Visualization::Collection.new.fetch({user_id: @user.id})
-      redis_mock = mock
+      redis_spy = RedisDoubles::RedisSpy.new
       redis_vizjson_cache = CartoDB::Visualization::RedisVizjsonCache.new()
       redis_embed_cache = EmbedRedisCache.new()
-      CartoDB::Visualization::RedisVizjsonCache.any_instance.stubs(:redis).returns(redis_mock)
-      EmbedRedisCache.any_instance.stubs(:redis).returns(redis_mock)
+      CartoDB::Visualization::RedisVizjsonCache.any_instance.stubs(:redis).returns(redis_spy)
+      EmbedRedisCache.any_instance.stubs(:redis).returns(redis_spy)
 
 
-      redis_vizjson_keys = collection.map {|v| [redis_vizjson_cache.key(v.id, false), redis_vizjson_cache.key(v.id, true)] }.flatten
+      redis_vizjson_keys = collection.map { |v|
+        [
+          redis_vizjson_cache.key(v.id, false), redis_vizjson_cache.key(v.id, true),
+          redis_vizjson_cache.key(v.id, false, 3), redis_vizjson_cache.key(v.id, true, 3)
+        ]
+      }.flatten
       redis_vizjson_keys.should_not be_empty
 
-      redis_embed_keys = collection.map {|v| [redis_embed_cache.key(v.id, false), redis_embed_cache.key(v.id, true)] }.flatten
+      redis_embed_keys = collection.map { |v|
+        [redis_embed_cache.key(v.id, false), redis_embed_cache.key(v.id, true)]
+      }.flatten
       redis_embed_keys.should_not be_empty
 
-
-      redis_mock.expects(:del).once.with(redis_vizjson_keys)
-      redis_mock.expects(:del).once.with(redis_embed_keys)
-
       @user.purge_redis_vizjson_cache
+
+      redis_spy.deleted.should include(*redis_vizjson_keys)
+      redis_spy.deleted.should include(*redis_embed_keys)
+      redis_spy.deleted.count.should eq redis_vizjson_keys.count + redis_embed_keys.count
+      redis_spy.invokes(:del).count.should eq 2
+      redis_spy.invokes(:del).map(&:sort).should include(redis_vizjson_keys.sort)
+      redis_spy.invokes(:del).map(&:sort).should include(redis_embed_keys.sort)
     end
 
     it "shall not fail if the user does not have visualizations" do
@@ -1669,6 +1830,12 @@ describe User do
       user = FactoryGirl.build(:user, :google_sign_in => true, :last_password_change_date => Time.now)
       user.needs_password_confirmation?.should == true
     end
+
+    it 'is false for users that were created with http authentication' do
+      user = FactoryGirl.build(:valid_user, last_password_change_date: nil)
+      Carto::UserCreation.stubs(:http_authentication).returns(stub(find_by_user_id: FactoryGirl.build(:user_creation)))
+      user.needs_password_confirmation?.should == false
+    end
   end
 
   describe 'User creation and DB critical calls' do
@@ -1685,8 +1852,8 @@ describe User do
       user_timeout_secs = 666
 
       user = ::User.new
-      user.username = String.random(8).downcase
-      user.email = String.random(8).downcase + '@' + String.random(5).downcase + '.com'
+      user.username = unique_name('user')
+      user.email = unique_email
       user.password = user.email.split('@').first
       user.password_confirmation = user.password
       user.admin = false
@@ -1906,8 +2073,8 @@ describe User do
       user1.reload
 
       user = ::User.new
-      user.username = String.random(8).downcase
-      user.email = String.random(8).downcase + '@' + String.random(5).downcase + '.com'
+      user.username = unique_name('user')
+      user.email = unique_email
       user.password = user.email.split('@').first
       user.password_confirmation = user.password
       user.admin = false

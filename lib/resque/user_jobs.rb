@@ -29,8 +29,15 @@ module Resque
         end
       end
 
-    end
+      module SeatLimitReached
+        extend ::Resque::Metrics
+        @queue = :users
 
+        def self.perform(organization_id)
+          OrganizationMailer.seat_limit_reached(Organization.where(id: organization_id).first).deliver
+        end
+      end
+    end
   end
 
   module UserJobs
@@ -69,7 +76,6 @@ module Resque
 
     end
 
-
     module CommonData
       module LoadCommonData
         @queue = :users
@@ -80,7 +86,6 @@ module Resque
       end
 
     end
-
 
     module Mail
 
@@ -163,9 +168,9 @@ module Resque
         extend ::Resque::Metrics
         @queue = :users
 
-        def self.perform(user_id, imported_tables, total_tables, first_imported_table, first_table, errors)
+        def self.perform(user_id, imported_tables, total_tables, first_imported_table, first_table, errors, filenames)
           u = ::User.where(id: user_id).first
-          ImportMailer.data_import_finished(u, imported_tables, total_tables, first_imported_table, first_table, errors).deliver
+          ImportMailer.data_import_finished(u, imported_tables, total_tables, first_imported_table, first_table, errors, filenames).deliver
         end
       end
 
@@ -200,7 +205,6 @@ module Resque
           UserMailer.trending_map(visualization, mapviews, vis_preview_image).deliver
         end
       end
-
     end
   end
 end

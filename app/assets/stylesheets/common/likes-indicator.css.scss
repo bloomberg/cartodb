@@ -8,17 +8,19 @@
 $cLiked: #D93F56;
 
 .LikesIndicator {
-  color: $cTypography-secondary;
+  color: $Grey7;
 }
 .LikesIndicator-count {
   display: inline-block;
   margin: 0 0 0 5px;
-  vertical-align: top;
+  vertical-align: top; 
 }
 .LikesIndicator-icon {
-  @include transform(1);
-  color: $cTypography-help;
+  @include transforms(1);
+  color: $Grey7;
   font-size: $sFontSize-small;
+  width: $sFontSize-small;
+  height: $sFontSize-small;
 }
 .LikesIndicator-icon.LikesIndicator-icon--big {
   font-size: $sFontSize-largest;
@@ -31,12 +33,14 @@ $cLiked: #D93F56;
   text-decoration: none;
   .LikesIndicator-icon {
     color: $cLiked;
+    background-image: url('../images/sprites/common/star_32_selected.png');
   }
 }
 .LikesIndicator.is-liked {
   color: $cLiked;
   .LikesIndicator-icon {
     color: $cLiked;
+    background-image: url('../images/sprites/common/star_32_selected.png');
   }
   &:hover {
     color: $cLiked;
@@ -49,19 +53,19 @@ $cLiked: #D93F56;
 }
 @include keyframes(pulse) {
   0% {
-    @include transform(scale(1));
+    @include transforms(scale(1));
   }
   25% {
-    @include transform(scale(1.3));
+    @include transforms(scale(1.3));
   }
   50% {
-    @include transform(scale(0.8));
+    @include transforms(scale(0.8));
   }
   75% {
-    @include transform(scale(1.3));
+    @include transforms(scale(1.3));
   }
   100% {
-    @include transform(scale(1));
+    @include transforms(scale(1));
   }
 }
 

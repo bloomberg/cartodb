@@ -1,39 +1,35 @@
 require_relative 'visualization_presenter'
-require_relative 'vizjson_presenter'
+require_dependency 'carto/api/vizjson_presenter'
 require_relative '../../../models/visualization/stats'
 require_relative 'paged_searcher'
+require_relative '../controller_helper'
 require_dependency 'carto/uuidhelper'
 require_dependency 'static_maps_url_helper'
+require_relative 'vizjson3_presenter'
 
 module Carto
   module Api
-    class VisualizationLoadError < StandardError
-      attr_reader :message, :status
-
-      def initialize(message, status)
-        @message = message
-        @status = status
-      end
-    end
-
     class VisualizationsController < ::Api::ApplicationController
       include VisualizationSearcher
       include PagedSearcher
       include Carto::UUIDHelper
+      include Carto::ControllerHelper
+      include VisualizationsControllerHelper
 
       ssl_required :index, :show
-      ssl_allowed  :vizjson2, :likes_count, :likes_list, :is_liked, :list_watching, :static_map
+      ssl_allowed  :vizjson2, :vizjson3, :likes_count, :likes_list, :is_liked, :list_watching, :static_map
 
       # TODO: compare with older, there seems to be more optional authentication endpoints
-      skip_before_filter :api_authorization_required, only: [:index, :vizjson2, :is_liked, :static_map]
-      before_filter :optional_api_authorization, only: [:index, :vizjson2, :is_liked, :static_map]
+      skip_before_filter :api_authorization_required, only: [:index, :vizjson2, :vizjson3, :is_liked, :static_map]
+      before_filter :optional_api_authorization, only: [:index, :vizjson2, :vizjson3, :is_liked, :static_map]
 
       before_filter :id_and_schema_from_params
-      before_filter :load_by_name_or_id, only: [:vizjson2]
+      before_filter :load_by_name_or_id, only: [:vizjson2, :vizjson3]
       before_filter :load_visualization, only: [:likes_count, :likes_list, :is_liked, :show, :stats, :list_watching,
                                                 :static_map]
 
-      rescue_from Carto::Api::VisualizationLoadError, with: :visualization_load_error
+      rescue_from Carto::LoadError, with: :rescue_from_carto_error
+      rescue_from Carto::UUIDParameterFormatError, with: :rescue_from_carto_error
 
       def show
         render_jsonp(to_json(@visualization))
@@ -46,11 +42,13 @@ module Carto
         types, total_types = get_types_parameters
         vqb = query_builder_with_filter_from_hash(params)
 
+        presenter_cache = Carto::Api::PresenterCache.new
+
         # TODO: undesirable table hardcoding, needed for disambiguation. Look for
         # a better approach and/or move it to the query builder
         response = {
           visualizations: vqb.with_order("visualizations.#{order}", :desc).build_paged(page, per_page).map { |v|
-              VisualizationPresenter.new(v, current_viewer, self, { related: false }).to_poro
+              VisualizationPresenter.new(v, current_viewer, self, { related: false }).with_presenter_cache(presenter_cache).to_poro
           },
           total_entries: vqb.build.count
         }
@@ -65,6 +63,9 @@ module Carto
         render_jsonp(response)
       rescue CartoDB::BoundingBoxError => e
         render_jsonp({ error: e.message }, 400)
+      rescue => e
+        CartoDB::Logger.error(exception: e)
+        render_jsonp({ error: e.message }, 500)
       end
 
       def likes_count
@@ -90,22 +91,11 @@ module Carto
       end
 
       def vizjson2
-        set_vizjson_response_headers_for(@visualization)
-        render_jsonp(Carto::Api::VizJSONPresenter.new(@visualization, $tables_metadata).to_vizjson( { https_request: is_https? } ))
-      rescue KeyError => exception
-        render(text: exception.message, status: 403)
-      rescue CartoDB::NamedMapsWrapper::HTTPResponseError => exception
-        CartoDB.notify_exception(exception, { user: current_user, template_data: exception.template_data })
-        render_jsonp({ errors: { named_maps_api: "Communication error with tiler API. HTTP Code: #{exception.message}" } }, 400)
-      rescue CartoDB::NamedMapsWrapper::NamedMapDataError => exception
-        CartoDB.notify_exception(exception)
-        render_jsonp({ errors: { named_map: exception.message } }, 400)
-      rescue CartoDB::NamedMapsWrapper::NamedMapsDataError => exception
-        CartoDB.notify_exception(exception)
-        render_jsonp({ errors: { named_maps: exception.message } }, 400)
-      rescue => exception
-        CartoDB.notify_exception(exception)
-        raise exception
+        render_vizjson(generate_vizjson2)
+      end
+
+      def vizjson3
+        render_vizjson(generate_vizjson3(@visualization, params))
       end
 
       def list_watching
@@ -133,6 +123,29 @@ module Carto
 
       private
 
+      def generate_vizjson2
+        Carto::Api::VizJSONPresenter.new(@visualization, $tables_metadata).to_vizjson(https_request: is_https?)
+      end
+
+      def render_vizjson(vizjson)
+        set_vizjson_response_headers_for(@visualization)
+        render_jsonp(vizjson)
+      rescue KeyError => exception
+        render(text: exception.message, status: 403)
+      rescue CartoDB::NamedMapsWrapper::HTTPResponseError => exception
+        CartoDB.notify_exception(exception, user: current_user, template_data: exception.template_data)
+        render_jsonp({ errors: { named_maps_api: "Communication error with tiler API. HTTP Code: #{exception.message}" } }, 400)
+      rescue CartoDB::NamedMapsWrapper::NamedMapDataError => exception
+        CartoDB.notify_exception(exception)
+        render_jsonp({ errors: { named_map: exception.message } }, 400)
+      rescue CartoDB::NamedMapsWrapper::NamedMapsDataError => exception
+        CartoDB.notify_exception(exception)
+        render_jsonp({ errors: { named_maps: exception.message } }, 400)
+      rescue => exception
+        CartoDB.notify_exception(exception)
+        raise exception
+      end
+
       def load_by_name_or_id
         @table =  is_uuid?(@id) ? Carto::UserTable.where(id: @id).first  : nil
 
@@ -146,24 +159,16 @@ module Carto
       end
 
       def load_visualization
-        # Implicit order due to legacy code: 1st return canonical/table/Dataset if present, else derived/visualization/Map
-        @visualization = Carto::VisualizationQueryBuilder.new
-                                                         .with_id_or_name(@id)
-                                                         .build
-                                                         .all
-                                                         .sort { |vis_a, vis_b|
-                                                              vis_a.type == Carto::Visualization::TYPE_CANONICAL ? -1 : 1
-                                                            }
-                                                         .first
+        @visualization = load_visualization_from_id_or_name(params[:id])
 
         if @visualization.nil?
-          raise Carto::Api::VisualizationLoadError.new('Visualization does not exist', 404)
+          raise Carto::LoadError.new('Visualization does not exist', 404)
         end
         if !@visualization.is_viewable_by_user?(current_viewer)
-          raise Carto::Api::VisualizationLoadError.new('Visualization not viewable', 403)
+          raise Carto::LoadError.new('Visualization not viewable', 403)
         end
         unless request_username_matches_visualization_owner
-          raise Carto::Api::VisualizationLoadError.new('Visualization of that user does not exist', 404)
+          raise Carto::LoadError.new('Visualization of that user does not exist', 404)
         end
       end
 
@@ -206,13 +211,6 @@ module Carto
       def to_hash(visualization)
         # TODO: previous controller uses public_fields_only option which I don't know if is still used
         VisualizationPresenter.new(visualization, current_viewer, self).to_poro
-      end
-
-      def visualization_load_error(e)
-        respond_to do |format|
-          format.html { render text: e.message, status: e.status }
-          format.json { render json: { errors: e.message }, status: e.status }
-        end
       end
 
     end

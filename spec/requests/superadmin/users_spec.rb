@@ -1,4 +1,6 @@
 # encoding: utf-8
+
+require 'ostruct'
 require_relative '../../acceptance_helper'
 
 feature "Superadmin's users API" do
@@ -97,6 +99,8 @@ feature "Superadmin's users API" do
     @user_atts[:map_view_block_price] = 15
     @user_atts[:geocoding_quota] = 15
     @user_atts[:geocoding_block_price] = 2
+    @user_atts[:here_isolines_quota] = 100
+    @user_atts[:here_isolines_block_price] = 5
     @user_atts[:notification] = 'Test'
 
     post_json superadmin_users_path, { user: @user_atts }, superadmin_headers do |response|
@@ -110,6 +114,8 @@ feature "Superadmin's users API" do
       response.body[:map_view_block_price].should == 15
       response.body[:geocoding_quota].should == 15
       response.body[:geocoding_block_price].should == 2
+      response.body[:here_isolines_quota].should == 100
+      response.body[:here_isolines_block_price].should == 5
       response.body[:notification].should == 'Test'
 
       # Double check that the user has been created properly
@@ -122,6 +128,8 @@ feature "Superadmin's users API" do
       user.map_view_block_price.should == 15
       user.geocoding_quota.should == 15
       user.geocoding_block_price.should == 2
+      user.here_isolines_quota.should == 100
+      user.here_isolines_block_price.should == 5
       user.notification.should == 'Test'
     end
     ::User.where(username: @user_atts[:username]).first.destroy
@@ -142,6 +150,8 @@ feature "Superadmin's users API" do
                      map_view_block_price: 200,
                      geocoding_quota: 230,
                      geocoding_block_price: 5,
+                     here_isolines_quota: 250,
+                     here_isolines_block_price: 10,
                      notification: 'Test',
                      available_for_hire: true,
                      disqus_shortname: 'abc' }
@@ -163,6 +173,8 @@ feature "Superadmin's users API" do
     user.map_view_block_price.should == 200
     user.geocoding_quota.should == 230
     user.geocoding_block_price.should == 5
+    user.here_isolines_quota.should == 250
+    user.here_isolines_block_price.should == 10
     user.notification.should == 'Test'
     user.disqus_shortname.should == 'abc'
     user.available_for_hire.should == true
@@ -176,6 +188,8 @@ feature "Superadmin's users API" do
     user.map_view_block_price.should == 200
     user.geocoding_quota.should == 230
     user.geocoding_block_price.should == 5
+    user.here_isolines_quota.should == 250
+    user.here_isolines_block_price.should == 10
     user.notification.should == 'Test'
 
     user.destroy
@@ -316,7 +330,27 @@ feature "Superadmin's users API" do
       response.body[:id].should == user.id
     end
 
+    get_json superadmin_user_path(user.id), {}, superadmin_headers do |response|
+      response.status.should == 200
+      response.body[:id].should == user.id
+    end
+
+    get_json superadmin_user_path(user.username), {}, superadmin_headers do |response|
+      response.status.should == 200
+      response.body[:id].should == user.id
+    end
+
     user.destroy
+  end
+
+  scenario "user get info fail" do
+    get_json superadmin_user_path('7b77546f-79cb-4662-9439-9ebafd9627cb'), {}, superadmin_headers do |response|
+      response.status.should == 404
+    end
+
+    get_json superadmin_user_path('nonexistinguser'), {}, superadmin_headers do |response|
+      response.status.should == 404
+    end
   end
 
   describe "GET /superadmin/users" do
@@ -340,10 +374,30 @@ feature "Superadmin's users API" do
 
     it "gets overquota users" do
       ::User.stubs(:overquota).returns [@user]
+      ::User.stubs(:get_stored_overquota_users).returns [@user.data]
       get_json superadmin_users_path, { overquota: true }, superadmin_headers do |response|
         response.status.should == 200
         response.body[0]["username"].should == @user.username
         response.body.length.should == 1
+      end
+    end
+
+    it "gets cached db_size_in_bytes_change_users and returns username and db_size_in_bytes_change" do
+      cached_users_mock = {
+        'username1' => 1111,
+        'username2' => 2222
+      }
+      Carto::UserDbSizeCache.any_instance.expects(:db_size_in_bytes_change_users).once.returns(cached_users_mock)
+
+      get_json superadmin_users_path, { db_size_in_bytes_change: true }, superadmin_headers do |response|
+        response.status.should == 200
+        users = response.body
+        users.length.should == cached_users_mock.length
+        users.each do |user|
+          user.keys.should == ['username', 'db_size_in_bytes']
+        end
+        users.each.map { |u| u['username'] }.sort.should == cached_users_mock.keys.sort
+        users.each.map { |u| u['db_size_in_bytes'] }.sort.should == cached_users_mock.values.sort
       end
     end
 

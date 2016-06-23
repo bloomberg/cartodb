@@ -74,6 +74,8 @@ module CartoDB
       public_map.js
       public_map_deps.js
       editor.js
+      editor3.js
+      public_editor3.js
       account_templates.js
       account_deps.js
       account.js
@@ -87,6 +89,7 @@ module CartoDB
       table.js
       public_dashboard.js
       public_like.js
+      cartod1b.js
       common.js
       old_common.js
       old_common_without_core.js
@@ -109,6 +112,7 @@ module CartoDB
       modernizr.js
       statsc.js
 
+      deep_insights.css
       cdb.css
       cdb/themes/css/cartodb.css
       cdb/themes/css/cartodb.ie.css
@@ -120,6 +124,8 @@ module CartoDB
       fonts.css
       front.css
       editor.css
+      editor3.css
+      public_editor3.css
       table.css
       leaflet.css
       map.css
@@ -132,6 +138,7 @@ module CartoDB
       data_library.css
       public_table.css
       sessions.css
+      cartod1b.css
       user_feed.css
       explore.css
 

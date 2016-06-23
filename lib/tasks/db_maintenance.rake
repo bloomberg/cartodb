@@ -1,5 +1,7 @@
 require_relative 'thread_pool'
+require_relative '../../services/dataservices-metrics/lib/geocoder_usage_metrics'
 require 'timeout'
+require 'date'
 
 namespace :cartodb do
   namespace :db do
@@ -753,46 +755,6 @@ namespace :cartodb do
       puts "\n>Finished :create_default_vis_permissions"
     end
 
-    desc "Check all visualizations and populate their Permission object's entity_id and entity_type"
-    task :populate_permission_entity_id, [:page_size, :page] => :environment do |t, args|
-      page_size = args[:page_size].blank? ? 999999 : args[:page_size].to_i
-      page = args[:page].blank? ? 1 : args[:page].to_i
-
-      require_relative '../../app/models/visualization/collection'
-
-      progress_each =  (page_size > 10) ? (page_size / 10).ceil : 1
-      collection = CartoDB::Visualization::Collection.new
-
-
-      begin
-        items = collection.fetch(page: page, per_page: page_size)
-
-        count = items.count
-        puts "\n>Running :populate_permission_entity_id for page #{page} (#{count} vis)" if count > 0
-        items.each_with_index { |vis, i|
-          puts ">Processed: #{i}/#{count} - page #{page}" if i % progress_each == 0
-          unless vis.permission_id.nil?
-            begin
-              raise 'No owner' if vis.user.nil?
-              if vis.permission.entity_id.nil?
-                perm = vis.permission
-                perm.entity = vis
-                perm.save
-              end
-            rescue => e
-              owner_id = vis.user.nil? ? 'nil' : vis.user.id
-              message = "FAIL u:#{owner_id} v:#{vis.id}: #{e.message}"
-              puts message
-              log(message, :populate_permission_entity_id.to_s)
-            end
-          end
-        }
-        page += 1
-      end while count > 0
-
-      puts "\n>Finished :populate_permission_entity_id"
-    end
-
     # Executes a ruby code proc/block on all existing users, outputting some info
     # @param task_name string
     # @param block Proc
@@ -1193,6 +1155,137 @@ namespace :cartodb do
         rescue => e
           puts "ERROR for #{owner.organization.name}: #{e.message}"
         end
+      end
+    end
+
+    # e.g. bundle exec rake cartodb:db:configure_geocoder_extension_for_organizations[org-name]
+    #      bundle exec rake cartodb:db:configure_geocoder_extension_for_organizations['',true]
+    desc "Configure geocoder extension configuration for organizations"
+    task :configure_geocoder_extension_for_organizations, [:organization_name, :all_organizations] => :environment do |t, args|
+      args.with_defaults(:organization_name => nil, :all_organizations => false)
+      if args[:organization_name].blank? and args[:all_organizations] != 'true'
+        # Double check before launch an update to all the orgs
+        raise "ERROR: You haven't passed an organization name and/or put the :all_organizations flag to true"
+      end
+      organizations = args[:organization_name].blank? ? ::Organization.all : ::Organization.where(name: args[:organization_name]).all
+      raise "ERROR: Organization #{args[:organization_name]} don't exists" if organizations.blank? and not args[:all_organizations]
+      run_for_organizations_owner(organizations) do |owner|
+        begin
+          result = owner.db_service.install_and_configure_geocoder_api_extension
+          puts "Owner #{owner.username}: #{result ? 'OK' : 'ERROR'}"
+          # TODO Improved using the execute_on_users_with_index when orgs have a lot more users
+          owner.organization.users.each do |u|
+            if not u.organization_owner?
+              result = u.db_service.install_and_configure_geocoder_api_extension
+              puts "Organization user #{u.username}: #{result ? 'OK' : 'ERROR'}"
+            end
+          end
+        rescue => e
+          puts "Error trying to configure geocoder extension for org #{owner.organization.name}: #{e.message}"
+        end
+      end
+    end
+
+    # e.g. bundle exec rake cartodb:db:configure_geocoder_extension_for_non_org_users[username]
+    #      bundle exec rake cartodb:db:configure_geocoder_extension_for_non_org_users['',true]
+    desc "Configure geocoder extension configuration for non-organization users"
+    task :configure_geocoder_extension_for_non_org_users, [:username, :all_users] => :environment do |t, args|
+      args.with_defaults(:username => nil, :all_users => false)
+      if args[:username].blank? and args[:all_users] != 'true'
+        # Double check before launch an update to all the orgs
+        raise "ERROR: You haven't passed an username and/or put the :all_users flag to true"
+      end
+      if not args[:username].blank?
+        user = ::User.where(username: args[:username]).first
+        raise  "ERROR: User #{args[:username]} don't exists" if user.nil?
+        begin
+          result = user.db_service.install_and_configure_geocoder_api_extension
+          puts "#{result ? 'OK' : 'ERROR'} #{user.username}"
+        rescue => e
+          puts "Error trying to configure geocoder extension for user #{u.name}: #{e.message}"
+        end
+      elsif args[:all_users]
+        # TODO Could be improved passing the query to execute_on_users_with_index function to filter by non-org-users
+        execute_on_users_with_index(:configure_geocoder_extension_for_non_org_users.to_s, Proc.new { |user, i|
+          begin
+            if not user.organization_user?
+              result = user.db_service.install_and_configure_geocoder_api_extension
+              puts "#{result ? 'OK' : 'ERROR'} #{user.username}"
+            end
+          rescue => e
+            puts "Error trying to configure geocoder extension for user #{u.name}: #{e.message}"
+          end
+        }, 1, 0.3)
+      end
+    end
+
+    # e.g. bundle exec rake cartodb:db:migrate_current_geocoder_billing_to_redis[YYYYMM,YYYYMMDD]
+    desc 'Migrate the current billing geocoding data to Redis'
+    task :migrate_current_geocoder_billing_to_redis, [:date_from, :date_to] => [:environment] do |task, args|
+      args.with_defaults(:date_from => nil, :date_to => nil)
+      if args[:date_from].blank? or args[:date_to].blank?
+        raise "ERROR: Is mandatory to pass a date from and to for the migration"
+      end
+      begin
+        date_from = DateTime.parse(args[:date_from])
+        date_to = DateTime.parse(args[:date_to])
+      rescue => e
+        raise "Error converting argument dates, check the arguments"
+      end
+      execute_on_users_with_index(:migrate_current_geocoder_billing_to_redis.to_s, Proc.new { |user, i|
+        begin
+          # We are working on the v2 which is only Nokia
+          next if user.google_maps_geocoder_enabled?
+          orgname = user.organization.nil? ? nil : user.organization.name
+          usage_metrics = CartoDB::GeocoderUsageMetrics.new(user.username, orgname)
+          geocoding_calls = user.get_not_aggregated_geocoding_calls({from: date_from, to: date_to})
+          geocoding_calls.each do |metric|
+            usage_metrics.incr(:geocoder_here, :success_responses, metric[:processed_rows], metric[:date])
+            usage_metrics.incr(:geocoder_here, :total_requests, metric[:processed_rows], metric[:date])
+            usage_metrics.incr(:geocoder_cache, :success_responses, metric[:cache_hits], metric[:date])
+            usage_metrics.incr(:geocoder_cache, :total_requests, metric[:cache_hits], metric[:date])
+            puts "Imported metrics for day #{metric[:date]} and user #{user.username}: #{metric}"
+          end
+        rescue => e
+          puts "Error trying to migrate user current billing cycle to redis #{user.username}: #{e.message}"
+        end
+      }, 1, 0.3)
+    end
+
+    # e.g. bundle exec rake cartodb:db:update_user_and_org_redis_metadata[username]
+    #      bundle exec rake cartodb:db:update_user_and_org_redis_metadata
+    desc 'Update users and organizations metadata in Redis'
+    task :update_user_and_org_redis_metadata, [:username] => [:environment] do |task, args|
+      args.with_defaults(:username => nil)
+      if args[:username].blank?
+        execute_on_users_with_index(:update_user_and_org_redis_metadata.to_s, Proc.new { |user, i|
+          update_user_metadata(user)
+          update_organization_metadata(user)
+        }, 1, 0.3)
+      else
+        user = ::User.where(username: args[:username]).first
+        update_user_metadata(user)
+        update_organization_metadata(user)
+      end
+    end
+
+    def update_user_metadata(user)
+      begin
+        user.save_metadata
+        puts "Updated redis metadata for user #{user.username}"
+      rescue => e
+        puts "Error trying to update the user  metadata for user #{user.username}: #{e.message}"
+      end
+    end
+
+    def update_organization_metadata(user)
+      begin
+        if user.organization_owner?
+          user.organization.save_metadata
+          puts "Updated redis metadata for organization #{user.organization.name}"
+        end
+      rescue => e
+        puts "Error trying to update the user and/or org metadata for user #{user.username}: #{e.message}"
       end
     end
 

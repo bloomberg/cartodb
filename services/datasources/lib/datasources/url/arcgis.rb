@@ -14,7 +14,7 @@ module CartoDB
         # Required for all datasources
         DATASOURCE_NAME = 'arcgis'
 
-        ARCGIS_API_LIKE_URL_RE = /\/(arcgis|gis)\/rest/i
+        ARCGIS_API_LIKE_URL_RE = /\/rest\/services/i
 
         METADATA_URL     = '%s?f=json'
         FEATURE_IDS_URL  = '%s/query?where=1%%3D1&returnIdsOnly=true&f=json'
@@ -357,6 +357,8 @@ module CartoDB
         end
 
         # NOTE: Assumes url is valid
+        # NOTE: Returned ids are sorted so they can be chunked into blocks to
+        #       be requested by range queries: `(OBJECTID >= ... AND OBJECTID <= ... )`        
         # @param url String
         # @return Array
         # @throws DataDownloadError
@@ -368,7 +370,7 @@ module CartoDB
             if response.code != 200
 
           begin
-            data = ::JSON.parse(response.body).fetch('objectIds')
+            data = ::JSON.parse(response.body).fetch('objectIds').sort
           rescue => exception
             raise ResponseError.new("Missing data: #{exception.to_s} #{request_url} #{exception.backtrace}")
           end

@@ -164,9 +164,10 @@ $sLabel-width: 140px;
   height: 38px;
   padding: 0 12px;
   outline: none;
-  border: 1px solid #CCC;
-  border-radius: 4px;
-  color: #666;
+  background-color: $Amber1;
+  border: 1px solid $Black;
+  border-radius: 2px;
+  color: $Black;
   z-index: 2;
 
   &:focus { border-color: #999 }
@@ -219,7 +220,7 @@ $sLabel-width: 140px;
 .Form-input.Form-input--error:focus,
 .Form-input.Form-input--error:hover { border-color: rgba(#DD3B37,1) }
 
-.Form-input::-webkit-input-placeholder { font-style: italic; color: #AAA }
+.Form-input::-webkit-input-placeholder { font-style: italic; color: rgb(110, 83, 49) }
 .Form-input:-moz-placeholder           { font-style: italic; color: #AAA }
 .Form-input::-moz-placeholder          { font-style: italic; color: #AAA }
 .Form-input:-ms-input-placeholder      { font-style: italic; color: #AAA }
@@ -247,20 +248,19 @@ $sLabel-width: 140px;
 }
 .Form-input.has-submit {
   padding: 0 70px 0 12px;
-
+  height: 50px;
   &.Form-input--longer { width: 387px }
   &.Form-input--long { width: 333px }
   &.Form-input--med { width: 227px }
   &.Form-input--short {}
 }
 .Form-inputSubmit {
+  @include actionButton;
   position: absolute;
   top: 50%;
   right: 12px;
-  height: 28px;
-  padding: 0;
+  height: 26px;
   margin-top: -14px;
-  background: none;
   z-index: 2;
 }
 .Form-inputIcon {
@@ -385,7 +385,7 @@ $sLabel-width: 140px;
   color: $cTypography-link;
   &:hover {
     cursor: pointer;
-    text-decoration: underline;
+    text-decoration: none;
     color: $cTypography-linkHover;
   }
 }
@@ -399,7 +399,7 @@ $sLabel-width: 140px;
 }
 .Form-link {
   color: $cTypography-link;
-  text-decoration: underline;
+  text-decoration: none;
   &:hover {
     color: $cTypography-linkHover;
     cursor: pointer;
@@ -420,8 +420,8 @@ $sLabel-width: 140px;
   width: 213px;
   height: 50px;
   padding: 0 10px 0 74px;
-  @include background(image-url('layout/export-files.png') no-repeat 10px 10px #F3F3F3);
-  border: 1px dashed $cStructure-mainLine;
+  @include background(image-url('layout/export-files.png') no-repeat 10px 10px $Amber1);
+  border: 1px solid  $Black;
   border-radius: 2px;
 }
 .Form-upload.is-dropping {
@@ -430,7 +430,7 @@ $sLabel-width: 140px;
   .Form-fileLabel { color: rgba(black, 0.4); }
 }
 .Form-file {
-  &:hover .Button--main { background: #007fbd }
+  &:hover .Button--main { background: $Teal3 }
   &:hover .Button--negative { background-color: rgba(#B93F37, 1) }
 }
 .Form-file input[type="file"] {
@@ -449,7 +449,7 @@ $sLabel-width: 140px;
 .Form-fileLabel {
   width: 130px;
   line-height: 17px;
-  color: $cTypography-secondary;
+  color: $Black;
   font-size: $sFontSize-smallUpperCase;
 }
 .Form-fileLabel--error {
@@ -458,7 +458,6 @@ $sLabel-width: 140px;
 }
 .Form-fileButton {
   height: 26px;
-  padding: 0 14px;
   font-size: $sFontSize-smallUpperCase;
   font-weight: $sFontWeight-normal;
 }
@@ -497,7 +496,7 @@ $sLabel-width: 140px;
 .Form-rowInfoText--error { color: #DD3B37 }
 .Form-rowInfoText--error .Form-link {
   color: #DD3B37;
-  text-decoration: underline;
+  text-decoration: none;
 }
 .Form-footer {
   @include display-flex();

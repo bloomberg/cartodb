@@ -9,8 +9,9 @@
 @import "../../old_common/vars";
 @import "../../old_common/common-sprite";
 @import "../../table/table-sprite";
+@import "../variables/colors";
 
-$corner_radius: 6px;
+$corner_radius: 0px;
 
 .table_panel {
   position:fixed;
@@ -19,24 +20,23 @@ $corner_radius: 6px;
   bottom:0px;
   width:600px;
   padding-top:25px;
-  background:white;
+  background:$DarkGrey3;
   letter-spacing:-4px;
-  border:1px solid rgba(black,0.4);
+  border:1px solid $Black;
   border-bottom:0;
   border-right:0;
-  background:#EDEDED;
   @include box-shadow(rgba(black,0.15) 0 0 2px 2px);
   @include border-top-left-radius($corner_radius);
   z-index:20;
 
-
+//bb_layer_panel
   .layer_panel {
     position:relative;
     width:100%;
     height:100%;
     margin-top:-25px;
-    background:#EDEDED;
-    border-top:1px solid #999999;
+    background:$DarkGrey2;
+    border-top:1px solid $Black;
     @include border-top-left-radius($corner_radius);
     @include box-shadow(rgba(black,0.1) 0 -10px 20px 0);
     @include transform-style("linear");
@@ -97,8 +97,8 @@ $corner_radius: 6px;
 
     .layer-info .info {
       .order {background:#666666;}
-      .name_info {color:#999;}
-      .name { color:#666; }
+      .name_info {color:$Grey2;}
+      .name { color:$Grey1; }
     }
 
     &:hover {
@@ -111,7 +111,6 @@ $corner_radius: 6px;
   // Active layer in visualization
   .layer_panel.active.vis {
     .layer-info {
-      .info .name:hover { color:#454545 }
     }
   }
 
@@ -132,11 +131,6 @@ $corner_radius: 6px;
   // due to it is not possible drag layers in table view.
   &.ui-sortable .layer_panel.active .layer-info .info:hover {
     cursor:move;
-    .order {
-      @include table-sprite(layer_move_icon);
-      background-color:none;
-      text-indent:-9999px;
-    }
   }
 
 }

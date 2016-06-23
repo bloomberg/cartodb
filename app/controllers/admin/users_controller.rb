@@ -2,12 +2,28 @@
 require_dependency 'google_plus_api'
 require_dependency 'google_plus_config'
 require_relative '../../../services/datasources/lib/datasources'
+require_relative '../helpers/avatar_helper'
 
 class Admin::UsersController < Admin::AdminController
   include LoginHelper
+  include AvatarHelper
+
+  SERVICE_TITLES = {
+    'gdrive' => 'Google Drive',
+    'dropbox' => 'Dropbox',
+    'box' => 'Box',
+    'mailchimp' => 'MailChimp',
+    'instagram' => 'Instagram'
+  }
+
+  SERVICE_REVOKE_URLS = {
+    'mailchimp' => 'http://admin.mailchimp.com/account/oauth2/',
+    'instagram' => 'http://instagram.com/accounts/manage_access/'
+  }
 
   ssl_required  :account, :profile, :account_update, :profile_update, :delete
 
+  before_filter :invalidate_browser_cache
   before_filter :login_required
   before_filter :setup_user
   before_filter :initialize_google_plus_config, only: [:profile, :account]
@@ -18,12 +34,15 @@ class Admin::UsersController < Admin::AdminController
   PASSWORD_DOES_NOT_MATCH_MESSAGE = 'Password does not match'
 
   def profile
+    @avatar_valid_extensions = AVATAR_VALID_EXTENSIONS
+
     respond_to do |format|
       format.html { render 'profile' }
     end
   end
 
   def account
+    @can_be_deleted, @cant_be_deleted_reason = can_be_deleted?(@user)
     respond_to do |format|
       format.html { render 'account' }
     end
@@ -47,8 +66,8 @@ class Admin::UsersController < Admin::AdminController
       @user.set_fields(attributes, [:email])
     end
 
-    @user.save(raise_on_failure: true)
     @user.update_in_central
+    @user.save(raise_on_failure: true)
 
     update_session_security_token(@user) if password_change
 
@@ -65,7 +84,7 @@ class Admin::UsersController < Admin::AdminController
   def profile_update
     attributes = params[:user]
 
-    if attributes[:avatar_url].present?
+    if attributes[:avatar_url].present? && valid_avatar_file?(attributes[:avatar_url])
       @user.avatar_url = attributes.fetch(:avatar_url, nil)
     end
 
@@ -119,6 +138,16 @@ class Admin::UsersController < Admin::AdminController
 
   private
 
+  def can_be_deleted?(user)
+    if user.organization_owner?
+      return false, "You can't delete your account because you are admin of an organization"
+    elsif Carto::UserCreation.http_authentication.where(user_id: user.id).first.present?
+      return false, "You can't delete your account because you are using HTTP Header Authentication"
+    else
+      return true, nil
+    end
+  end
+
   def initialize_google_plus_config
     signup_action = Cartodb::Central.sync_data_with_cartodb_central? ? Cartodb::Central.new.google_signup_url : '/google/signup'
     @google_plus_config = ::GooglePlusConfig.instance(CartoDB, Cartodb.config, signup_action)
@@ -134,28 +163,24 @@ class Admin::UsersController < Admin::AdminController
 
     datasources.each do |serv|
       obj ||= Hash.new
-      enabled = false
-      title = ''
-      revoke_url = ''
 
-      case serv
+      title = SERVICE_TITLES.fetch(serv, serv)
+      revoke_url = SERVICE_REVOKE_URLS.fetch(serv, nil)
+      enabled = case serv
         when 'gdrive'
-          enabled = true if Cartodb.config[:oauth]['gdrive']['client_id'].present?
-          title = 'Google Drive'
+          Cartodb.config[:oauth][serv]['client_id'].present?
+        when 'box'
+          Cartodb.config[:oauth][serv]['client_id'].present?
+        when 'gdrive', 'box'
+          Cartodb.config[:oauth][serv]['client_id'].present?
         when 'dropbox'
-          enabled = true if Cartodb.config[:oauth]['dropbox']['app_key'].present?
-          title = 'Dropbox'
+          Cartodb.config[:oauth]['dropbox']['app_key'].present?
         when 'mailchimp'
-          enabled = true if Cartodb.config[:oauth]['mailchimp']['app_key'].present? && current_user.has_feature_flag?('mailchimp_import')
-          title = 'MailChimp'
-          revoke_url = 'http://admin.mailchimp.com/account/oauth2/'
+          Cartodb.config[:oauth]['mailchimp']['app_key'].present? && current_user.has_feature_flag?('mailchimp_import')
         when 'instagram'
-          enabled = true if Cartodb.config[:oauth]['instagram']['app_key'].present? && current_user.has_feature_flag?('instagram_import')
-          title = 'Instagram'
-          revoke_url = 'http://instagram.com/accounts/manage_access/'
+          Cartodb.config[:oauth]['instagram']['app_key'].present? && current_user.has_feature_flag?('instagram_import')
         else
-          enabled = true
-          title = serv
+          true
       end
 
       if enabled
@@ -176,5 +201,4 @@ class Admin::UsersController < Admin::AdminController
   def setup_user
     @user = current_user
   end
-
 end

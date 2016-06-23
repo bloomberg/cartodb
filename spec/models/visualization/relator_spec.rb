@@ -13,7 +13,6 @@ describe Visualization::Relator do
     Sequel.extension(:pagination)
 
     Visualization.repository  = DataRepository::Backend::Sequel.new(@db, :visualizations)
-    Overlay.repository        = DataRepository.new # In-memory storage
   end
 
   before(:all) do
@@ -49,13 +48,7 @@ describe Visualization::Relator do
 
   before(:each) do
     # For relator->permission
-    user_id = UUIDTools::UUID.timestamp_create.to_s
-    user_name = 'whatever'
-    user_apikey = '123'
-    @user_mock = mock
-    @user_mock.stubs(:id).returns(user_id)
-    @user_mock.stubs(:username).returns(user_name)
-    @user_mock.stubs(:api_key).returns(user_apikey)
+    @user_mock = create_mocked_user
     CartoDB::Visualization::Relator.any_instance.stubs(:user).returns(@user_mock)
 
     support_tables_mock = Doubles::Visualization::SupportTables.new

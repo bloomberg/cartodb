@@ -5,46 +5,45 @@ require_relative '../../../services/data-repository/repository'
 require_relative '../../../app/models/visualization/collection'
 require_relative '../../../app/models/visualization/member'
 require_relative '../../doubles/support_tables.rb'
+require 'helpers/unique_names_helper'
 
+include UniqueNamesHelper
 include CartoDB
 
 describe Visualization::Collection do
-
-  before(:all) do
-  end
-
   before(:each) do
-    db_config   = Rails.configuration.database_configuration[Rails.env]
-    # Why not passing db_config directly to Sequel.postgres here ?
-    # See https://github.com/CartoDB/cartodb/issues/421
-    @db         = Sequel.postgres(
-                    host:     db_config.fetch('host'),
-                    port:     db_config.fetch('port'),
-                    database: db_config.fetch('database'),
-                    username: db_config.fetch('username')
-                  )
+    @db = Rails::Sequel::connection
     # Careful, uses another DB table (and deletes it at after:(each) )
     @relation   = "visualizations_#{Time.now.to_i}".to_sym
     @repository = DataRepository::Backend::Sequel.new(@db, @relation)
     Visualization::Migrator.new(@db).migrate(@relation)
     Visualization.repository = @repository
 
-    CartoDB::NamedMapsWrapper::NamedMaps.any_instance.stubs(:get => nil, :create => true, :update => true)
+    CartoDB::NamedMapsWrapper::NamedMaps.any_instance.stubs(get: nil, create: true, update: true)
 
     # For relator->permission
     user_id = UUIDTools::UUID.timestamp_create.to_s
     user_name = 'whatever'
     user_apikey = '123'
-    @user_1_mock = mock
-    @user_1_mock.stubs(:id).returns(user_id)
-    @user_1_mock.stubs(:username).returns(user_name)
-    @user_1_mock.stubs(:api_key).returns(user_apikey)
-    @user_1_mock.stubs(:invalidate_varnish_cache).returns(nil)
+    @user_1_mock = create_mocked_user
     CartoDB::Visualization::Relator.any_instance.stubs(:user).returns(@user_1_mock)
+
+    @user_1 = FactoryGirl.create(:valid_user, quota_in_bytes: 524288000, table_quota: 500, private_tables_enabled: true)
+    @user_2 = FactoryGirl.create(:valid_user, private_tables_enabled: true)
   end
 
   after(:each) do
     Visualization::Migrator.new(@db).drop(@relation)
+    restore_backend_to_normal_table
+  end
+
+  after(:all) do
+    @user_1.destroy
+    @user_2.destroy
+  end
+
+  def restore_backend_to_normal_table
+    Visualization.repository = DataRepository::Backend::Sequel.new(@db, :visualizations)
   end
 
   describe '#fetch' do
@@ -254,33 +253,21 @@ describe Visualization::Collection do
       # TODO: Add mapviews test. As it uses redis requires more work
 
       # Restore Vis backend to normal table so Relator works
-      Visualization.repository = DataRepository::Backend::Sequel.new(@db, :visualizations)
-      begin
-        @db.run(%Q{alter table external_sources drop constraint external_sources_visualization_id_fkey})
-      rescue
-        # Do nothing
-      end
-      begin
-        Visualization::Migrator.new(@db).drop(:visualizations)
-      rescue
-        # Do nothing, visualizations table not existed before
-      end
-      Visualization::Migrator.new(@db).migrate(:visualizations)
+      restore_backend_to_normal_table
 
-
-      CartoDB::Visualization::Relator.any_instance.stubs(:user).returns($user_1)
+      CartoDB::Visualization::Relator.any_instance.stubs(:user).returns(@user_1)
 
       table1 = Table.new
-      table1.user_id = $user_1.id
-      table1.name = "viz#{rand(999)}_1"
+      table1.user_id = @user_1.id
+      table1.name = unique_name('table')
       table1.save
       table2 = Table.new
-      table2.user_id = $user_1.id
-      table2.name = "viz#{rand(999)}_2"
+      table2.user_id = @user_1.id
+      table2.name = unique_name('table')
       table2.save
       table3 = Table.new
-      table3.user_id = $user_1.id
-      table3.name = "viz#{rand(999)}_3"
+      table3.user_id = @user_1.id
+      table3.name = unique_name('table')
       table3.save
 
       vis1 = table1.table_visualization
@@ -296,8 +283,8 @@ describe Visualization::Collection do
       vis3.table.insert_row!(test_col: "333")
       vis3.table.insert_row!(test_col: "333")
       # pg_class.reltuples only get updated after VACUUMs, etc.
-      $user_1.in_database.run(%Q{ VACUUM #{table3.name} })
-      vis3.add_like_from($user_1.id)
+      @user_1.in_database.run(%Q{ VACUUM #{table3.name} })
+      vis3.add_like_from(@user_1.id)
       vis3.fetch.store.fetch
 
       # Biggest in size and likes
@@ -312,9 +299,9 @@ describe Visualization::Collection do
       vis2.table.insert_row!(test_col: long_string, test_col2: long_string, test_col3: long_string)
       vis2.table.insert_row!(test_col: long_string, test_col2: long_string, test_col3: long_string)
       vis2.table.insert_row!(test_col: long_string, test_col2: long_string, test_col3: long_string)
-      $user_1.in_database.run(%Q{ VACUUM #{table2.name} })
-      vis2.add_like_from($user_1.id)
-      vis2.add_like_from($user_2.id)
+      @user_1.in_database.run(%Q{ VACUUM #{table2.name} })
+      vis2.add_like_from(@user_1.id)
+      vis2.add_like_from(@user_2.id)
       sleep(1)   # To avoid same sec storage
       vis2.fetch.store.fetch
 
@@ -322,14 +309,14 @@ describe Visualization::Collection do
       vis1.table.add_column!(name: "test_col", type: "text")
       table = vis1.table
       table.insert_row!(test_col: "111")
-      $user_1.in_database.run(%Q{ VACUUM #{table1.name} })
+      @user_1.in_database.run(%Q{ VACUUM #{table1.name} })
       sleep(1)   # To avoid same sec storage
       vis1.fetch.store.fetch
 
       # Actual tests start here
 
       collection = Visualization::Collection.new.fetch({
-                                                           user_id: $user_1.id,
+                                                           user_id: @user_1.id,
                                                            order: 'updated_at',
                                                            exclude_shared: true
                                                        })
@@ -339,7 +326,7 @@ describe Visualization::Collection do
       ids.should eq expected_updated_ats
 
       collection = Visualization::Collection.new.fetch({
-                                                           user_id: $user_1.id,
+                                                           user_id: @user_1.id,
                                                            order: :row_count,
                                                            exclude_shared: true
                                                        })
@@ -349,7 +336,7 @@ describe Visualization::Collection do
       ids.should eq expected_row_count
 
       collection = Visualization::Collection.new.fetch({
-                                                           user_id: $user_1.id,
+                                                           user_id: @user_1.id,
                                                            order: :likes,
                                                            exclude_shared: true
                                                        })
@@ -359,7 +346,7 @@ describe Visualization::Collection do
       ids.should eq expected_likes
 
       collection = Visualization::Collection.new.fetch({
-                                                           user_id: $user_1.id,
+                                                           user_id: @user_1.id,
                                                            order: :size,
                                                            exclude_shared: true
                                                        })
@@ -374,7 +361,7 @@ describe Visualization::Collection do
       vis3.delete
     end
 
-    def create_table(user, name = "viz#{rand(999)}")
+    def create_table(user, name = unique_name('table'))
       table = Table.new
       table.user_id = user.id
       table.name = name
@@ -389,146 +376,136 @@ describe Visualization::Collection do
       liked(user,type).total_liked_entries(type)
     end
 
-    def restore_vis_backend_to_normal_table_so_relator_works
-      Visualization.repository = DataRepository::Backend::Sequel.new(@db, :visualizations)
-      begin
-        Visualization::Migrator.new(@db).drop(:visualizations)
-      rescue
-        # Do nothing, visualizations table not existed before
-      end
-      Visualization::Migrator.new(@db).migrate(:visualizations)
-    end
-
     it 'counts total liked' do
-      restore_vis_backend_to_normal_table_so_relator_works
+      restore_backend_to_normal_table
 
-      $user_1.stubs(:organization).returns(nil)
-      $user_2.stubs(:organization).returns(nil)
+      @user_1.stubs(:organization).returns(nil)
+      @user_2.stubs(:organization).returns(nil)
 
-      table11 = create_table($user_1)
+      table11 = create_table(@user_1)
       v11 = table11.table_visualization
-      table12 = create_table($user_1)
+      table12 = create_table(@user_1)
       v12 = table12.table_visualization
-      table21 = create_table($user_2)
+      table21 = create_table(@user_2)
       v21 = table21.table_visualization
-      [[v11, $user_1], [v12, $user_1], [v21, $user_2]].each { |v, u|
+      [[v11, @user_1], [v12, @user_1], [v21, @user_2]].each { |v, u|
         v.privacy = Visualization::Member::PRIVACY_PUBLIC
         v.store
       }
 
-      liked($user_1).count.should eq 0
-      liked_count($user_1).should eq 0
-      liked($user_2).count.should eq 0
-      liked_count($user_2).should eq 0
+      liked(@user_1).count.should eq 0
+      liked_count(@user_1).should eq 0
+      liked(@user_2).count.should eq 0
+      liked_count(@user_2).should eq 0
 
-      v11.add_like_from($user_2.id)
-      liked($user_1).count.should eq 0
-      liked_count($user_1).should eq 0
-      liked($user_2).count.should eq 1
-      liked_count($user_2).should eq 1
+      v11.add_like_from(@user_2.id)
+      liked(@user_1).count.should eq 0
+      liked_count(@user_1).should eq 0
+      liked(@user_2).count.should eq 1
+      liked_count(@user_2).should eq 1
 
-      v12.add_like_from($user_1.id)
-      liked($user_1).count.should eq 1
-      liked_count($user_1).should eq 1
-      liked($user_2).count.should eq 1
-      liked_count($user_2).should eq 1
+      v12.add_like_from(@user_1.id)
+      liked(@user_1).count.should eq 1
+      liked_count(@user_1).should eq 1
+      liked(@user_2).count.should eq 1
+      liked_count(@user_2).should eq 1
 
-      v21.add_like_from($user_2.id)
-      liked($user_1).count.should eq 1
-      liked_count($user_1).should eq 1
-      liked($user_2).count.should eq 2
-      liked_count($user_2).should eq 2
+      v21.add_like_from(@user_2.id)
+      liked(@user_1).count.should eq 1
+      liked_count(@user_1).should eq 1
+      liked(@user_2).count.should eq 2
+      liked_count(@user_2).should eq 2
 
-      v21.add_like_from($user_1.id)
-      liked($user_1).count.should eq 2
-      liked_count($user_1).should eq 2
-      liked($user_2).count.should eq 2
-      liked_count($user_2).should eq 2
+      v21.add_like_from(@user_1.id)
+      liked(@user_1).count.should eq 2
+      liked_count(@user_1).should eq 2
+      liked(@user_2).count.should eq 2
+      liked_count(@user_2).should eq 2
 
       # Turning a visualization link should keep it from other users count
       v21.privacy = Visualization::Member::PRIVACY_LINK
-      v21.stubs(:user).returns($user_2)
+      v21.stubs(:user).returns(@user_2)
       v21.store
-      liked($user_1).count.should eq 2
-      liked_count($user_1).should eq 2
-      liked($user_2).count.should eq 2
-      liked_count($user_2).should eq 2
+      liked(@user_1).count.should eq 2
+      liked_count(@user_1).should eq 2
+      liked(@user_2).count.should eq 2
+      liked_count(@user_2).should eq 2
 
       # Turning a visualization private should remove it from other users count
       v21.privacy = Visualization::Member::PRIVACY_PRIVATE
       v21.store
-      liked($user_1).count.should eq 1
-      liked_count($user_1).should eq 1
-      liked($user_2).count.should eq 2
-      liked_count($user_2).should eq 2
+      liked(@user_1).count.should eq 1
+      liked_count(@user_1).should eq 1
+      liked(@user_2).count.should eq 2
+      liked_count(@user_2).should eq 2
 
       # Adding permission to user should add it to count and list
       permission = v21.permission
       permission.acl = [ { type: CartoDB::Permission::TYPE_USER,
           entity: {
-            id: $user_1.id,
-            username: $user_1.username
+            id: @user_1.id,
+            username: @user_1.username
           },
           access: CartoDB::Permission::ACCESS_READONLY } ]
       v21.stubs(:invalidate_cache).returns(nil)
       permission.stubs(:entity).returns(v21)
       permission.stubs(:notify_permissions_change).returns(nil)
       permission.save
-      liked($user_1).count.should eq 2
-      liked_count($user_1).should eq 2
-      liked($user_2).count.should eq 2
-      liked_count($user_2).should eq 2
+      liked(@user_1).count.should eq 2
+      liked_count(@user_1).should eq 2
+      liked(@user_2).count.should eq 2
+      liked_count(@user_2).should eq 2
 
       # Sharing a table won't count it as liked
-      table22 = create_table($user_2)
+      table22 = create_table(@user_2)
       v22 = table22.table_visualization
       v22.privacy = Visualization::Member::PRIVACY_PRIVATE
       v22.store
       permission22 = v22.permission
       permission22.acl = [ { type: CartoDB::Permission::TYPE_USER,
           entity: {
-            id: $user_1.id,
-            username: $user_1.username
+            id: @user_1.id,
+            username: @user_1.username
           },
           access: CartoDB::Permission::ACCESS_READONLY } ]
       v22.stubs(:invalidate_cache).returns(nil)
       permission22.stubs(:entity).returns(v22)
       permission22.stubs(:notify_permissions_change).returns(nil)
       permission22.save
-      liked($user_1).count.should eq 2
-      liked_count($user_1).should eq 2
-      liked($user_2).count.should eq 2
-      liked_count($user_2).should eq 2
+      liked(@user_1).count.should eq 2
+      liked_count(@user_1).should eq 2
+      liked(@user_2).count.should eq 2
+      liked_count(@user_2).should eq 2
 
-      $user_1.unstub(:organization)
-      $user_2.unstub(:organization)
+      @user_1.unstub(:organization)
+      @user_2.unstub(:organization)
     end
 
     it "checks filtering by 'liked' " do
-      restore_vis_backend_to_normal_table_so_relator_works
+      restore_backend_to_normal_table
 
       user3 = create_user(:quota_in_bytes => 524288000, :table_quota => 500, :private_tables_enabled => true)
-      CartoDB::Visualization::Relator.any_instance.stubs(:user).returns($user_1)
+      CartoDB::Visualization::Relator.any_instance.stubs(:user).returns(@user_1)
 
       table1 = Table.new
-      table1.user_id = $user_1.id
-      table1.name = "viz#{rand(999)}_1"
+      table1.user_id = @user_1.id
+      table1.name = unique_name('table')
       table1.save
       table2 = Table.new
-      table2.user_id = $user_1.id
-      table2.name = "viz#{rand(999)}_2"
+      table2.user_id = @user_1.id
+      table2.name = unique_name('table')
       table2.save
       table3 = Table.new
-      table3.user_id = $user_1.id
-      table3.name = "viz#{rand(999)}_3"
+      table3.user_id = @user_1.id
+      table3.name = unique_name('table')
       table3.save
       table4 = Table.new
-      table4.user_id = $user_1.id
-      table4.name = "viz#{rand(999)}_4"
+      table4.user_id = @user_1.id
+      table4.name = unique_name('table')
       table4.save
 
-      table5 = create_table($user_1, "viz#{rand(999)}_4")
-      table6 = create_table($user_1, "viz#{rand(999)}_4")
+      table5 = create_table(@user_1, unique_name('table'))
+      table6 = create_table(@user_1, unique_name('table'))
 
       vis2 = table2.table_visualization
       vis2.privacy = Visualization::Member::PRIVACY_PUBLIC
@@ -551,26 +528,26 @@ describe Visualization::Collection do
 
       # vis1 0 likes
 
-      vis2.add_like_from($user_1.id)
-      vis2.add_like_from($user_2.id)
+      vis2.add_like_from(@user_1.id)
+      vis2.add_like_from(@user_2.id)
 
-      vis3.add_like_from($user_1.id)
+      vis3.add_like_from(@user_1.id)
 
       # since vis4 is not public it won't count for users 2 and 3
-      vis4.add_like_from($user_1.id)
-      vis4.add_like_from($user_2.id)
+      vis4.add_like_from(@user_1.id)
+      vis4.add_like_from(@user_2.id)
       vis4.add_like_from(user3.id)
 
       vis_link.add_like_from(user3.id)
       vis_private.add_like_from(user3.id)
 
       collection = Visualization::Collection.new.fetch({
-                                                         user_id: $user_1.id
+                                                         user_id: @user_1.id
                                                        })
       collection.count.should eq 6
 
       collection = Visualization::Collection.new.fetch({
-                                                         user_id: $user_1.id,
+                                                         user_id: @user_1.id,
                                                          only_liked: true,
                                                        })
       collection.count.should eq 3
@@ -579,7 +556,7 @@ describe Visualization::Collection do
       ids.should eq expected_likes
 
       collection = Visualization::Collection.new.fetch({
-                                                         user_id: $user_1.id,
+                                                         user_id: @user_1.id,
                                                          type: Visualization::Member::TYPE_CANONICAL,
                                                          only_liked: true
                                                        })
@@ -590,7 +567,7 @@ describe Visualization::Collection do
 
 
       collection = Visualization::Collection.new.fetch({
-                                                         user_id: $user_1.id,
+                                                         user_id: @user_1.id,
                                                          only_liked: true,
                                                          unauthenticated: true
                                                        })
@@ -600,7 +577,7 @@ describe Visualization::Collection do
       ids.should eq expected_likes
 
       collection = Visualization::Collection.new.fetch({
-                                                         user_id: $user_1.id,
+                                                         user_id: @user_1.id,
                                                          only_liked: true,
                                                          privacy: Visualization::Member::PRIVACY_PRIVATE
                                                        })
@@ -615,7 +592,7 @@ describe Visualization::Collection do
       collection.count.should eq 0
 
       collection = Visualization::Collection.new.fetch({
-                                                         user_id: $user_2.id,
+                                                         user_id: @user_2.id,
                                                          only_liked: true
                                                        })
       collection.count.should eq 1
@@ -766,9 +743,9 @@ describe Visualization::Collection do
   end
 
   def random_attributes(attributes={})
-    random = rand(999)
+    random = unique_name('viz')
     {
-      name:           attributes.fetch(:name, "name #{random}"),
+      name:           attributes.fetch(:name, random),
       description:    attributes.fetch(:description, "description #{random}"),
       privacy:        attributes.fetch(:privacy, 'public'),
       tags:           attributes.fetch(:tags, ['tag 1']),
@@ -784,4 +761,3 @@ describe Visualization::Collection do
     }
   end #random_attributes
 end # Visualization::Collection
-

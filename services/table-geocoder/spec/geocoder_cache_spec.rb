@@ -14,6 +14,10 @@ describe CartoDB::GeocoderCache do
     @db           = conn.connection
     @pg_options   = conn.pg_options
     @table_name   = "ne_10m_populated_places_simple"
+    @usage_metrics_stub = stub
+    @log = mock
+    @log.stubs(:append)
+    @log.stubs(:append_and_store)
 
     # Avoid issues on some machines if postgres system account can't read fixtures subfolder for the COPY
     filename = 'populated_places_short.csv'
@@ -26,7 +30,14 @@ describe CartoDB::GeocoderCache do
     @db.drop_table @table_name
   end
 
-  let(:default_params) { { table_name: @table_name, formatter: "concat(name, iso3)", connection: @db, sql_api: { table_name: '' }, qualified_table_name: @table_name } }
+  let(:default_params) { {
+      table_name: @table_name,
+      formatter: "concat(name, iso3)",
+      connection: @db, sql_api: { table_name: '' },
+      qualified_table_name: @table_name,
+      usage_metrics: @usage_metrics_stub,
+      log: @log
+    } }
 
   describe '#get_cache_results' do
     it "runs the query in batches" do

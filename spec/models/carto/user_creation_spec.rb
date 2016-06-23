@@ -258,6 +258,18 @@ describe Carto::UserCreation do
       user_creation.next_creation_step until user_creation.finished?
     end
 
+    it 'should send invitation email but not validation email if user is created via API' do
+      ::User.any_instance.stubs(:create_in_central).returns(true)
+      CartoDB::UserModule::DBService.any_instance.stubs(:enable_remote_db_user).returns(true)
+      ::Resque.expects(:enqueue).with(Resque::OrganizationJobs::Mail::Invitation, instance_of(String)).never
+      ::Resque.expects(:enqueue).with(Resque::UserJobs::Mail::NewOrganizationUser, instance_of(String)).once
+
+      user_data = FactoryGirl.build(:valid_user)
+      user_data.organization = @organization
+
+      user_creation = Carto::UserCreation.new_user_signup(user_data, Carto::UserCreation::CREATED_VIA_API)
+      user_creation.next_creation_step until user_creation.finished?
+    end
   end
 
   describe 'organization overquota email' do
@@ -277,7 +289,53 @@ describe Carto::UserCreation do
       user_creation = Carto::UserCreation.new_user_signup(user_data)
       user_creation.next_creation_step until user_creation.finished?
     end
-
   end
 
+  describe 'organization over seats email' do
+    include_context 'organization with users helper'
+
+    it 'triggers a SeatLimitReached mail if organization has run out of seats new users' do
+      ::User.any_instance.stubs(:create_in_central).returns(true)
+      CartoDB::UserModule::DBService.any_instance.stubs(:enable_remote_db_user).returns(true)
+      ::Resque.expects(:enqueue).with(Resque::UserJobs::Mail::NewOrganizationUser, instance_of(String)).once
+      ::Resque.expects(:enqueue).with(Resque::OrganizationJobs::Mail::SeatLimitReached, instance_of(String)).once
+
+      user_data = FactoryGirl.build(:valid_user)
+      user_data.organization = @organization
+      @organization.seats = 4
+      @organization.save
+
+      user_creation = Carto::UserCreation.new_user_signup(user_data)
+      user_creation.next_creation_step until user_creation.finished?
+    end
+
+    it 'doesnt trigger any unexpected mails if organization is ok' do
+      ::User.any_instance.stubs(:create_in_central).returns(true)
+      CartoDB::UserModule::DBService.any_instance.stubs(:enable_remote_db_user).returns(true)
+      ::Resque.expects(:enqueue).with(Resque::UserJobs::Mail::NewOrganizationUser, instance_of(String)).once
+      ::Resque.expects(:enqueue).with(Resque::OrganizationJobs::Mail::SeatLimitReached, instance_of(String)).never
+      ::Resque.expects(:enqueue).with(Resque::OrganizationJobs::Mail::DiskQuotaLimitReached, instance_of(String)).never
+
+      user_data = FactoryGirl.build(:valid_user)
+
+      user_data.organization = @organization
+      @organization.seats = 15
+      @organization.save
+
+      user_creation = Carto::UserCreation.new_user_signup(user_data)
+      user_creation.next_creation_step until user_creation.finished?
+    end
+  end
+
+  describe '#initialize_user' do
+    it 'initializes users with http_authentication without organization' do
+      created_via = Carto::UserCreation::CREATED_VIA_HTTP_AUTENTICATION
+      user = FactoryGirl.build(:valid_user)
+      user.organization_id.should == nil
+      user_creation = Carto::UserCreation.new_user_signup(user, created_via)
+      initialized_user = user_creation.send(:initialize_user)
+      initialized_user.should_not be_nil
+      initialized_user.organization_id.should be_nil
+    end
+  end
 end

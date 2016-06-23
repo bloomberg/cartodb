@@ -11,7 +11,6 @@ describe Visualization::Member do
     Sequel.extension(:pagination)
 
     Visualization.repository  = DataRepository::Backend::Sequel.new(@db, :visualizations)
-    Overlay.repository        = DataRepository.new # In-memory storage
   end
 
   before(:each) do
@@ -96,6 +95,8 @@ describe Visualization::Member do
       vis_mock.stubs(:active_child).returns(nil)
       vis_mock.stubs(:likes).returns([])
       vis_mock.stubs(:likes_count).returns(0)
+
+      vis_mock.stubs(:synchronization).returns(nil)
 
       presenter = Visualization::Presenter.new(vis_mock)
       data = presenter.to_poro

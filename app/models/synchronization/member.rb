@@ -175,6 +175,10 @@ module CartoDB
           raise "Couldn't instantiate synchronization user. Data: #{to_s}"
         end
 
+        if !authorize?(user)
+          raise CartoDB::Datasources::AuthError.new('User is not authorized to sync tables')
+        end
+
         downloader    = get_downloader
 
         post_import_handler = CartoDB::Importer2::PostImportHandler.new
@@ -233,11 +237,13 @@ module CartoDB
         log.append exception.backtrace.join('\n'), truncate = false
 
         if importer.nil?
-          if exception.kind_of?(NotFoundDownloadError)
+          if exception.is_a?(NotFoundDownloadError)
             set_general_failure_state_from(exception, 1017, 'File not found, you must import it again')
-          elsif exception.kind_of?(CartoDB::Importer2::FileTooBigError)
+          elsif exception.is_a?(CartoDB::Importer2::FileTooBigError)
             set_general_failure_state_from(exception, exception.error_code,
                                            CartoDB::IMPORTER_ERROR_CODES[exception.error_code][:title])
+          elsif exception.is_a?(AuthError)
+            set_general_failure_state_from(exception, 1011, 'Unauthorized')
           else
             set_general_failure_state_from(exception)
           end
@@ -247,7 +253,7 @@ module CartoDB
 
         store
 
-        if exception.kind_of?(TokenExpiredOrInvalidError)
+        if exception.is_a?(TokenExpiredOrInvalidError)
           begin
             user.oauths.remove(exception.service_name)
           rescue => ex
@@ -363,10 +369,10 @@ module CartoDB
         self.log_trace      = importer.runner_log_trace
         log.append     "*** Runner log: #{self.log_trace} \n***" unless self.log_trace.nil?
         self.state          = STATE_FAILURE
-        self.error_code     = importer.error_code
+        self.error_code     = importer.error_code.blank? ? 9999 : importer.error_code
         self.error_message  = importer.error_message
         # Try to fill empty messages with the list
-        if self.error_message == '' && !self.error_code.nil?
+        if self.error_message.blank? && !self.error_code.nil?
           default_message = CartoDB::IMPORTER_ERROR_CODES.fetch(self.error_code, {})
           self.error_message = default_message.fetch(:title, '')
         end
@@ -454,7 +460,7 @@ module CartoDB
       def pg_options
         Rails.configuration.database_configuration[Rails.env].symbolize_keys
           .merge(
-            user:     user.database_username,
+            username:     user.database_username,
             password: user.database_password,
             database: user.database_name,
 	          host:     user.user_database_host

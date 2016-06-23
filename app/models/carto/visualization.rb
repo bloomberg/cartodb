@@ -27,7 +27,7 @@ class Carto::Visualization < ActiveRecord::Base
 
   belongs_to :user_table, class_name: Carto::UserTable, primary_key: :map_id, foreign_key: :map_id, inverse_of: :visualization
 
-  has_one :permission, inverse_of: :entity, conditions: { entity_type: 'vis' }, foreign_key: :entity_id
+  belongs_to :permission
 
   has_many :likes, foreign_key: :subject
   has_many :shared_entities, foreign_key: :entity_id, inverse_of: :visualization
@@ -47,6 +47,8 @@ class Carto::Visualization < ActiveRecord::Base
 
   has_one :synchronization, class_name: Carto::Synchronization
   has_many :external_sources, class_name: Carto::ExternalSource
+
+  has_many :analyses, class_name: Carto::Analysis
 
   def ==(other_visualization)
     self.id == other_visualization.id
@@ -87,7 +89,7 @@ class Carto::Visualization < ActiveRecord::Base
   end
 
   def transition_options
-    @transition_options ||= JSON.parse(self.slide_transition_options).symbolize_keys
+    @transition_options ||= (slide_transition_options.nil? ? {} : JSON.parse(slide_transition_options).symbolize_keys)
   end
 
   def children
@@ -138,7 +140,7 @@ class Carto::Visualization < ActiveRecord::Base
     get_surrogate_key(CartoDB::SURROGATE_NAMESPACE_VISUALIZATION, id)
   end
 
-  def qualified_name(viewer_user=nil)
+  def qualified_name(viewer_user = nil)
     if viewer_user.nil? || is_owner_user?(viewer_user)
       name
     else
@@ -157,6 +159,10 @@ class Carto::Visualization < ActiveRecord::Base
 
   def type_slide?
     type == TYPE_SLIDE
+  end
+
+  def kind_raster?
+    kind == KIND_RASTER
   end
 
   def canonical?
@@ -182,11 +188,26 @@ class Carto::Visualization < ActiveRecord::Base
   end
 
   def data_layers
-    return [] if map.nil?
-    map.data_layers
+    map.nil? ? [] : map.data_layers
   end
 
-  def is_password_valid?(password)
+  def named_map_layers
+    map.nil? ? [] : map.named_map_layers
+  end
+
+  def user_layers
+    map.nil? ? [] : map.user_layers
+  end
+
+  def other_layers
+    map.nil? ? [] : map.other_layers
+  end
+
+  def layers
+    map.nil? ? [] : map.layers
+  end
+
+  def password_valid?(password)
     has_password? && ( password_digest(password, password_salt) == encrypted_password )
   end
 
@@ -198,7 +219,7 @@ class Carto::Visualization < ActiveRecord::Base
     privacy == PRIVACY_PROTECTED
   end
 
-  def is_private?
+  def private?
     # This organization? check is kept for backwards compatibility
     is_privacy_private? and not organization?
   end
@@ -213,6 +234,10 @@ class Carto::Visualization < ActiveRecord::Base
 
   def is_link_privacy?
     self.privacy == PRIVACY_LINK
+  end
+
+  def editable?
+    !(kind_raster? || type_slide?)
   end
 
   # INFO: discouraged, since it forces using internal constants
@@ -230,6 +255,10 @@ class Carto::Visualization < ActiveRecord::Base
     tokens = named_map.template[:template][:auth][:valid_tokens]
     raise CartoDB::InvalidMember if tokens.size == 0
     tokens
+  end
+
+  def needed_auth_tokens
+    has_password? ? get_auth_tokens : []
   end
 
   def mapviews
@@ -268,6 +297,14 @@ class Carto::Visualization < ActiveRecord::Base
 
   def can_be_cached?
     !is_privacy_private?
+  end
+
+  def likes_count
+    likes.count
+  end
+
+  def attributions_from_derived_visualizations
+    related_canonical_visualizations.map(&:attributions).reject(&:blank?)
   end
 
   private

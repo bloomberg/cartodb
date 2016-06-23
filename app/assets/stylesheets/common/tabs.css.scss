@@ -22,47 +22,46 @@
   width: 118px;
   height: 38px;
   padding: 0 10px;
-  border: 1px solid $cStructure-mainLine;
+  background-color: $DarkGrey1;
+  border: 1px solid $Black;
+  box-shadow: $button_shadow;
   line-height: 38px;
-  border-radius: $sCard-borderRadius;
-  color: $cTypography-secondary;
+  color: $Grey2;
   font-size: 14px;
   cursor: pointer;
+	&:first-child {
+		border-radius: 2px 0px 0px 2px;	
+	}
+	&:last-child {
+		border-radius: 0px 2px 2px 0px;
+	}
 
   &:hover {
-    background: white;
-    border-color: rgba(#BBD7F2, 1);
-    color: $cTypography-paragraphs;
+    background-color: $tabBgHover;
+    box-shadow:$button_shadow_hover;
     text-decoration: none;
   }
 }
 .TabLink.selected,
 .TabLink.selected:hover {
-  background: white;
-  color: $cTypography-paragraphs;
+  background: $tabBgSelected;
+  box-shadow: $button_shadow_press;
+  color: $Grey1;
   cursor: default;
-}
-.TabLink:hover {
-  border-color: rgba(#BBD7F2, 1);
 }
 .TabLink.selected,
 .TabLink.selected:hover {
-  border-color: rgba(#DDDDDD, 1);
 }
 .TabLink.TabLink--positive.selected,
 .TabLink.TabLink--positive.selected:hover {
   border-color: rgba(#BBD7F2, 1);
 }
 .TabLink.disabled {
-  @include opacity(0.5);
-
-  &:hover {
-    cursor: default;
-    background: transparent;
-    text-decoration: none;
-    color: $cTypography-secondary;
-    border-color: $cStructure-mainLine;
-  }
+  opcacity: .4;
+  background: $btn_background_disabled;
+  box-shadow: $button_shadow_disabled;
+  color: $color_disabled_text;
+  pointer-events: none;
 }
 .TabLink.TabLink--textCenterUpcase {
   text-transform: uppercase;

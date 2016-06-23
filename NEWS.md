@@ -1,4 +1,117 @@
-3.11.1 (2015-mm-dd)
+3.13.0 (2016-XX-XX)
+-------------------
+### NOTICE
+This release introduces a different method of doing cache invalidations, using Surrogate Keys instead of the older X-Cache-Channel header.
+See [CartoDB Surrogate Keys](https://github.com/CartoDB/cartodb/wiki/CartoDB-Surrogate-Keys) on the wiki for more information about this change.
+
+All invalidations done from newly created CartoDB accounts/databases from this release will invalidate using the new method.
+Due to this, if you use Varnish or any alternate caching methods, you need to update to a version of the APIs which provides a Surrogate-Keys header on all the cacheable responses:
+  * Windshaft-cartodb >= 2.27.0
+  * CartoDB-SQL-API >= 1.26.0
+
+After ensuring those applications are updated, you should restart Varnish (or purge all its objects) to ensure all new objects will contain
+the Surrogate-Keys header, and then reload the invalidation trigger installed on the user databases to be upgraded with the Rake task: `rake cartodb:db:load_varnish_trigger`.
+
+For backwards compatibility with unupgraded trigger versions, those API versions still emit both X-Cache-Channel and Surrogate-Key headers.
+However, this will be deprecated on a future release.
+
+### NOTICE
+This release changes how visualization permissions are stored in the database. To ensure that the database state is consistent,
+it is highly recommended to run the following rake task BEFORE MIGRATING the database schema: `rake cartodb:permissions:fill_missing_permissions`.
+
+The task will report visualization that could not be automatically fixed, where multiple permissions exists for a given visualization,
+which should be fixed manually.
+
+### Features
+* Change Varnish table-related invalidations and tagging to use [Surrogate Keys](https://github.com/CartoDB/cartodb/wiki/CartoDB-Surrogate-Keys)
+* Remove Varnish table invalidations from Rails and replaced them with CDB_TableMetadataTouch calls (delegating invalidation responsibility to the database)
+* Adds optional strong passwords for organization signups
+* Add new function User#direct_db_connection which uses a new direct_port paramerer to be specified in database.yml to connect to the database. Usage instructions:
+  * Use `port` in database.yml to specify the port through which the db is accessed for regular queries (such as pgbouncer connections)
+  * Use `direct_port` in database.yml to specify the port through which the db can be directly accessed (i.e. the port in which Postgres is running)
+  * This change is backwards compatible and will fallback to `port` whenever `direct_port` is not specified in the database configuration file.
+* Update ogr2ogr version to 2.1, configurable in `app_config.yml`. To install it in the system, run:
+  * `sudo apt-get install gdal2.1-static-bin`
+* Ghost table linking is now concurrent per user (avoids race conditions)
+
+## Bug Fixes
+* Updating CartoDB.js submodule with last changes sanitizing attribution.
+* Fixes a problem with select2 arrow icon.
+* Disable `PROMOTE_TO_MULTI` ogr2ogr option for CSV imports with guessing enabled to avoid MultiPoint imports. (https://github.com/CartoDB/cartodb/pull/6793)
+* Source and attributions copied to visualizations when you import a dataset from the Data Library (https://github.com/CartoDB/cartodb/issues/5970).
+* Improved performance of the check for multiple users editing the same visualization
+* Fixes a memory leak when connecting to user databases
+* Fixed error when accessing an SQL API renamed table through the editor.
+* Refactored and fixed error handling for visualization overlays.
+* Ignore non-downloadable GDrive files that made file listing fail (https://github.com/CartoDB/cartodb/pull/6871)
+* Update CartoDB PostgreSQL extension to 0.14.3 to support `cartodb_id` text columns in the CartoDBfy process.
+  * See instructions to upgrade to the latest extension version [here](https://github.com/CartoDB/cartodb-postgresql#update-cartodb-extension)
+* Fix slow search of visualizations by name
+* Update and improve logging system
+* Fix broken syncs after setting sync options to "Never"
+* Fix broken visualizations due to invalid permissions
+* Make `layers.kind` not null. Run `bundle exec rake db:migrate` to update your database.
+* Fix error when deleting organizational users that had created objects via SQL-API
+* Change deprecated PostGIS function `ST_Force_2D` for the new `ST_Force2D`
+
+## Security fixes
+
+3.12.4 (2016-03-09)
+-------------------
+
+## Bug Fixes
+* Fixes in HTTP Header authentication.
+* Fixes in avatar urls
+* Fixes in organization sigup
+* Fixes in high resolution geocoder when using google provider
+* Fixed rake to setup google maps
+
+3.12.3 (2016-02-11)
+-------------------
+
+## Features
+* Group support for organizations.
+* User quota slider in organizations management.
+* Update navigation in public pages.
+* Support for HTTP Header authentication.
+* New visualization backups.
+* GPX multilayer file creates a multilayer map
+* Allow to create sync tables with a map if setting up onw from "connect dataset" from the Maps view
+
+## Bug Fixes
+* Now the owner of the dataset is going to receive an email when the synchronization fails hits the max allowed number [#3501](https://github.com/CartoDB/cartodb/issues/3501)
+* If the dataset don't have an associated map we avoid to use the zoom property [#5447](https://github.com/CartoDB/cartodb/issues/5447)
+* Display custom attribution of layers in the editor and embeds
+  [#5388](https://github.com/CartoDB/cartodb/pull/5388)
+* Fix for #5477 bug moving users with non-cartodbfied tables
+* Added a rake task to notify trendy maps to the map owner when reach a certain mapviews
+amount (500, 1000, 2000 and so on). This task takes into account the day before so it should
+be exectuded daily
+* Fixed negative geocoding quota in georeference modal
+[#5622](https://github.com/CartoDB/cartodb/pull/5622)
+* Fully removed Layer parent_id from backend and frontend as wasn't used.
+* Added [#5975 Box integration](https://github.com/CartoDB/cartodb/issues/5975).
+* Fixed geocoding in onpremise versions
+
+## Security fixes
+* Removing Bitly shortener.
+* Several XSS fixes in organization accounts
+* API fixes that allows.
+
+3.12.2 (2016-05-15)
+-------------------
+* Support for HTTP Header authentication.
+* Update navigation in public pages.
+* New feature in organizations management: user quota slider.
+* Widgets (experimental) API.
+* Added `data_library` to the config. Usage instructions:
+  1. Configure data-library path. You can copy `data_library` config from `config/app_config.yml.sample` into your `config/app_config.yml`.
+
+3.12.0 (2016-01-05)
+-------------------
+* Ruby 2 support in CartoDB. Ruby 1.9 is now deprecated and not supported from this moment.
+
+3.11.1 (2016-01-05)
 -------------------
 * Now the owner of the dataset is going to receive an email when the synchronization fails hits the max allowed number [#3501](https://github.com/CartoDB/cartodb/issues/3501)
 * If the dataset don't have an associated map we avoid to use the zoom property [#5447](https://github.com/CartoDB/cartodb/issues/5447)
@@ -21,6 +134,11 @@
 * Added new (optional) config parameters `unp_temporal_folder` & `uploads_path` under `importer` section to allow custom UNP and file upload paths.
 * Added new (optional) config parameters `unp_temporal_folder` & `uploads_path` under `importer` section to allow custom UNP and file upload paths.
 * Data-library page for common-data and accounts with data_library feature flag [#5712](https://github.com/CartoDB/cartodb/pull/5712)
+* Removed config option `maps_api_cdn_template`, reusing now instead `cdn_url`
+* Allow to create sync tables with a map if setting up onw from "connect dataset" from the Maps view
+* Added [#5975 Box integration](https://github.com/CartoDB/cartodb/issues/5975).
+* New rake to install in user or organization the geocoder extension
+* Removing Bitly shortener.
 
 
 3.11.0 (2015-09-09)

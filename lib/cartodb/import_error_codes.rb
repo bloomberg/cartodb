@@ -40,8 +40,8 @@ module CartoDB
       source: ERROR_SOURCE_USER
     },
     1005 => {
-      title: 'Zero byte file',
-      what_about: "The file appears to have no information. Double check using a local tool such as QGIS that the file is indeed correct. If everything appears fine, try uploading it again or <a href='mailto:support@cartodb.com?subject=Zero byte file'>contact us</a>.",
+      title: 'Empty file',
+      what_about: "The file appears to have no processable information. Double check that the file is indeed correct and it contains supported data. If everything appears fine, try uploading it again or <a href='mailto:support@cartodb.com?subject=Empty file'>contact us</a>.",
       source: ERROR_SOURCE_USER
     },
     1006 => {
@@ -63,11 +63,6 @@ module CartoDB
       title: 'Twitter Server Error',
       what_about: "There was an error connecting to Twitter service to retrieve your tweets. The server might be temporally unavaliable, please try again later.",
       source: ERROR_SOURCE_EXTERNAL
-    },
-    1010 => {
-      title: 'Private Google Spreadsheet',
-      what_about: "This spreadsheet seems to be private. Please check in Google Spreadsheet sharing options that the file is public or accessible for those who know the link.",
-      source: ERROR_SOURCE_USER
     },
     1011 => {
       title: 'Error retrieving data from datasource',
@@ -119,17 +114,25 @@ module CartoDB
       what_about: "Data download timed out. Check the source is not running slow and/or try again.",
       source: ERROR_SOURCE_USER
     },
+    1021 => {
+      title: 'Box permission revoked',
+      what_about: "CartoDB has not permission to access your files at Box. Please import file again.",
+      source: ERROR_SOURCE_USER
+    },
     1100 => {
       title: 'Download file not found',
-      what_about: "Provided URL doesn't return a file (error 404). Please check that URL is still valid and that you can download the file and try again."
+      what_about: "Provided URL doesn't return a file (error 404). Please check that URL is still valid and that you can download the file and try again.",
+      source: ERROR_SOURCE_USER
     },
     1101 => {
       title: 'Forbidden file URL',
-      what_about: "Provided URL returns authentication error. Maybe it's private, or requires user and password. Please provide a valid, public URL and try again."
+      what_about: "Provided URL returns authentication error. Maybe it's private, or requires user and password. Please provide a valid, public URL and try again.",
+      source: ERROR_SOURCE_USER
     },
     1102 => {
       title: 'Unknown server URL',
-      what_about: "Provided URL can't be resolved to a known server. Maybe that URL is wrong or behind a private network. Please provide a valid, public URL and try again."
+      what_about: "Provided URL can't be resolved to a known server. Maybe that URL is wrong or behind a private network. Please provide a valid, public URL and try again.",
+      source: ERROR_SOURCE_USER
     },
     2001 => {
       title: 'Unable to load data',
@@ -148,7 +151,7 @@ module CartoDB
     },
     2004 => {
       title: 'Too many columns',
-      what_about: "Data has too many columns. You can only import up to 1600 columns. You can delete the columns you're not interested in, or split the file into smaller ones.",
+      what_about: "Data has too many columns. You can only import up to 250 columns. You can delete the columns you're not interested in, or split the file into smaller ones.",
       source: ERROR_SOURCE_USER
     },
     2005 => {
@@ -174,6 +177,16 @@ module CartoDB
     2009 => {
       title: 'KML without style Id',
       what_about: "The KML file you tried to import failed because a style element doesn't have an ID attribute. To fix this error, please open the file and add an ID to all the style tags.",
+      source: ERROR_SOURCE_USER
+    },
+    2010 => {
+      title: 'Incompatible CartoDB table',
+      what_about: "There was an error when converting your table into a CartoDB table. Please <a href='mailto:support@cartodb.com?subject=CartoDBfy error'>contact us</a> and we will help you to load your data.",
+      source: ERROR_SOURCE_USER
+    },
+    2011 => {
+      title: 'Invalid cartodb_id column',
+      what_about: "The import failed because your table contains an invalid cartodb_id column. If you want to use it as a primary key, its values must be integers, non-null, and unique. Otherwise, try renaming your current cartodb_id column.",
       source: ERROR_SOURCE_USER
     },
     3007 => {
@@ -251,6 +264,11 @@ module CartoDB
     6669 => {
       title: 'Too many concurrent imports',
       what_about: "You cannot import more data until one of your active imports finishes. If you need further import slots contact our support team at <a href='mailto:support@cartodb.com?subject=Dataset%20too%20many%20concurrent%20imports%20error'>support@cartodb.com</a>.",
+      source: ERROR_SOURCE_USER
+    },
+    6670 => {
+      title: 'Too many named map templates',
+      what_about: "You reached the limit on the number of named map templates.",
       source: ERROR_SOURCE_USER
     },
     99999 => {

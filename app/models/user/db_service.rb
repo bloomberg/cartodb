@@ -1,19 +1,25 @@
+# encoding: utf-8
 
 require_relative 'db_queries'
+require_dependency 'carto/db/database'
+require_dependency 'carto/db/user_schema_mover'
+require 'cartodb/sequel_connection_helper'
 
 # To avoid collisions with User model
 module CartoDB
   # To avoid collisions with User class
   module UserModule
     class DBService
-
       include CartoDB::MiniSequel
+      extend CartoDB::SequelConnectionHelper
 
       # Also default schema for new users
-      SCHEMA_PUBLIC = 'public'
-      SCHEMA_CARTODB = 'cartodb'
-      SCHEMA_IMPORTER = 'cdb_importer'
-      SCHEMA_GEOCODING = 'cdb'
+      SCHEMA_PUBLIC = 'public'.freeze
+      SCHEMA_CARTODB = 'cartodb'.freeze
+      SCHEMA_IMPORTER = 'cdb_importer'.freeze
+      SCHEMA_GEOCODING = 'cdb'.freeze
+      SCHEMA_CDB_DATASERVICES_API = 'cdb_dataservices_client'.freeze
+      CDB_DATASERVICES_CLIENT_VERSION = '0.2.0'.freeze
 
       def initialize(user)
         raise "User nil" unless user
@@ -66,6 +72,9 @@ module CartoDB
         if @user.organization_owner?
           setup_organization_owner
         end
+
+        # Rebuild the geocoder api user config to reflect that is an organization user
+        install_and_configure_geocoder_api_extension
       end
 
       # INFO: main setup for non-org users
@@ -78,6 +87,9 @@ module CartoDB
         create_importer_schema
         create_geocoding_schema
         load_cartodb_functions
+        install_and_configure_geocoder_api_extension
+        # We reset the connections to this database to be sure the change in default search_path is effective
+        reset_pooled_connections
 
         reset_database_permissions # Reset privileges
 
@@ -93,6 +105,9 @@ module CartoDB
         end.join
         create_own_schema
         setup_organization_user_schema
+        install_and_configure_geocoder_api_extension
+        # We reset the connections to this database to be sure the change in default search_path is effective
+        reset_pooled_connections
         revoke_cdb_conf_access
       end
 
@@ -129,9 +144,6 @@ module CartoDB
             db.run('CREATE EXTENSION plpythonu FROM unpackaged') unless db.fetch(%{
                 SELECT count(*) FROM pg_extension WHERE extname='plpythonu'
               }).first[:count] > 0
-            db.run('CREATE EXTENSION schema_triggers') unless db.fetch(%{
-                SELECT count(*) FROM pg_extension WHERE extname='schema_triggers'
-              }).first[:count] > 0
             db.run('CREATE EXTENSION postgis FROM unpackaged') unless db.fetch(%{
                 SELECT count(*) FROM pg_extension WHERE extname='postgis'
               }).first[:count] > 0
@@ -144,32 +156,33 @@ module CartoDB
 
         upgrade_cartodb_postgres_extension(statement_timeout, cdb_extension_target_version)
 
-        # We reset the connections to this database to be sure the change in default search_path is effective
-        reset_pooled_connections
-
         rebuild_quota_trigger
       end
 
       def rebuild_quota_trigger
         @user.in_database(as: :superuser) do |db|
-          if !cartodb_extension_version_pre_mu? && @user.has_organization?
-            db.run("DROP FUNCTION IF EXISTS public._CDB_UserQuotaInBytes();")
-          end
+          rebuild_quota_trigger_with_database(db)
+        end
+      end
 
-          db.transaction do
-            # NOTE: this has been written to work for both databases that switched to "cartodb" extension
-            #       and those before the switch.
-            #       In the future we should guarantee that exntension lives in cartodb schema so we don't need to set
-            #       a search_path before
-            search_path = db.fetch("SHOW search_path;").first[:search_path]
-            db.run("SET search_path TO #{SCHEMA_CARTODB}, #{SCHEMA_PUBLIC};")
-            if cartodb_extension_version_pre_mu?
-              db.run("SELECT CDB_SetUserQuotaInBytes(#{@user.quota_in_bytes});")
-            else
-              db.run("SELECT CDB_SetUserQuotaInBytes('#{@user.database_schema}', #{@user.quota_in_bytes});")
-            end
-            db.run("SET search_path TO #{search_path};")
+      def rebuild_quota_trigger_with_database(db)
+        if !cartodb_extension_version_pre_mu? && @user.has_organization?
+          db.run("DROP FUNCTION IF EXISTS public._CDB_UserQuotaInBytes();")
+        end
+
+        db.transaction do
+          # NOTE: this has been written to work for both databases that switched to "cartodb" extension
+          #       and those before the switch.
+          #       In the future we should guarantee that exntension lives in cartodb schema so we don't need to set
+          #       a search_path before
+          search_path = db.fetch("SHOW search_path;").first[:search_path]
+          db.run("SET search_path TO #{SCHEMA_CARTODB}, #{SCHEMA_PUBLIC};")
+          if cartodb_extension_version_pre_mu?
+            db.run("SELECT CDB_SetUserQuotaInBytes(#{@user.quota_in_bytes});")
+          else
+            db.run("SELECT CDB_SetUserQuotaInBytes('#{@user.database_schema}', #{@user.quota_in_bytes});")
           end
+          db.run("SET search_path TO #{search_path};")
         end
       end
 
@@ -181,7 +194,7 @@ module CartoDB
       # Centralized method to provide the (ordered) search_path
       def self.build_search_path(user_schema, quote_user_schema = true)
         quote_char = quote_user_schema ? "\"" : ""
-        "#{quote_char}#{user_schema}#{quote_char}, #{SCHEMA_CARTODB}, #{SCHEMA_PUBLIC}"
+        "#{quote_char}#{user_schema}#{quote_char}, #{SCHEMA_CARTODB}, #{SCHEMA_CDB_DATASERVICES_API}, #{SCHEMA_PUBLIC}"
       end
 
       def set_database_search_path
@@ -205,18 +218,10 @@ module CartoDB
         create_schema(@user.database_schema, @user.database_username)
       end
 
-      # Attempts to create a new database schema
-      # Does not raise exception if the schema already exists
       def create_schema(schema, role = nil)
-        @user.in_database(as: :superuser) do |database|
-          if role
-            database.run(%{CREATE SCHEMA "#{schema}" AUTHORIZATION "#{role}"})
-          else
-            database.run(%{CREATE SCHEMA "#{schema}"})
-          end
+        @user.in_database(as: :superuser) do |db|
+          Carto::Db::Database.new(@user.database_name, db).create_schema(schema, role)
         end
-      rescue Sequel::DatabaseError => e
-        raise unless e.message =~ /schema .* already exists/
       end
 
       def setup_owner_permissions
@@ -268,21 +273,12 @@ module CartoDB
         end
       end
 
-      def move_tables_to_schema(old_schema, new_schema)
-        @user.in_database(as: :superuser) do |database|
-          database.transaction do
-            @user.real_tables(old_schema).each do |t|
-              old_name = "#{old_schema}.#{t[:relname]}"
-              new_name = "#{new_schema}.#{t[:relname]}"
-
-              was_cartodbfied = Carto::UserTable.find_by_user_id_and_name(@user.id, t[:relname]).present?
-
-              database.run(%{ SELECT cartodb._CDB_drop_triggers('#{old_name}'::REGCLASS) }) if was_cartodbfied
-              database.run(%{ ALTER TABLE #{old_name} SET SCHEMA "#{new_schema}" })
-              if was_cartodbfied
-                database.run(%{ SELECT cartodb.CDB_CartodbfyTable('#{new_schema}'::TEXT, '#{new_name}'::REGCLASS) })
-              end
-            end
+      def tables_effective(schema = 'public')
+        @user.in_database do |user_database|
+          user_database.synchronize do |conn|
+            query = "select table_name::text from information_schema.tables where table_schema = '#{schema}'"
+            tables = user_database[query].all.map { |i| i[:table_name] }
+            return tables
           end
         end
       end
@@ -339,13 +335,13 @@ module CartoDB
                   s,
                   [@user.database_username, @user.database_public_username, CartoDB::PUBLIC_DB_USER])
               end
+
+              # To avoid "cannot drop function" errors
+              database.run("drop extension if exists plproxy cascade")
             end
 
             # If user is in an organization should never have public schema, but to be safe (& tests which stub stuff)
             unless @user.database_schema == SCHEMA_PUBLIC
-              drop_users_privileges_in_schema(
-                @user.database_schema,
-                [@user.database_username, @user.database_public_username, CartoDB::PUBLIC_DB_USER])
               database.run(%{ DROP FUNCTION IF EXISTS "#{@user.database_schema}"._CDB_UserQuotaInBytes()})
               drop_all_functions_from_schema(@user.database_schema)
               database.run(%{ DROP SCHEMA IF EXISTS "#{@user.database_schema}" })
@@ -392,10 +388,63 @@ module CartoDB
         end
       end
 
+      def install_and_configure_geocoder_api_extension
+          geocoder_api_config = Cartodb.get_config(:geocoder, 'api')
+          # If there's no config we assume there's no need to install the
+          # geocoder client as it is an independent API
+          return if geocoder_api_config.blank?
+          install_geocoder_api_extension(geocoder_api_config)
+          @user.in_database(as: :superuser).run("ALTER USER \"#{@user.database_username}\"
+              SET search_path TO #{build_search_path}")
+          @user.in_database(as: :superuser).run("ALTER USER \"#{@user.database_public_username}\"
+              SET search_path TO #{build_search_path}") if @user.organization_user?
+          return true
+        rescue => e
+          CartoDB.notify_error(
+            'Error installing and configuring geocoder api extension',
+            error: e.inspect, user: @user
+          )
+          return false
+      end
+
+      def install_geocoder_api_extension(geocoder_api_config)
+        @user.in_database(as: :superuser) do |db|
+          db.transaction do
+            db.run('CREATE EXTENSION IF NOT EXISTS plproxy SCHEMA public')
+            db.run("CREATE EXTENSION IF NOT EXISTS cdb_dataservices_client VERSION '#{CDB_DATASERVICES_CLIENT_VERSION}'")
+            db.run("ALTER EXTENSION cdb_dataservices_client UPDATE TO '#{CDB_DATASERVICES_CLIENT_VERSION}'")
+            geocoder_server_sql = build_geocoder_server_config_sql(geocoder_api_config)
+            db.run(geocoder_server_sql)
+            db.run(build_entity_config_sql)
+          end
+        end
+      end
+
       def setup_organization_owner
         setup_organization_role_permissions
         setup_owner_permissions
         configure_extension_org_metadata_api_endpoint
+      end
+
+      # Use a direct connection to the db through the direct port specified
+      # in the database configuration and set up its statement timeout value. This
+      # allows to overpass the statement_timeout limit if a connection pooler is used.
+      # This method is supposed to receive a block that will be run with the created
+      # connection.
+      def in_database_direct_connection(statement_timeout:)
+        raise 'need block' unless block_given?
+
+        configuration = db_configuration_for
+        configuration[:port] = configuration.fetch(:direct_port, configuration["direct_port"]) || configuration[:port] || configuration["port"]
+
+        connection = @user.get_connection(_opts = {}, configuration)
+
+        begin
+          connection.run("SET statement_timeout TO #{statement_timeout}")
+          yield(connection)
+        ensure
+          connection.run("SET statement_timeout TO DEFAULT")
+        end
       end
 
       def reset_pooled_connections
@@ -406,7 +455,7 @@ module CartoDB
       # Upgrade the cartodb postgresql extension
       def upgrade_cartodb_postgres_extension(statement_timeout = nil, cdb_extension_target_version = nil)
         if cdb_extension_target_version.nil?
-          cdb_extension_target_version = '0.11.2'
+          cdb_extension_target_version = '0.15.0'
         end
 
         @user.in_database(as: :superuser, no_cartodb_in_schema: true) do |db|
@@ -677,13 +726,15 @@ module CartoDB
         set_user_privileges_in_geocoding_schema(org_member_role)
       end
 
+      def schema_exists?(schema, database = @user.in_database)
+        query = "SELECT 1 as schema_exist FROM information_schema.schemata WHERE schema_name = '#{schema}'"
+        !database.fetch(query).first.nil?
+      end
+
       def drop_users_privileges_in_schema(schema, accounts)
         @user.in_database(as: :superuser, statement_timeout: 600000) do |user_database|
-          if user_database.fetch(
-            "SELECT 1 as schema_exist FROM information_schema.schemata WHERE schema_name = '#{schema}'"
-          ).first.nil?
-            return
-          end
+          return unless schema_exists?(schema, user_database)
+
           user_database.transaction do
             accounts
               .select { |role| role_exists?(user_database, role) }
@@ -904,22 +955,35 @@ module CartoDB
 
       def move_to_own_schema
         new_schema_name = @user.username
+        old_database_schema_name = @user.database_schema
         if @user.database_schema != new_schema_name
-          old_database_schema_name = @user.database_schema
-          @user.database_schema = new_schema_name
-          @user.this.update database_schema: new_schema_name
-          create_user_schema
-          rebuild_quota_trigger
-          move_tables_to_schema(old_database_schema_name, @user.database_schema)
+          Carto::Db::UserSchemaMover.new(@user).move_objects(new_schema_name)
+
           create_public_db_user
           set_database_search_path
         end
+      rescue => e
+        # Undo metadata changes if process fails
+        begin
+          @user.this.update database_schema: old_database_schema_name
+
+          # Defensive measure to avoid undesired table dropping
+          if schema_exists?(new_schema_name) && tables_effective(new_schema_name).count == 0
+            drop_all_functions_from_schema(new_schema_name)
+            @user.in_database.run(%{ DROP SCHEMA "#{new_schema_name}" })
+          end
+        rescue => ee
+          # Avoid shadowing the actual error
+          CartoDB.notify_exception(ee, user: @user)
+        end
+        raise e
       end
 
       def drop_database_and_user(conn = nil)
         conn ||= @user.in_database(as: :cluster_admin)
 
         if !@user.database_name.nil? && !@user.database_name.empty?
+          @user.in_database(as: :superuser).run("DROP SCHEMA \"#{@user.database_schema}\" CASCADE")
           conn.run("UPDATE pg_database SET datallowconn = 'false' WHERE datname = '#{@user.database_name}'")
           CartoDB::UserModule::DBService.terminate_database_connections(@user.database_name, @user.database_host)
           conn.run("DROP DATABASE \"#{@user.database_name}\"")
@@ -1031,15 +1095,12 @@ module CartoDB
         conn.run("
           DO language plpgsql $$
           DECLARE
-              ver INT[];
+              ver INT;
               sql TEXT;
           BEGIN
-              SELECT INTO ver regexp_split_to_array(
-                regexp_replace(version(), '^PostgreSQL ([^ ]*) .*', '\\1'),
-                '\\.'
-              );
+              SELECT INTO ver setting from pg_settings where name='server_version_num';
               sql := 'SELECT pg_terminate_backend(';
-              IF ver[1] > 9 OR ( ver[1] = 9 AND ver[2] > 1 ) THEN
+              IF ver > 90199 THEN
                 sql := sql || 'pid';
               ELSE
                 sql := sql || 'procpid';
@@ -1054,7 +1115,23 @@ module CartoDB
           END
           $$
         ")
-        conn.disconnect
+        close_sequel_connection(conn)
+      end
+
+      def triggers(schema = @user.database_schema)
+        Carto::Db::Database.build_with_user(@user).triggers(schema)
+      end
+
+      def functions(schema = @user.database_schema)
+        Carto::Db::Database.build_with_user(@user).functions(schema, @user.database_username)
+      end
+
+      def views(schema = @user.database_schema)
+        Carto::Db::Database.build_with_user(@user).views(schema, @user.database_username)
+      end
+
+      def materialized_views(schema = @user.database_schema)
+        Carto::Db::Database.build_with_user(@user).materialized_views(schema, @user.database_username)
       end
 
       private
@@ -1086,6 +1163,9 @@ module CartoDB
                 trigger_verbose = #{varnish_trigger_verbose}
 
                 client = GD.get('varnish', None)
+                for i in ('base64', 'hashlib'):
+                  if not i in GD:
+                    GD[i] = __import__(i)
 
                 while True:
 
@@ -1100,14 +1180,9 @@ module CartoDB
                         break
 
                   try:
-                    # NOTE: every table change also changed CDB_TableMetadata, so
-                    #       we purge those entries too
-                    #
-                    # TODO: do not invalidate responses with surrogate key
-                    #       "not_this_one" when table "this" changes :/
-                    #       --strk-20131203;
-                    #
-                    client.fetch('#{purge_command} obj.http.X-Cache-Channel ~ "^#{@user.database_name}:(.*%s.*)|(cdb_tablemetadata)|(table)$"' % table_name.replace('"',''))
+                    cache_key = "t:" + GD['base64'].b64encode(GD['hashlib'].sha256('#{@user.database_name}:%s' % table_name).digest())[0:6]
+                    # We want to say \b here, but the Varnish telnet interface expects \\b, we have to escape that on Python to \\\\b and double that for SQL
+                    client.fetch('#{purge_command} obj.http.Surrogate-Key ~ "\\\\\\\\b%s\\\\\\\\b"' % cache_key)
                     break
                   except Exception as err:
                     if trigger_verbose:
@@ -1145,21 +1220,16 @@ module CartoDB
                 timeout = #{varnish_timeout}
                 retry = #{varnish_retry}
                 trigger_verbose = #{varnish_trigger_verbose}
-
-                import httplib
+                for i in ('httplib', 'base64', 'hashlib'):
+                  if not i in GD:
+                    GD[i] = __import__(i)
 
                 while True:
 
                   try:
-                    # NOTE: every table change also changed CDB_TableMetadata, so
-                    #       we purge those entries too
-                    #
-                    # TODO: do not invalidate responses with surrogate key
-                    #       "not_this_one" when table "this" changes :/
-                    #       --strk-20131203;
-                    #
-                    client = httplib.HTTPConnection('#{varnish_host}', #{varnish_port}, False, timeout)
-                    client.request('PURGE', '/batch', '', {"Invalidation-Match": ('^#{@user.database_name}:(.*%s.*)|(cdb_tablemetadata)|(table)$' % table_name.replace('"',''))  })
+                    client = GD['httplib'].HTTPConnection('#{varnish_host}', #{varnish_port}, False, timeout)
+                    cache_key = "t:" + GD['base64'].b64encode(GD['hashlib'].sha256('#{@user.database_name}:%s' % table_name).digest())[0:6]
+                    client.request('PURGE', '/key', '', {"Invalidation-Match": ('\\\\b%s\\\\b' % cache_key) })
                     response = client.getresponse()
                     assert response.status == 204
                     break
@@ -1203,6 +1273,29 @@ module CartoDB
 
                 client = GD.get('invalidation', None)
 
+                if 'syslog' not in GD:
+                  import syslog
+                  GD['syslog'] = syslog
+                else:
+                  syslog = GD['syslog']
+
+                if 'time' not in GD:
+                  import time
+                  GD['time'] = time
+                else:
+                  time = GD['time']
+
+                if 'json' not in GD:
+                  import json
+                  GD['json'] = json
+                else:
+                  json = GD['json']
+
+                start = time.time()
+                retries = 0
+                termination_state = 1
+                error = ''
+
                 while True:
 
                   if not client:
@@ -1210,6 +1303,7 @@ module CartoDB
                         import redis
                         client = GD['invalidation'] = redis.Redis(host='#{invalidation_host}', port=#{invalidation_port}, socket_timeout=timeout)
                       except Exception as err:
+                        error = "client_error - %s" % str(err)
                         # NOTE: we won't retry on connection error
                         if critical:
                           plpy.error('Invalidation Service connection error: ' +  str(err))
@@ -1217,8 +1311,11 @@ module CartoDB
 
                   try:
                     client.execute_command('TCH', '#{@user.database_name}', table_name)
+                    termination_state = 0
+                    error = ''
                     break
                   except Exception as err:
+                    error = "request_error - %s" % str(err)
                     if trigger_verbose:
                       plpy.warning('Invalidation Service warning: ' + str(err))
                     client = GD['invalidation'] = None # force reconnect
@@ -1226,7 +1323,18 @@ module CartoDB
                       if critical:
                         plpy.error('Invalidation Service error: ' +  str(err))
                       break
+                    retries = retries + 1
                     retry -= 1 # try reconnecting
+
+                end = time.time()
+                invalidation_duration = (end - start)
+                current_time = time.strftime("%Y-%m-%d %H:%M:%S %Z", time.localtime())
+                session_user = plpy.execute("SELECT session_user", 1)[0]["session_user"]
+                invalidation_result = {"timestamp": current_time, "duration": round(invalidation_duration, 8), "termination_state": termination_state, "retries": retries, "error": error, "database": "#{@user.database_name}", "table_name": table_name, "dbuser": session_user}
+
+                if trigger_verbose:
+                  syslog.syslog(syslog.LOG_INFO, "invalidation: %s" % json.dumps(invalidation_result))
+
             $$
             LANGUAGE 'plpythonu' VOLATILE;
             REVOKE ALL ON FUNCTION public.cdb_invalidate_varnish(TEXT) FROM PUBLIC;
@@ -1235,6 +1343,28 @@ module CartoDB
         )
       end
 
+      # Geocoder api extension related
+      def build_geocoder_server_config_sql(config)
+        host = config['host']
+        port = config['port']
+        user = config['user']
+        dbname = config['dbname']
+        %{
+          SELECT cartodb.CDB_Conf_SetConf('geocoder_server_config',
+            '{ \"connection_str\": \"host=#{host} port=#{port} dbname=#{dbname} user=#{user}\"}'::json
+          );
+        }
+      end
+
+      def build_entity_config_sql
+        # User configuration
+        entity_name = @user.organization_user? ? @user.organization.name : @user.username
+        %{
+          SELECT cartodb.CDB_Conf_SetConf('user_config',
+            '{"is_organization": #{@user.organization_user?}, "entity_name": "#{entity_name}"}'::json
+          );
+        }
+      end
     end
   end
 end

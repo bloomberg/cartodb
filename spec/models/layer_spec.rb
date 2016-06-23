@@ -10,19 +10,21 @@ describe Layer do
   after(:all) do
     # Using Mocha stubs until we update RSpec (@see http://gofreerange.com/mocha/docs/Mocha/ClassMethods.html)
     stub_named_maps_calls
-    delete_user_data $user_1
   end
 
   before(:each) do
+    @user = FactoryGirl.create(:valid_user, private_tables_enabled: true)
+
     CartoDB::UserModule::DBService.any_instance.stubs(:enable_remote_db_user).returns(true)
     stub_named_maps_calls
 
-    CartoDB::Overlay::Member.any_instance.stubs(:can_store).returns(true)
-
-    delete_user_data $user_1
     @table = Table.new
-    @table.user_id = $user_1.id
+    @table.user_id = @user.id
     @table.save
+  end
+
+  after(:each) do
+    @user.destroy
   end
 
   context "setups" do
@@ -43,11 +45,11 @@ describe Layer do
 
     it "should allow to be linked to many maps" do
       table2 = Table.new
-      table2.user_id = $user_1.id
+      table2.user_id = @user.id
       table2.save
       layer = Layer.create(:kind => 'carto')
-      map   = Map.create(:user_id => $user_1.id, :table_id => @table.id)
-      map2  = Map.create(:user_id => $user_1.id, :table_id => table2.id)
+      map   = Map.create(:user_id => @user.id, :table_id => @table.id)
+      map2  = Map.create(:user_id => @user.id, :table_id => table2.id)
 
       map.add_layer(layer)
       map2.add_layer(layer)
@@ -59,14 +61,14 @@ describe Layer do
 
     it "should allow to be linked to many users" do
       layer = Layer.create(:kind => 'carto')
-      layer.add_user($user_1)
+      layer.add_user(@user)
 
-      $user_1.reload.layers.map(&:id).should include(layer.id)
-      layer.users.map(&:id).should include($user_1.id)
+      @user.reload.layers.map(&:id).should include(layer.id)
+      layer.users.map(&:id).should include(@user.id)
     end
 
     it "should set default order when adding layers to a map" do
-      map = Map.create(:user_id => $user_1.id, :table_id => @table.id)
+      map = Map.create(:user_id => @user.id, :table_id => @table.id)
       5.times do |i|
         layer = Layer.create(:kind => 'carto')
         map.add_layer(layer)
@@ -77,28 +79,27 @@ describe Layer do
     it "should set default order when adding layers to a user" do
       5.times do |i|
         layer = Layer.create(:kind => 'carto')
-        $user_1.add_layer(layer)
+        @user.add_layer(layer)
         layer.reload.order.should == i
       end
     end
 
     context "when the type is cartodb and the layer is updated" do
       before do
-        @map = Map.create(:user_id => $user_1.id, :table_id => @table.id)
+        @map = Map.create(user_id: @user.id, table_id: @table.id)
         @layer = Layer.create(kind: 'carto', options: { query: "select * from #{@table.name}" })
         @map.add_layer(@layer)
       end
 
-      it "should invalidate its maps and related tables varnish cache" do
+      it "should invalidate its maps" do
+        CartoDB::Varnish.any_instance.stubs(:purge).returns(true)
+
         @layer.maps.each do |map|
           map.expects(:invalidate_vizjson_varnish_cache).times(1)
         end
 
-        key = @layer.affected_tables.first.service.varnish_key
-        CartoDB::Varnish.any_instance.expects(:purge).times(1).with("#{key}").returns(true)
-
-        vizzjson_key = @layer.affected_tables.first.table_visualization.varnish_vizzjson_key
-        CartoDB::Varnish.any_instance.expects(:purge).times(1).with("#{vizzjson_key}").returns(true)
+        vizjson_key = @layer.affected_tables.first.table_visualization.varnish_vizjson_key
+        CartoDB::Varnish.any_instance.expects(:purge).at_least(1).with(vizjson_key.to_s).returns(true)
 
         @layer.save
       end
@@ -106,7 +107,7 @@ describe Layer do
 
     context "when the type is not cartodb" do
       before do
-        @map = Map.create(:user_id => $user_1.id, :table_id => @table.id)
+        @map = Map.create(user_id: @user.id, table_id: @table.id)
         @layer = Layer.create(kind: 'tiled')
         @map.add_layer(@layer)
       end
@@ -117,7 +118,7 @@ describe Layer do
         end
 
         @layer.affected_tables.each do |table|
-          table.expects(:invalidate_varnish_cache).times(0)
+          table.expects(:update_cdb_tablemetadata).times(0)
         end
 
         @layer.save
@@ -134,9 +135,9 @@ describe Layer do
 
     it "should correctly identify affected tables" do
       table2 = Table.new
-      table2.user_id = $user_1.id
+      table2.user_id = @user.id
       table2.save
-      map = Map.create(:user_id => $user_1.id, :table_id => @table.id)
+      map = Map.create(:user_id => @user.id, :table_id => @table.id)
       layer = Layer.create(
         kind: 'carto',
         options: { query: "select * from #{@table.name}, #{table2.name};select 1;select * from #{table2.name}" }
@@ -147,7 +148,7 @@ describe Layer do
     end
 
     it "should return empty affected tables when no tables are involved" do
-      map = Map.create(user_id: $user_1.id, table_id: @table.id)
+      map = Map.create(user_id: @user.id, table_id: @table.id)
       layer = Layer.create(
         kind: 'carto',
         options: { query: "select 1" }
@@ -158,7 +159,7 @@ describe Layer do
     end
 
     it 'includes table_name option in the results' do
-      map = Map.create(user_id: $user_1.id, table_id: @table.id)
+      map = Map.create(user_id: @user.id, table_id: @table.id)
       layer = Layer.create(
         kind: 'carto',
         options: { query: "select 1", table_name: @table.name }
@@ -205,14 +206,14 @@ describe Layer do
       layer = Layer.new(kind: 'tiled')
       layer.base_layer?.should == true
     end
-  end #base_layer?
+  end
 
   describe '#data_layer?' do
     it 'returns true if its of a carto kind' do
       layer = Layer.new(kind: 'carto')
       layer.data_layer?.should == true
     end
-  end #data_layer?
+  end
 
   describe '#rename_table' do
     it 'renames table in layer options' do
@@ -259,33 +260,33 @@ describe Layer do
 
       layer.options.fetch('query').should == options.fetch(:query)
     end
-  end #rename_table
+  end
 
   describe '#before_destroy' do
     it 'invalidates the vizjson cache of all related maps' do
-      map   = Map.create(:user_id => $user_1.id, :table_id => @table.id)
+      map   = Map.create(:user_id => @user.id, :table_id => @table.id)
       layer = Layer.create(kind: 'carto')
       map.add_layer(layer)
 
       layer.maps.each { |map| map.expects(:invalidate_vizjson_varnish_cache) }
       layer.destroy
     end
-  end #before_destroy
+  end
 
   describe '#uses_private_tables?' do
     it 'returns true if any of the affected tables is private' do
-      CartoDB::NamedMapsWrapper::NamedMaps.any_instance.stubs(:get => nil, :create => true, :update => true)
+      CartoDB::NamedMapsWrapper::NamedMaps.any_instance.stubs(get: nil, create: true, update: true)
 
-      map     = Map.create(:user_id => $user_1.id, :table_id => @table.id)
-      source  = @table.table_visualization
-      derived = CartoDB::Visualization::Copier.new($user_1, source).copy
+      map = Map.create(user_id: @user.id, table_id: @table.id)
+      source = @table.table_visualization
+      derived = CartoDB::Visualization::Copier.new(@user, source).copy
       derived.store
 
       derived.layers(:cartodb).length.should == 1
       derived.layers(:cartodb).first.uses_private_tables?.should be_true
       @table.privacy = UserTable::PRIVACY_PUBLIC
       @table.save
-      $user_1.reload
+      @user.reload
 
       derived.layers(:cartodb).first.uses_private_tables?.should be_false
     end

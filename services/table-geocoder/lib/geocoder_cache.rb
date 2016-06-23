@@ -7,34 +7,47 @@ module CartoDB
 
     DEFAULT_BATCH_SIZE = 5000
     DEFAULT_MAX_ROWS   = 1000000
+    HTTP_CONNECT_TIMEOUT = 60
+    HTTP_DEFAULT_TIMEOUT = 600
 
-    attr_reader :connection, :working_dir, :table_name, :hits,
+    attr_reader :connection, :working_dir, :table_name, :hits, :misses,
                 :max_rows, :sql_api, :formatter, :cache_results
 
     def initialize(arguments)
-      @sql_api       = arguments.fetch(:sql_api)
-      @connection    = arguments.fetch(:connection)
-      @table_name    = arguments.fetch(:table_name)
+      @sql_api = arguments.fetch(:sql_api)
+      @connection = arguments.fetch(:connection)
+      @table_name = arguments.fetch(:table_name)
       @qualified_table_name = arguments.fetch(:qualified_table_name)
-      @working_dir   = arguments[:working_dir] || Dir.mktmpdir
+      @working_dir = arguments[:working_dir] || Dir.mktmpdir
       `chmod 777 #{@working_dir}`
-      @formatter     = arguments.fetch(:formatter)
-      @max_rows      = arguments[:max_rows] || DEFAULT_MAX_ROWS
+      @formatter = arguments.fetch(:formatter)
+      @max_rows = arguments[:max_rows] || DEFAULT_MAX_ROWS
       @cache_results = nil
-      @batch_size    = arguments[:batch_size] || DEFAULT_BATCH_SIZE
+      @batch_size = arguments[:batch_size] || DEFAULT_BATCH_SIZE
       @cache_results = File.join(working_dir, "#{temp_table_name}_results.csv")
-      @hits          = 0
-    end # initialize
+      @usage_metrics = arguments.fetch(:usage_metrics)
+      @log = arguments.fetch(:log)
+      init_rows_count
+    end
 
     def run
+      @log.append_and_store "Started searching previous geocoded results in geocoder cache"
       get_cache_results
       create_temp_table
       load_results_to_temp_table
       @hits = connection.select.from(temp_table_name).where('longitude is not null and latitude is not null').count.to_i
       copy_results_to_table
+      @log.append_and_store "Finished geocoder cache job"
     rescue => e
+      @log.append_and_store "Error getting results from geocoder cache: #{e.inspect}"
       handle_cache_exception e
-    end # run
+    ensure
+      @usage_metrics.incr(:geocoder_cache, :total_requests, @total_rows)
+      @usage_metrics.incr(:geocoder_cache, :success_responses, @hits)
+      @usage_metrics.incr(:geocoder_cache, :empty_responses, (@total_rows - @hits - @failed_rows))
+      @usage_metrics.incr(:geocoder_cache, :failed_responses, @failed_rows)
+      update_log_stats
+    end
 
     def get_cache_results
       begin
@@ -46,6 +59,7 @@ module CartoDB
             WHERE cartodb_georef_status IS NULL
             LIMIT #{limit} OFFSET #{count * @batch_size}
         }).all
+        @total_rows += rows.size
         sql   = "WITH addresses(address) AS (VALUES "
         sql << rows.map { |r| "('#{r[:searchtext]}')" }.join(',')
         sql << ") SELECT DISTINCT ON(geocode_string) st_x(g.the_geom) longitude, st_y(g.the_geom) latitude,g.geocode_string FROM addresses a INNER JOIN #{sql_api[:table_name]} g ON md5(g.geocode_string)=a.address"
@@ -58,7 +72,7 @@ module CartoDB
       begin
         count = count + 1 rescue 0
         sql   = %Q{
-           WITH 
+           WITH
             -- write the new values
            n(searchtext, the_geom) AS (
               VALUES %%VALUES%%
@@ -78,7 +92,7 @@ module CartoDB
            );
         }
         rows = connection.fetch(%Q{
-          SELECT DISTINCT(quote_nullable(#{formatter})) AS searchtext, the_geom 
+          SELECT DISTINCT(quote_nullable(#{formatter})) AS searchtext, the_geom
           FROM #{@qualified_table_name} AS orig
           WHERE orig.cartodb_georef_status IS TRUE AND the_geom IS NOT NULL
           LIMIT #{@batch_size} OFFSET #{count * @batch_size}
@@ -90,7 +104,7 @@ module CartoDB
       handle_cache_exception e
     ensure
       drop_temp_table
-    end # store
+    end
 
     def create_temp_table
       connection.run(%Q{
@@ -98,11 +112,11 @@ module CartoDB
           longitude text, latitude text, geocode_string text
         );
       })
-    end # create_temp_table
+    end
 
     def load_results_to_temp_table
       connection.copy_into(temp_table_name.lit, data: File.read(cache_results), format: :csv)
-    end # load_results_to_temp_table
+    end
 
     def copy_results_to_table
       connection.run(%Q{
@@ -118,21 +132,22 @@ module CartoDB
 
     def drop_temp_table
       connection.run("DROP TABLE IF EXISTS #{temp_table_name}")
-    end # drop_temp_table
+    end
 
     def temp_table_name
       @temp_table_name ||= "geocoding_cache_#{Time.now.to_i}"
-    end # temp_table_name
+    end
 
     def run_query(query, format = '')
       params = { q: query, api_key: sql_api[:api_key], format: format }
-      http_client = Carto::Http::Client.get('geocoder_cache')
-      response = http_client.post(
-        sql_api[:base_url],
-        body: URI.encode_www_form(params)
-      )
+      http_client = Carto::Http::Client.get('geocoder_cache',
+                                            log_requests: true)
+      response = http_client.post(sql_api[:base_url],
+                                  body: URI.encode_www_form(params),
+                                  connecttimeout: HTTP_CONNECT_TIMEOUT,
+                                  timeout: HTTP_DEFAULT_TIMEOUT)
       response.body
-    end # run_query
+    end
 
     # It handles in such a way that the caching is silently stopped
     def handle_cache_exception(exception)
@@ -141,8 +156,23 @@ module CartoDB
         # for the moment we just wrap the exception to get a specific error in rollbar
         exception =  Carto::GeocoderErrors::GeocoderCacheDbTimeoutError.new(exception)
       end
+      # In case we get some error we are going to pass all the rows as failed
+      @failed_rows = @total_rows
       CartoDB.notify_exception(exception)
     end
 
-  end # GeocoderCache
-end # CartoDB
+    private
+
+    def init_rows_count
+      @hits = 0
+      @total_rows = 0
+      @failed_rows = 0
+    end
+
+    def update_log_stats
+      @log.append_and_store "Geocoding cache stats update. "\
+        "Total rows: #{@total_rows} "\
+        "--- Hits: #{@hits} --- Failed: #{@failed_rows}"
+    end
+  end
+end

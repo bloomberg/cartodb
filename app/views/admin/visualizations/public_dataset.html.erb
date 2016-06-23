@@ -32,7 +32,7 @@
     var use_https           = <%= @use_https =%>;
     var api_key             = <%= safe_js_object @api_key.to_json %>;
     var base_url            = '<%= @table.owner.public_url(nil, request.protocol == "https://" ? "https" : "http") %>';
-    var login_url           = "<%= CartoDB.url(self, 'login') %>";
+    var login_url           = "<%= login_url %>";
 
     var debug = false;
     <% if Rails.env.development? || Cartodb.config[:no_cdn] == true %>
@@ -75,8 +75,8 @@
 
     <div class="navigation u-showOnTablet">
       <ul>
-        <li><a href="#/table" class=" tab selected u-valign"><i class="Navmenu-tableIcon iconFont iconFont-Table u-iblock u-malign"></i></a></li>
-        <li><a href="#/map" class="u-valign"><i class="iconFont iconFont-Map u-iblock u-malign"></i></a></li>
+        <li><a href="#/table" class=" tab selected u-valign"><i class="Navmenu-tableIcon CDB-IconFont CDB-IconFont-table u-iblock u-malign"></i></a></li>
+        <li><a href="#/map" class="u-valign"><i class="CDB-IconFont CDB-IconFont-map u-iblock u-malign"></i></a></li>
       </ul>
     </div>
   </div>
@@ -102,7 +102,7 @@
         <div class="PublicMap-leftBlock PublicMap-leftBlock--owner">
           <ul class="Navmenu-list Navmenu-list--owner Navmenu-list--avatar">
             <li class="Navmenu-item">
-              <a href="<%= CartoDB.url(self, 'public_user_feed_home', {}, @visualization.user) %>" target="_blank" class="UserAvatar">
+              <a href="<%= @user_url %>" class="UserAvatar">
                 <img class="UserAvatar-img--medium" src="<%= @visualization.user.avatar %>" alt="<%= @name %>" title="<%= @name %>" />
               </a>
             </li>
@@ -110,13 +110,15 @@
 
           <ul class="Navmenu-list Navmenu-list--owner">
             <li class="Navmenu-item u-hideOnTablet last-child">
-              <a href="<%= CartoDB.url(self, 'public_user_feed_home', {}, @visualization.user) %>" class="Navmenu-link Navmenu-link--owner" title="<%= @name %>"><%= @name %></a>
+              <a href="<%= @user_url %>" class="Navmenu-link Navmenu-link--owner" title="<%= @name %>"><%= @name %></a>
             </li>
 
-            <li class="Navmenu-item">
-              <i class="Navmenu-rarrow iconFont iconFont-Rarrow"></i>
-              <a href="<%= CartoDB.url(self, 'public_datasets_home', {}, @visualization.user) %>" class="Navmenu-link">Datasets</a>
-            </li>
+            <% unless @is_data_library %>
+              <li class="Navmenu-item">
+                <i class="Navmenu-rarrow CDB-IconFont CDB-IconFont-rArrowLight"></i>
+                <a href="<%= CartoDB.url(self, 'public_datasets_home', {}, @visualization.user) %>" class="Navmenu-link">Datasets</a>
+              </li>
+            <% end %>
           </ul>
         </div>
 
@@ -137,12 +139,12 @@
             <li class="Navmenu-item Navmenu-item--action Navmenu-item--withsep u-hideOnTablet">
               <div class="Navmenu-sep"></div>
 
-              <i class="Navmenu-actionIcon iconFont iconFont-Markup"></i>
+              <i class="Navmenu-actionIcon CDB-IconFont CDB-IconFont-markup"></i>
               <a href="#" class="Navmenu-link Navmenu-link--action js-Navmenu-link--api">API call</a>
             </li>
 
             <li class="Navmenu-item Navmenu-item--action u-hideOnTablet">
-              <i class="Navmenu-actionIcon iconFont iconFont-Floppy"></i>
+              <i class="Navmenu-actionIcon CDB-IconFont CDB-IconFont-floppy"></i>
               <a href="#" class="Navmenu-link Navmenu-link--action js-Navmenu-link--download">Download</a>
             </li>
 
@@ -163,42 +165,43 @@
       <div class="PublicMap-block">
         <div class="PublicMap-leftBlock PublicMap-leftBlock--large">
           <div class="js-user-meta">
-            <h1 class="PublicMap-title js-PublicMap-title Title Title--m"><%= @visualization.name %></h1>
+            <h1 class="PublicMap-title js-PublicMap-title Title Title--m"><%= @visualization.display_name_or_name %></h1>
             <% if @visualization.description_clean %>
               <div class="PublicMap-description"><%= raw @visualization.description_html_safe %></div>
             <% end %>
 
             <div class="PublicMap-meta">
               <ul class="PublicMap-metaList">
-                <li class="PublicMap-metaItem"><i class="PublicMap-metaIcon iconFont iconFont-Calendar"></i> <%= time_ago_in_words(@visualization.updated_at) %> ago</li>
+                <li class="PublicMap-metaItem"><i class="PublicMap-metaIcon CDB-IconFont CDB-IconFont-calendar"></i>  <span title="<%= time_ago_in_words(@visualization.updated_at) %> ago"><%= time_ago_in_words(@visualization.updated_at) %> ago</span></li>
               </ul>
 
               <ul class="PublicMap-metaList PublicMap-metaList--mobile js-PublicMap-metaList--mobile">
                 <% if !@table.rows_counted.blank? %>
                   <li class="PublicMap-metaItem">
-                    <i class="PublicMap-metaIcon iconFont iconFont-Rows RowsIndicator-icon"></i>
+                    <i class="PublicMap-metaIcon CDB-IconFont CDB-IconFont-rows RowsIndicator-icon"></i>
                     <% if @table.rows_counted < 10000 %>
                       <%= number_with_delimiter(@table.rows_counted) %>
                     <% else %>
                       <%= number_to_human(@table.rows_counted, units: { unit:"", thousand: "K", million: "M" }, precision: 2, format: '%n%u') %>
                     <% end %>
-                    <%= 'row'.pluralize(@table.rows_counted) %>
+                     <span title="<%= 'row'.pluralize(@table.rows_counted) %>"><%= 'row'.pluralize(@table.rows_counted) %></span>
                   </li>
                 <% end %>
 
                 <% if !@visualization.visualization.license_info.nil? %>
                   <li class="PublicMap-metaItem">
-                    <i class="PublicMap-metaIcon iconFont iconFont-License iconFont-License<%= @visualization.visualization.license_info.id.to_s.gsub(/_/,"").downcase %>"></i>
+                    <%# Defaulting on CC icon for license https://github.com/CartoDB/cartodb/issues/6413 %>
+                    <i class="PublicMap-metaIcon CDB-IconFont CDB-IconFont-creativeCommons iconFont-License iconFont-License<%= @visualization.visualization.license_info.id.to_s.gsub(/_/,"").downcase %>"></i>
                     <%# Keep on one line to avoid unwanted spaces %>
-                    <%= @visualization.visualization.license_info.name %>
+                    <span title="<%= @visualization.visualization.license_info.name %>"><%= @visualization.visualization.license_info.name %></span>
                   </li>
                 <% end %>
 
                 <% if @visualization.visualization.source.present? %>
                   <li class="PublicMap-metaItem">
-                    <i class="PublicMap-metaIcon iconFont iconFont-Anchor"></i>
+                    <i class="PublicMap-metaIcon CDB-IconFont CDB-IconFont-anchor"></i>
                     <%# Keep on one line to avoid unwanted spaces %>
-                    <%= @visualization.visualization.source %>
+                    <span title="<%= @visualization.visualization.source %>"><%= raw @visualization.source_html_safe %></span>
                   </li>
                 <% end %>
               </ul>
@@ -233,7 +236,7 @@
                     </h3>
                   </div>
                   <div class="MapCard-contentFooterTimeDiff DefaultTimeDiff">
-                    <i class="iconFont iconFont-Clock DefaultTimeDiff-icon"></i>
+                    <i class="CDB-IconFont CDB-IconFont-clock DefaultTimeDiff-icon"></i>
                     <%= time_ago_in_words(vis.updated_at) %> ago
                   </div>
                 </div>

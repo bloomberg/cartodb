@@ -26,7 +26,7 @@
     <%= stylesheet_link_tag 'cartodb', 'common', 'data_library' %>
   </head>
 
-  <body class="PublicBody PublicBody--grey">
+  <body class="PublicBody PublicBody--grey PublicBody--commercial">
     <%= render partial: 'admin/shared/data_library_header' %>
 
     <%= yield %>
@@ -36,13 +36,14 @@
     <script type="text/javascript">
       var config = <%= safe_js_object frontend_config_public({ https_apis: request.protocol == 'https://' }) %>;
       var account_host = '<%= CartoDB.account_host %>';
+      var dataset_base_url = '<%= @dataset_base_url %>';
     </script>
 
     <%= javascript_include_tag 'cdb.js', 'templates', 'data_library_deps', 'data_library' %>
     <%= yield :js %>
 
-    <%= insert_trackjs() -%>
-    <%= insert_google_analytics('primary') -%>
-    <%= insert_hubspot() -%>
+    <%= insert_trackjs() %>
+    <%= insert_google_analytics('primary', true) %>
+    <%= insert_hubspot() %>
   </body>
 </html>

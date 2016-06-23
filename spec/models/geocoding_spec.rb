@@ -115,7 +115,9 @@ describe Geocoding do
     end
 
     it 'marks the geocoding as failed if the geocoding job fails' do
-      geocoding = FactoryGirl.build(:geocoding, user: @user, formatter: 'a', user_table: @table, formatter: 'b')
+      geocoding = FactoryGirl.build(:geocoding, user: @user, formatter: 'a', 
+                                    user_table: @table, geometry_type: 'polygon',
+                                    kind: 'admin0')
       geocoding.class.stubs(:processable_rows).returns 10
       CartoDB::TableGeocoder.any_instance.stubs(:used_batch_request?).returns false
       CartoDB::TableGeocoder.any_instance.stubs(:run).raises("Error")
@@ -179,7 +181,9 @@ describe Geocoding do
     end
 
     it 'succeeds if there are no rows to geocode' do
-      geocoding = FactoryGirl.build(:geocoding, user: @user, formatter: 'a', user_table: @table, formatter: 'b')
+      geocoding = FactoryGirl.build(:geocoding, user: @user, formatter: 'a', 
+                                    user_table: @table, geometry_type: 'polygon',
+                                    kind: 'admin0')
       geocoding.class.stubs(:processable_rows).returns 0
       geocoding.run!
       geocoding.processed_rows.should eq 0
@@ -207,7 +211,9 @@ describe Geocoding do
         payload[:email] == @user.email && payload[:processed_rows] == 0
       }
 
-      geocoding = FactoryGirl.build(:geocoding, user: @user, formatter: 'a', user_table: @table, formatter: 'b')
+      geocoding = FactoryGirl.build(:geocoding, user: @user, formatter: 'a', 
+                                    user_table: @table, geometry_type: 'polygon',
+                                    kind: 'admin0')
       geocoding.class.stubs(:processable_rows).returns 0
       geocoding.run!
     end
@@ -276,13 +282,13 @@ describe Geocoding do
     end
 
     it 'returns the used credits when the user is over geocoding quota' do
-      geocoding = FactoryGirl.create(:geocoding, user: @user, processed_rows: 0, cache_hits: 100, kind: 'high-resolution', formatter: 'foo')
+      geocoding = FactoryGirl.create(:geocoding, user: @user, processed_rows: 0, cache_hits: 100, kind: 'high-resolution', geocoder_type: 'heremaps', formatter: 'foo')
       # 100 total (user has 200) => 0 used credits
       geocoding.calculate_used_credits.should eq 0
-      geocoding = FactoryGirl.create(:geocoding, user: @user, processed_rows: 0, cache_hits: 150, kind: 'high-resolution', formatter: 'foo')
+      geocoding = FactoryGirl.create(:geocoding, user: @user, processed_rows: 0, cache_hits: 150, kind: 'high-resolution', geocoder_type: 'heremaps', formatter: 'foo')
       # 250 total => 50 used credits
       geocoding.calculate_used_credits.should eq 50
-      geocoding = FactoryGirl.create(:geocoding, user: @user, processed_rows: 100, cache_hits: 0, kind: 'high-resolution', formatter: 'foo')
+      geocoding = FactoryGirl.create(:geocoding, user: @user, processed_rows: 100, cache_hits: 0, kind: 'high-resolution', geocoder_type: 'heremaps', formatter: 'foo')
       # 350 total => 100 used credits
       geocoding.calculate_used_credits.should eq 100
     end

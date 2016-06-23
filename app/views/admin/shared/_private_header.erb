@@ -5,28 +5,19 @@
         <li class="js-logo">
           <a href="<%= root_url %>">
             <span class="Logo Logo--avatar">
-              <i class="iconFont iconFont-CartoFante"></i>
+              <i class="CDB-IconFont CDB-IconFont-cartoFante"></i>
             </span>
           </a>
         </li>
         <li>
           <ul class="Header-navigationBreadcrumb">
-            <% if current_user.has_organization? %>
-              <li class="Header-navigationBreadcrumbItem"><p class="Header-navigationBreadcrumbParagraph"><%= current_user.organization.name %></p> /</li>
-            <% end %>
-            <li class="Header-navigationBreadcrumbItem">
-              <% if params[:controller] != "admin/visualizations" %>
-                <p class="Header-navigationBreadcrumbParagraph"><%= link_to current_user.name_or_username, CartoDB.url(self, 'dashboard', {}, current_user), :class => "Header-navigationBreadcrumbLink" %></p> /
-              <% else %>
-                <p class="Header-navigationBreadcrumbParagraph"><%= current_user.name_or_username %></p> /
-              <% end %>
-            </li>
             <li class="Header-navigationBreadcrumbItem js-breadcrumb-dropdown"></li>
           </ul>
         </li>
       </ul>
     </div>
     <div class="Header-settings">
+      <% if current_user.has_feature_flag?('bbg_profile_menu') %>
       <ul class="Header-settingsList">
         <% unless cartodb_com_hosted? %>
         <li class="Header-settingsItem">
@@ -37,16 +28,17 @@
         </li>
         <li class="Header-settingsItem Header-settingsItemNotifications js-user-notifications">
           <a href="#/notifications" class="UserNotifications">
-            <i class="UserNotifications-Icon iconFont iconFont-Alert"></i>
+            <i class="UserNotifications-Icon CDB-IconFont CDB-IconFont-Alert"></i>
           </a>
         </li>
         <% end %>
         <li class="Header-settingsItem Header-settingsItem--avatar">
           <button class="UserAvatar js-settings-dropdown">
-            <%= image_tag current_user.avatar, :class => 'UserAvatar-img UserAvatar-img--medium' %>
+            <img src="<%= current_user.avatar %>" class='UserAvatar-img UserAvatar-img--medium' />
           </button>
         </li>
       </ul>
+      <% end %>
     </div>
   </div>
 </div>

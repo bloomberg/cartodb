@@ -1,4 +1,5 @@
 require_relative '../spec_helper'
+require_relative './http_authentication_helper'
 
 describe SignupController do
 
@@ -61,6 +62,7 @@ describe SignupController do
     before(:each) do
       @organization.auth_username_password_enabled = true
       @organization.auth_google_enabled = true
+      @organization.strong_passwords_enabled = true
       @organization.save
     end
 
@@ -69,7 +71,7 @@ describe SignupController do
 
       username = 'testusername'
       email = 'testemail@nonono.com'
-      password = 'testpassword'
+      password = '2{Patrañas}'
       host! "#{@organization.name}.localhost.lan"
       post signup_organization_user_url(user_domain: @organization.name, user: { username: username, email: email, password: password })
       response.status.should == 422
@@ -112,12 +114,13 @@ describe SignupController do
     end
 
     it 'triggers a NewUser job with form parameters and default quota and requiring validation email' do
+      Cartodb::Central.stubs(:sync_data_with_cartodb_central?).returns(false)
       ::Resque.expects(:enqueue).with(::Resque::UserJobs::Signup::NewUser,
-                                      instance_of(String), instance_of(String), instance_of(FalseClass)).returns(true)
+                                      instance_of(String), anything, instance_of(FalseClass)).returns(true)
 
       username = 'testusername'
       email = "testemail@#{@organization.whitelisted_email_domains[0]}"
-      password = 'testpassword'
+      password = '2{Patrañas}'
       host! "#{@organization.name}.localhost.lan"
       post signup_organization_user_url(user_domain: @organization.name, user: { username: username, email: email, password: password })
       response.status.should == 200
@@ -129,6 +132,7 @@ describe SignupController do
       last_user_creation.organization_id.should == @organization.id
       last_user_creation.quota_in_bytes.should == @organization.default_quota_in_bytes
       last_user_creation.requires_validation_email?.should == true
+      last_user_creation.created_via.should == Carto::UserCreation::CREATED_VIA_ORG_SIGNUP
     end
 
     it 'Returns 422 for not whitelisted domains' do
@@ -136,7 +140,7 @@ describe SignupController do
 
       host! "#{@organization.name}.localhost.lan"
       post signup_organization_user_url(user_domain: @organization.name,
-                                        user: { username: 'evil', email: 'evil@whatever.com', password: 'xxxxxx' })
+                                        user: { username: 'evil', email: 'evil@whatever.com', password: '2{Patrañas}' })
       response.status.should == 422
     end
 
@@ -152,7 +156,7 @@ describe SignupController do
       host! "#{@organization.name}.localhost.lan"
       post signup_organization_user_url(
         user_domain: @organization.name,
-        user: { username: 'invited-user', email: invited_email, password: 'xxxxxx' },
+        user: { username: 'invited-user', email: invited_email, password: '2{Patrañas}' },
         invitation_token: 'wrong'
       )
       response.status.should == 400
@@ -166,11 +170,13 @@ describe SignupController do
       invitation.save
 
       ::Resque.expects(:enqueue).
-        with(::Resque::UserJobs::Signup::NewUser, instance_of(String), instance_of(String), instance_of(FalseClass)).
+        with(::Resque::UserJobs::Signup::NewUser, instance_of(String), anything, instance_of(FalseClass)).
         never
       host! "#{@organization.name}.localhost.lan"
       post signup_organization_user_url(user_domain: @organization.name,
-                                        user: { username: 'invited-user', email: invited_email, password: 'xxxxxx' },
+                                        user: { username: 'invited-user',
+                                                email: invited_email,
+                                                password: '2{Patrañas}' },
                                         invitation_token: invitation.token(invited_email))
       response.status.should == 400
       invitation.reload
@@ -182,12 +188,15 @@ describe SignupController do
       invitation = Carto::Invitation.create_new(Carto::User.find(@org_user_owner.id), [invited_email], 'Welcome!')
       invitation.save
 
+      Cartodb::Central.stubs(:sync_data_with_cartodb_central?).returns(false)
       ::Resque.expects(:enqueue).
-        with(::Resque::UserJobs::Signup::NewUser, instance_of(String), instance_of(String), instance_of(FalseClass)).
+        with(::Resque::UserJobs::Signup::NewUser, instance_of(String), anything, instance_of(FalseClass)).
         returns(true)
       host! "#{@organization.name}.localhost.lan"
       post signup_organization_user_url(user_domain: @organization.name,
-                                        user: { username: 'invited-user', email: invited_email, password: 'xxxxxx' },
+                                        user: { username: 'invited-user',
+                                                email: invited_email,
+                                                password: '2{Patrañas}' },
                                         invitation_token: invitation.token(invited_email))
       response.status.should == 200
       last_user_creation = Carto::UserCreation.order('created_at desc').limit(1).first
@@ -219,6 +228,85 @@ describe SignupController do
 
     end
 
-  end
+    describe 'http authentication signup' do
+      include HttpAuthenticationHelper
 
+      describe 'header authentication disabled' do
+        it 'returns 404 if http authentication is not set' do
+          stub_http_header_authentication_configuration(enabled: false)
+          get signup_http_authentication_url
+          response.status.should == 404
+        end
+
+        it 'returns 404 if http authentication autocreation is disabled' do
+          stub_http_header_authentication_configuration(autocreation: false)
+          get signup_http_authentication_url
+          response.status.should == 404
+        end
+      end
+
+      describe 'header authentication enabled' do
+        it 'returns 404 if http authentication autocreation is disabled' do
+          stub_http_header_authentication_configuration(autocreation: false)
+          get signup_http_authentication_url
+          response.status.should == 404
+        end
+
+        it 'returns 500 if http authentication is not set to email' do
+          ['auto', 'id', 'username'].each do |field|
+            stub_http_header_authentication_configuration(autocreation: true, field: field)
+            get signup_http_authentication_url
+            response.status.should == 500
+          end
+        end
+
+        describe 'autocreation enabled' do
+          before(:each) do
+            stub_http_header_authentication_configuration(autocreation: true)
+          end
+
+          it 'returns 403 if http authentication header is not present' do
+            get signup_http_authentication_url
+            response.status.should == 403
+          end
+
+          it 'triggers user creation without organization' do
+            Cartodb::Central.stubs(:sync_data_with_cartodb_central?).returns(false)
+            email = 'authenticated@whatever.com'
+
+            ::Resque.expects(:enqueue).
+              with(::Resque::UserJobs::Signup::NewUser, instance_of(String), anything, instance_of(FalseClass)).
+              returns(true)
+            get signup_http_authentication_url, {}, authentication_headers(email)
+            response.status.should == 200
+
+            last_user_creation = Carto::UserCreation.order('created_at desc').limit(1).first
+            last_user_creation.organization_id.should == nil
+            last_user_creation.requires_validation_email?.should == false
+          end
+
+          it 'triggers user creation with organization' do
+            Cartodb::Central.stubs(:sync_data_with_cartodb_central?).returns(false)
+            username = "authenticated"
+            email = "#{username}@#{@organization.whitelisted_email_domains.first}"
+
+            ::Resque.expects(:enqueue).
+              with(::Resque::UserJobs::Signup::NewUser, instance_of(String), anything, instance_of(FalseClass)).
+              returns(true)
+
+            host! "#{@organization.name}.localhost.lan"
+            get signup_http_authentication_url(user_domain: @organization.name), {}, authentication_headers(email)
+            response.status.should == 200
+
+            last_user_creation = Carto::UserCreation.order('created_at desc').limit(1).first
+            last_user_creation.organization_id.should == @organization.id
+            last_user_creation.requires_validation_email?.should == false
+            last_user_creation.username.should == username
+            last_user_creation.email.should == email
+            last_user_creation.crypted_password.should_not be_empty
+          end
+        end
+      end
+    end
+  end
 end

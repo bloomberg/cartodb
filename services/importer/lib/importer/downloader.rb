@@ -14,21 +14,19 @@ require_relative './url_translator/google_docs'
 require_relative './url_translator/kimono_labs'
 require_relative './unp'
 require_relative '../../../../lib/carto/http/client'
+require_relative '../../../../lib/carto/url_validator'
 
 module CartoDB
   module Importer2
     class Downloader
 
+      extend Carto::UrlValidator
+
       # in seconds
       HTTP_CONNECT_TIMEOUT = 60
       DEFAULT_HTTP_REQUEST_TIMEOUT = 600
+      MAX_REDIRECTS = 5
       URL_ESCAPED_CHARACTERS = 'áéíóúÁÉÍÓÚñÑçÇàèìòùÀÈÌÒÙ'
-
-      SUPPORTED_EXTENSIONS = CartoDB::Importer2::Unp::SUPPORTED_FORMATS
-                              .concat(CartoDB::Importer2::Unp::COMPRESSED_EXTENSIONS)
-      URL_FILENAME_REGEX = Regexp.new(
-                              "[[:word:]]+(#{ SUPPORTED_EXTENSIONS.map{ |s| s.sub(/\./, "\\.")}.join("|") })+",
-                              true)
 
       DEFAULT_FILENAME        = 'importer'
       CONTENT_DISPOSITION_RE  = %r{;\s*filename=(.*;|.*)}
@@ -46,7 +44,7 @@ module CartoDB
       CONTENT_TYPES_MAPPING = [
         {
           content_types: ['text/plain'],
-          extensions: ['txt']
+          extensions: ['txt', 'kml', 'geojson']
         },
         {
           content_types: ['text/csv'],
@@ -93,6 +91,18 @@ module CartoDB
           extensions: ['json']
         }
       ]
+
+      def self.supported_extensions
+        @supported_extensions ||= CartoDB::Importer2::Unp::SUPPORTED_FORMATS
+                                  .concat(CartoDB::Importer2::Unp::COMPRESSED_EXTENSIONS)
+                                  .sort_by(&:length).reverse
+      end
+
+      def self.url_filename_regex
+        @url_filename_regex ||= Regexp.new(
+                                 "[[:word:]]+#{Regexp.union(supported_extensions)}+",
+                                 true)
+      end
 
       def initialize(url, http_options = {}, options = {}, seed = nil, repository = nil)
         @url = url
@@ -219,8 +229,10 @@ module CartoDB
           followlocation:   true,
           ssl_verifypeer:   verify_ssl,
           ssl_verifyhost:   (verify_ssl ? 2 : 0),
-          connecttimeout:  HTTP_CONNECT_TIMEOUT,
-          timeout:          http_options.fetch(:http_timeout, DEFAULT_HTTP_REQUEST_TIMEOUT)
+          forbid_reuse:     true,
+          connecttimeout:   HTTP_CONNECT_TIMEOUT,
+          timeout:          http_options.fetch(:http_timeout, DEFAULT_HTTP_REQUEST_TIMEOUT),
+          maxredirs:        MAX_REDIRECTS
         }
       end
 
@@ -237,13 +249,26 @@ module CartoDB
 
         downloaded_file = File.open(temp_name, 'wb')
         request = http_client.request(@translated_url, typhoeus_options)
+
         request.on_headers do |response|
           @http_response_code = response.code if !response.code.nil?
+
           unless response.success?
             download_error = true
             error_response = response
           end
+
+          # If there is any redirection we want to check again if
+          # the final IP is in the IP blacklist
+          if response.redirect_count.to_i > 0
+            begin
+              CartoDB::Importer2::Downloader.validate_url!(response.effective_url)
+            rescue Carto::UrlValidator::InvalidUrlError
+              raise CartoDB::Importer2::CouldntResolveDownloadError
+            end
+          end
         end
+
         request.on_body do |chunk|
           downloaded_file.write(chunk)
         end
@@ -254,6 +279,8 @@ module CartoDB
           end
           downloaded_file.close
 
+          # Header hash keys can take advantage of typhoeus case insensitive
+          # headers lookup (https://github.com/typhoeus/typhoeus/issues/227)
           headers = response.headers
           name            = name_from(headers, url, @custom_filename)
           @etag           = etag_from(headers)
@@ -324,24 +351,18 @@ module CartoDB
       end
 
       def content_length_from(headers)
-        content_length = headers.fetch('Content-Length', nil)
-        content_length ||= headers.fetch('Content-length', nil)
-        content_length ||= headers.fetch('content-length', -1)
+        content_length = headers['Content-Length'] || -1
         content_length.to_i
       end
 
       def etag_from(headers)
-        etag  =   headers.fetch('ETag', nil)
-        etag  ||= headers.fetch('Etag', nil)
-        etag  ||= headers.fetch('etag', nil)
-        etag  = etag.delete('"').delete("'") if etag
+        etag = headers['ETag']
+        etag = etag.delete('"').delete("'") if etag
         etag
       end
 
       def last_modified_from(headers)
-        last_modified =   headers.fetch('Last-Modified', nil)
-        last_modified ||= headers.fetch('Last-modified', nil)
-        last_modified ||= headers.fetch('last-modified', nil)
+        last_modified = headers['Last-Modified']
         last_modified = last_modified.delete('"').delete("'") if last_modified
         if last_modified
           begin
@@ -376,15 +397,13 @@ module CartoDB
       end
 
       def content_type
-        headers.fetch('Content-Type', nil) ||
-          headers.fetch('Content-type', nil) ||
-          headers.fetch('content-type', nil)
+        media_type = headers['Content-Type']
+        return nil unless media_type
+        media_type.split(';').first
       end
 
       def name_from_http(headers)
-        disposition = headers.fetch('Content-Disposition', nil)
-        disposition ||= headers.fetch('Content-disposition', nil)
-        disposition ||= headers.fetch('content-disposition', nil)
+        disposition = headers['Content-Disposition']
         return false unless disposition
         filename = disposition.match(CONTENT_DISPOSITION_RE).to_a[1]
         return false unless filename
@@ -392,7 +411,7 @@ module CartoDB
       end
 
       def name_in(url)
-        url_name = URL_FILENAME_REGEX.match(url).to_s
+        url_name = self.class.url_filename_regex.match(url).to_s
 
         url_name if !url_name.empty?
       end
@@ -412,7 +431,7 @@ module CartoDB
       end
 
       def gdrive_deny_in?(headers)
-        headers.fetch('X-Frame-Options', nil) == 'DENY'
+        headers['X-Frame-Options'] == 'DENY'
       end
 
       def md5_command_for(name)

@@ -4,15 +4,17 @@ module Carto
   module Api
     class UserPresenter
 
-      # fetching_options:
+      # options:
       # - fetch_groups
-      def initialize(user, fetching_options = {})
+      # - current_viewer
+      def initialize(user, options = {})
         @user = user
-        @fetching_options = fetching_options
+        @options = options
       end
 
       def to_poro
         return {} if @user.nil?
+        return to_public_poro unless !@options[:current_viewer].nil? && @user.viewable_by?(@options[:current_viewer])
 
         poro = {
           id:               @user.id,
@@ -27,8 +29,31 @@ module Carto
           all_visualization_count: @user.all_visualization_count
         }
 
-        if @fetching_options[:fetch_groups] == true
+        if @options[:fetch_groups] == true
           poro.merge!(groups: @user.groups ? @user.groups.map { |g| Carto::Api::GroupPresenter.new(g).to_poro } : [])
+        end
+
+        poro
+      end
+
+      def to_public_poro
+        return {} if @user.nil?
+
+        poro = {
+          id:               @user.id,
+          username:         @user.username,
+          avatar_url:       @user.avatar_url,
+          base_url:         @user.public_url
+        }
+
+        if @options[:fetch_groups] == true
+          poro.merge!(groups: @user.groups ? @user.groups.map { |g| Carto::Api::GroupPresenter.new(g).to_poro } : [])
+        end
+
+        if @options[:current_user] && @options[:current_user].organization_owner? && @user.belongs_to_organization?(@options[:current_user].organization)
+          poro[:email] = @user.email
+          poro[:table_count] = @user.table_count
+          poro[:all_visualization_count] = @user.all_visualization_count
         end
 
         poro
@@ -70,6 +95,12 @@ module Carto
             block_price: @user.organization_user? ? @user.organization.geocoding_block_price : @user.geocoding_block_price,
             monthly_use: @user.organization_user? ? @user.organization.get_geocoding_calls : @user.get_geocoding_calls,
             hard_limit:  @user.hard_geocoding_limit?
+          },
+          here_isolines: {
+            quota:       @user.organization_user? ? @user.organization.here_isolines_quota : @user.here_isolines_quota,
+            block_price: @user.organization_user? ? @user.organization.here_isolines_block_price : @user.here_isolines_block_price,
+            monthly_use: @user.organization_user? ? @user.organization.get_here_isolines_calls : @user.get_here_isolines_calls,
+            hard_limit:  @user.hard_here_isolines_limit?
           },
           twitter: {
             enabled:     @user.organization_user? ? @user.organization.twitter_datasource_enabled         : @user.twitter_datasource_enabled,
@@ -114,6 +145,7 @@ module Carto
 
         if @user.organization.present?
           data[:organization] = Carto::Api::OrganizationPresenter.new(@user.organization).to_poro
+          data[:organization][:available_quota_for_user] = @user.organization.unassigned_quota + @user.quota_in_bytes
         end
 
         if !@user.groups.nil?

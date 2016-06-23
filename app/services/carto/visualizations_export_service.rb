@@ -26,18 +26,7 @@ module Carto
       visualization = Carto::Visualization.where(id: visualization_id).first
       raise "Visualization with id #{visualization_id} not found" unless visualization
 
-      vizjson_options = {
-        full: true,
-        user_name: visualization.user.username,
-        user_api_key: visualization.user.api_key,
-        user: visualization.user,
-        viewer_user: visualization.user
-      }
-
-      data = CartoDB::Visualization::VizJSON.new(
-        Carto::Api::VisualizationVizJSONAdapter.new(visualization, $tables_metadata), vizjson_options, Cartodb.config)
-                                            .to_export_poro(export_version)
-                                            .to_json
+      data = export_to_json(visualization)
 
       backup_present = Carto::VisualizationBackup.where(
         username: visualization.user.username,
@@ -61,6 +50,21 @@ module Carto
       raise VisualizationsExportServiceError.new("Export error: #{exception.message} #{exception.backtrace}")
     end
 
+    def export_to_json(visualization)
+      vizjson_options = {
+        full: true,
+        user_name: visualization.user.username,
+        user_api_key: visualization.user.api_key,
+        user: visualization.user,
+        viewer_user: visualization.user
+      }
+
+      CartoDB::Visualization::VizJSON.new(
+        Carto::Api::VisualizationVizJSONAdapter.new(visualization, $tables_metadata), vizjson_options, Cartodb.config)
+                                            .to_export_poro(export_version)
+                                            .to_json
+    end
+
     def import(visualization_id, skip_version_check = false)
       restore_result = restore_backup(visualization_id, skip_version_check)
       remove_backup(visualization_id) if restore_result
@@ -69,6 +73,39 @@ module Carto
       raise export_error
     rescue => exception
       raise VisualizationsExportServiceError.new("Import error: #{exception.message} #{exception.backtrace}")
+    end
+
+    def restore_from_json(dump_data)
+      user = ::User.where(id: dump_data["owner"]["id"]).first
+
+      base_layer = create_base_layer(user, dump_data)
+
+      map = create_map(user, base_layer)
+
+      add_data_layers(map, dump_data)
+
+      add_labels_layer(map, base_layer, dump_data)
+
+      set_map_data(map, dump_data)
+
+      description = dump_data["description"]
+
+      default_privacy = CartoDB::Visualization::Member::PRIVACY_LINK
+      privacy = user.valid_privacy?(default_privacy) ? default_privacy : CartoDB::Visualization::Member::PRIVACY_PUBLIC
+      visualization = create_visualization(
+        id: dump_data["id"],
+        name: dump_data["title"],
+        description: (description.nil? || description.empty?) ? "" : CGI.unescapeHTML(description),
+        type: CartoDB::Visualization::Member::TYPE_DERIVED,
+        privacy: privacy,
+        user_id: user.id,
+        map_id: map.id,
+        kind: CartoDB::Visualization::Member::KIND_GEOM
+      )
+
+      add_overlays(visualization, dump_data)
+
+      true
     end
 
     private
@@ -102,33 +139,7 @@ module Carto
 
       dump_data = get_restore_data(visualization_id, skip_version_check)
 
-      user = ::User.where(id: dump_data["owner"]["id"]).first
-
-      base_layer = create_base_layer(user, dump_data)
-
-      map = create_map(user, base_layer)
-
-      add_data_layers(map, dump_data)
-
-      add_labels_layer(map, base_layer, dump_data)
-
-      set_map_data(map, dump_data)
-
-      description = dump_data["description"]
-      visualization = create_visualization(
-        id: dump_data["id"],
-        name: dump_data["title"],
-        description: (description.nil? || description.empty?) ? "" : CGI.unescapeHTML(description),
-        type: CartoDB::Visualization::Member::TYPE_DERIVED,
-        privacy: CartoDB::Visualization::Member::PRIVACY_LINK,
-        user_id: user.id,
-        map_id: map.id,
-        kind: CartoDB::Visualization::Member::KIND_GEOM
-      )
-
-      add_overlays(visualization, dump_data)
-
-      true
+      restore_from_json(dump_data)
     end
 
     def get_restore_data(visualization_id, skip_version_check)
@@ -148,7 +159,7 @@ module Carto
 
     def add_overlays(visualization, exported_data)
       exported_data["overlays"].each do |exported_overlay|
-        CartoDB::Overlay::Member.new(exported_overlay.merge('visualization_id' => visualization.id)).store
+        Carto::Overlay.new(exported_overlay.merge('visualization_id' => visualization.id)).save
       end
 
       true
@@ -189,14 +200,14 @@ module Carto
       # Basemap/base layer is always the first layer
       layer_data = exported_data["layers"].select { |layer| ::Layer::BASE_LAYER_KINDS.include?(layer["type"]) }.first
       if layer_data.nil?
-        CartoDB::Factories::LayerFactory.get_default_base_layer(user)
+        ::ModelFactories::LayerFactory.get_default_base_layer(user)
       else
-        CartoDB::Factories::LayerFactory.get_new(prepare_layer_data(layer_data))
+        ::ModelFactories::LayerFactory.get_new(prepare_layer_data(layer_data))
       end
     end
 
     def add_data_layer(map, layer_data)
-      data_layer = CartoDB::Factories::LayerFactory.get_new(prepare_layer_data(layer_data))
+      data_layer = ::ModelFactories::LayerFactory.get_new(prepare_layer_data(layer_data))
       map.add_layer(data_layer)
       data_layer
     end
@@ -212,14 +223,14 @@ module Carto
         add_default_labels_layer(map, base_layer)
       else
         # ...And labels layer is always last one
-        labels_layer = CartoDB::Factories::LayerFactory.get_new(prepare_layer_data(base_layers.last))
+        labels_layer = ::ModelFactories::LayerFactory.get_new(prepare_layer_data(base_layers.last))
         map.add_layer(labels_layer)
         labels_layer
       end
     end
 
     def create_map(user, base_layer)
-      map = CartoDB::Factories::MapFactory.get_map(base_layer, user.id)
+      map = ::ModelFactories::MapFactory.get_map(base_layer, user.id)
       map.add_layer(base_layer)
       map
     end
@@ -241,7 +252,7 @@ module Carto
     end
 
     def add_default_labels_layer(map, base_layer)
-      labels_layer = CartoDB::Factories::LayerFactory.get_default_labels_layer(base_layer)
+      labels_layer = ::ModelFactories::LayerFactory.get_default_labels_layer(base_layer)
       map.add_layer(labels_layer)
       labels_layer
     end

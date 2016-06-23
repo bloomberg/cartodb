@@ -2,6 +2,7 @@
 
 require_relative '../controllers/carto/api/group_presenter'
 require_relative './organization/organization_decorator'
+require_relative '../helpers/data_services_metrics_helper'
 require_relative './permission'
 
 class Organization < Sequel::Model
@@ -9,6 +10,7 @@ class Organization < Sequel::Model
 
   include CartoDB::OrganizationDecorator
   include Concerns::CartodbCentralSynchronizable
+  include DataServicesMetricsHelper
 
   Organization.raise_on_save_failure = true
   self.strict_param_setting = false
@@ -37,12 +39,18 @@ class Organization < Sequel::Model
 
   plugin :validation_helpers
 
+  DEFAULT_GEOCODING_QUOTA = 0
+  DEFAULT_HERE_ISOLINES_QUOTA = 0
+
   def validate
     super
     validates_presence [:name, :quota_in_bytes, :seats]
     validates_unique   :name
-    validates_format   /\A[a-z0-9\-]+\z/, :name, message: 'must only contain lowercase letters, numbers & hyphens'
+    validates_format   (/\A[a-z0-9\-]+\z/), :name, message: 'must only contain lowercase letters, numbers & hyphens'
     validates_integer  :default_quota_in_bytes, :allow_nil => true
+    validates_integer :geocoding_quota, allow_nil: false, message: 'geocoding_quota cannot be nil'
+    validates_integer :here_isolines_quota, allow_nil: false, message: 'here_isolines_quota cannot be nil'
+
     if default_quota_in_bytes
       errors.add(:default_quota_in_bytes, 'Default quota must be positive') if default_quota_in_bytes <= 0
     end
@@ -63,6 +71,11 @@ class Organization < Sequel::Model
     errors.add(:quota_in_bytes, "not enough disk quota") if unassigned_quota <= 0 || (!quota_in_bytes.nil? && unassigned_quota < quota_in_bytes)
   end
 
+  def before_validation
+    self.geocoding_quota ||= DEFAULT_GEOCODING_QUOTA
+    self.here_isolines_quota ||= DEFAULT_HERE_ISOLINES_QUOTA
+  end
+
   # Just to make code more uniform with user.database_schema
   def database_schema
     self.name
@@ -70,6 +83,8 @@ class Organization < Sequel::Model
 
   def before_save
     super
+    @geocoding_quota_modified = changed_columns.include?(:geocoding_quota)
+    @here_isolines_quota_modified = changed_columns.include?(:here_isolines_quota)
     self.updated_at = Time.now
     raise errors.join('; ') unless valid?
   end
@@ -78,25 +93,26 @@ class Organization < Sequel::Model
     destroy_groups
   end
 
+  def after_create
+    super
+    save_metadata
+  end
+
+  def after_save
+    super
+    save_metadata
+  end
+
   # INFO: replacement for destroy because destroying owner triggers
   # organization destroy
   def destroy_cascade
     destroy_groups
-    destroy_permissions
     destroy_non_owner_users
     if self.owner
       self.owner.destroy
     else
       self.destroy
     end
-  end
-
-  def destroy_permissions
-    self.users.each { |user|
-      CartoDB::Permission.where(owner_id: user.id).each { |permission|
-        permission.destroy
-      }
-    }
   end
 
   def destroy_non_owner_users
@@ -110,23 +126,23 @@ class Organization < Sequel::Model
   end
 
   ##
-  # SLOW! Checks map views for every user in every organization
+  # SLOW! Checks redis data (geocoding and isolines) for every user in every organization
   # delta: get organizations who are also this percentage below their limit.
   #        example: 0.20 will get all organizations at 80% of their map view limit
   #
   def self.overquota(delta = 0)
 
     Organization.all.select do |o|
-        limit = o.map_view_quota.to_i - (o.map_view_quota.to_i * delta)
-        over_map_views = o.get_api_calls(from: o.owner.last_billing_cycle, to: Date.today) > limit
-
         limit = o.geocoding_quota.to_i - (o.geocoding_quota.to_i * delta)
         over_geocodings = o.get_geocoding_calls > limit
+
+        limit = o.here_isolines_quota.to_i - (o.here_isolines_quota.to_i * delta)
+        over_here_isolines = o.get_here_isolines_calls > limit
 
         limit =  o.twitter_datasource_quota.to_i - (o.twitter_datasource_quota.to_i * delta)
         over_twitter_imports = o.get_twitter_imports_count > limit
 
-        over_map_views || over_geocodings || over_twitter_imports
+        over_geocodings || over_twitter_imports || over_here_isolines
     end
   end
 
@@ -136,13 +152,43 @@ class Organization < Sequel::Model
 
   def get_geocoding_calls(options = {})
     date_from, date_to = quota_dates(options)
-    Geocoding.get_geocoding_calls(users_dataset.join(:geocodings, :user_id => :id), date_from, date_to)
+    if owner.has_feature_flag?('new_geocoder_quota')
+      get_organization_geocoding_data(self, date_from, date_to)
+    else
+      Geocoding.get_geocoding_calls(users_dataset.join(:geocodings, :user_id => :id), date_from, date_to)
+    end
+  end
+
+  def get_new_system_geocoding_calls(options = {})
+    date_to = (options[:to] ? options[:to].to_date : Date.current)
+    date_from = (options[:from] ? options[:from].to_date : owner.last_billing_cycle)
+    get_organization_geocoding_data(self, date_from, date_to)
+  end
+
+  def get_here_isolines_calls(options = {})
+    date_from, date_to = quota_dates(options)
+    get_organization_here_isolines_data(self, date_from, date_to)
   end
 
   def get_twitter_imports_count(options = {})
     date_from, date_to = quota_dates(options)
 
     SearchTweet.get_twitter_imports_count(users_dataset.join(:search_tweets, :user_id => :id), date_from, date_to)
+  end
+
+  def remaining_geocoding_quota
+    remaining = geocoding_quota - get_geocoding_calls
+    (remaining > 0 ? remaining : 0)
+  end
+
+  def remaining_here_isolines_quota
+    remaining = here_isolines_quota - get_here_isolines_calls
+    (remaining > 0 ? remaining : 0)
+  end
+
+  def remaining_twitter_quota
+    remaining = twitter_datasource_quota - get_twitter_imports_count
+    (remaining > 0 ? remaining : 0)
   end
 
   def db_size_in_bytes
@@ -173,11 +219,14 @@ class Organization < Sequel::Model
         :groups     => self.owner && self.owner.groups ? self.owner.groups.map { |g| Carto::Api::GroupPresenter.new(g).to_poro } : []
       },
       :quota_in_bytes           => self.quota_in_bytes,
+      :unassigned_quota         => self.unassigned_quota,
       :geocoding_quota          => self.geocoding_quota,
+      :here_isolines_quota      => self.here_isolines_quota,
       :map_view_quota           => self.map_view_quota,
       :twitter_datasource_quota => self.twitter_datasource_quota,
       :map_view_block_price     => self.map_view_block_price,
       :geocoding_block_price    => self.geocoding_block_price,
+      :here_isolines_block_price => self.here_isolines_block_price,
       :seats                    => self.seats,
       :twitter_username         => self.twitter_username,
       :location                 => self.twitter_username,
@@ -245,6 +294,10 @@ class Organization < Sequel::Model
     ::Resque.enqueue(::Resque::OrganizationJobs::Mail::DiskQuotaLimitReached, id) if disk_quota_limit_reached?
   end
 
+  def notify_if_seat_limit_reached
+    ::Resque.enqueue(::Resque::OrganizationJobs::Mail::SeatLimitReached, id) if seat_limit_reached?
+  end
+
   def database_name
     owner ? owner.database_name : nil
   end
@@ -256,6 +309,23 @@ class Organization < Sequel::Model
 
   def name_to_display
     display_name.nil? ? name : display_name
+  end
+
+  # create the key that is used in redis
+  def key
+    "rails:orgs:#{name}"
+  end
+
+  # save orgs basic metadata to redis for other services (node sql api, geocoder api, etc)
+  # to use
+  def save_metadata
+    $users_metadata.HMSET key,
+      'id', id,
+      'geocoding_quota', geocoding_quota,
+      'here_isolines_quota', here_isolines_quota,
+      'google_maps_client_id', google_maps_key,
+      'google_maps_api_key', google_maps_private_key,
+      'period_end_date', period_end_date
   end
 
   private
@@ -273,6 +343,11 @@ class Organization < Sequel::Model
     unassigned_quota < default_quota_in_bytes
   end
 
+  # Returns true if seat limit will be reached with new user
+  def seat_limit_reached?
+    (remaining_seats - 1) < 1
+  end
+
   def quota_dates(options)
     date_to = (options[:to] ? options[:to].to_date : Date.today)
     date_from = (options[:from] ? options[:from].to_date : last_billing_cycle)
@@ -281,6 +356,10 @@ class Organization < Sequel::Model
 
   def last_billing_cycle
     owner ? owner.last_billing_cycle : Date.today
+  end
+
+  def period_end_date
+    owner ? owner.period_end_date : nil
   end
 
   def public_vis_count_by_type(type)
@@ -307,5 +386,4 @@ class Organization < Sequel::Model
   def secure_digest(*args)
     Digest::SHA256.hexdigest(args.flatten.join)
   end
-
 end

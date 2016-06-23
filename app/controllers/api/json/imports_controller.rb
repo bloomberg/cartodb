@@ -6,9 +6,11 @@ require_relative '../../../models/visualization/external_source'
 require_relative '../../../../services/platform-limits/platform_limits'
 require_relative '../../../../services/importer/lib/importer/exceptions'
 require_dependency 'carto/uuidhelper'
+require_dependency 'carto/url_validator'
 
 class Api::Json::ImportsController < Api::ApplicationController
   include Carto::UUIDHelper
+  include Carto::UrlValidator
 
   ssl_required :create
   ssl_allowed :invalidate_service_token
@@ -37,9 +39,8 @@ class Api::Json::ImportsController < Api::ApplicationController
         options = default_creation_options
 
         if params[:url].present?
-          options.merge!({
-                           data_source: params.fetch(:url)
-                         })
+          validate_url!(params.fetch(:url)) unless Rails.env.development? || Rails.env.test?
+          options.merge!(data_source: params.fetch(:url))
         elsif params[:remote_visualization_id].present?
           external_source = external_source(params[:remote_visualization_id])
           options.merge!( { data_source: external_source.import_url.presence } )
@@ -76,7 +77,7 @@ class Api::Json::ImportsController < Api::ApplicationController
                      }, 429)
       rescue => ex
         decrement_concurrent_imports_rate_limit
-        CartoDB::Logger.info('Error: create', "#{ex.message} #{ex.backtrace.inspect}")
+        CartoDB::StdoutLogger.info('Error: create', "#{ex.message} #{ex.backtrace.inspect}")
         render_jsonp({ errors: { imports: ex.message } }, 400)
       end
 
@@ -110,7 +111,7 @@ class Api::Json::ImportsController < Api::ApplicationController
 
         render_jsonp({ success: true })
       rescue => ex
-        CartoDB::Logger.info('Error: invalidate_service_token', "#{ex.message} #{ex.backtrace.inspect}")
+        CartoDB::StdoutLogger.info('Error: invalidate_service_token', "#{ex.message} #{ex.backtrace.inspect}")
         render_jsonp({ errors: { imports: ex.message } }, 400)
       end
 
@@ -190,7 +191,7 @@ class Api::Json::ImportsController < Api::ApplicationController
       concurrent_import_limit.decrement!
       concurrent_import_limit.peek  # return limit value
     rescue => sub_exception
-      CartoDB::Logger.info('Error decreasing concurrent import limit',
+      CartoDB::StdoutLogger.info('Error decreasing concurrent import limit',
                            "#{sub_exception.message} #{sub_exception.backtrace.inspect}")
       nil
     end

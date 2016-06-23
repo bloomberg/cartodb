@@ -21,28 +21,27 @@ $bannedColor: #E1A7A5;
   position: relative;
   @include display-flex();
   padding: $sMargin-group 0;
-  border-bottom: 1px solid $cStructure-softLine;
+  border-bottom: 1px solid $DarkGrey8;
 }
 .DatasetsList-item--selectable:hover,
 .DatasetsList-item--selectable.is--selected {
   padding: $sMargin-group $selectedItemPaddingOnSides;
   margin: -1px -#{$sMargin-element} 0 -#{$sMargin-element};
-  border-radius: 4px;
 }
 .DatasetsList-item--selectable:hover {
-  background-color: $cCard-hoverFill;
-  border: 1px $cCard-hoverBorder solid;
+  background-color: $gridRowBackgroundHover;
+  border: 1px solid $DarkGrey8;
   cursor: pointer;
   .DatasetsList-itemDescription .DefaultDescription:after {
-    @include background-horizontal(rgba(255,255,255,0), $cCard-hoverFill);
+    @include background-horizontal(rgba(255,255,255,0), $gridRowBackgroundHover);
   }
 }
 .DatasetsList-item--selectable.is--selected {
-  background-color: $cCard-selectedFill;
-  border: 1px $cCard-selectedBorder solid;
+  background-color: $gridRowBackgroundSelected;
+  border: 1px solid $SelectionBlue2;
   &:hover { cursor: default }
   .DatasetsList-itemDescription .DefaultDescription:after {
-    @include background-horizontal(rgba(255,255,255,0), $cCard-selectedFill);
+    @include background-horizontal(rgba(255,255,255,0), $gridRowBackgroundSelected);
   }
 }
 .DatasetsList-fake {

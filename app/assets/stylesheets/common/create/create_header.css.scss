@@ -6,8 +6,12 @@
 .CreateDialog-header {
   max-height: 100px;
   min-height: 100px!important;
+  background: $DarkGrey6;
+
 }
-.CreateDialog-header.with-separator { border-bottom: 1px solid $cStructure-mainLine }
+.CreateDialog-header.with-separator {
+ border-bottom: 1px solid $Black;
+ }
 .CreateDialog-headerSteps {
   display: block;
   text-align: center;

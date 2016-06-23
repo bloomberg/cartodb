@@ -59,42 +59,49 @@ module CartoDB
         fix_oid(table_name)
       rescue => exception
         puts "Sync overwrite ERROR: #{exception.message}: #{exception.backtrace.join}"
-        Rollbar.report_exception(exception)
+        CartoDB.notify_error('Error in sync cartodbfy',
+                             error: exception.backtrace.join('\n'), user_id: user.id,
+                             table: table_name, result: result)
         drop(result.table_name) if exists?(result.table_name)
       end
 
       def fix_oid(table_name)
-        actual_oid_from_user_database = database.fetch(%Q{SELECT '#{table_name}'::regclass::oid}).first[:oid]
-        table = ::Table.new(:user_table => ::UserTable.where(name: table_name, user_id: user.id).first)
-        table.table_id = actual_oid_from_user_database.to_i
-        table.save
+        user_table = user.tables.where(name: table_name).first
+
+        user_table.sync_table_id
+        user_table.save
       end
 
       def cartodbfy(table_name)
-        table = ::Table.new(:user_table => ::UserTable.where(name: table_name, user_id: user.id).first)
+        table = user.tables.where(name: table_name).first.service
+
         table.force_schema = true
+
         table.import_to_cartodb(table_name)
         table.schema(reload: true)
+
         table.send :set_the_geom_column!
         table.import_cleanup
+
         table.send :cartodbfy
         table.schema(reload: true)
         table.reload
+
         table.send :update_table_pg_stats
         table.save
-        table.send(:invalidate_varnish_cache)
-        update_cdb_tablemetadata(table.name)
       rescue => exception
-        puts "Sync cartodbfy ERROR: #{exception.message}: #{exception.backtrace.join}"
-        Rollbar.report_exception(exception)
-        table.send(:invalidate_varnish_cache)
+        CartoDB::Logger.log('error',
+                            message: "Sync cartodbfy ERROR: #{exception.message}",
+                            trace: exception.backtrace,
+                            user: user,
+                            table_name: table_name)
+      ensure
+        fix_oid(table_name)
+        update_cdb_tablemetadata(table_name)
       end
 
       def update_cdb_tablemetadata(name)
-        qualified_name = "\"#{user.database_schema}\".\"#{name}\""
-        user.in_database(as: :superuser).run(%Q{
-          SELECT CDB_TableMetadataTouch('#{qualified_name}')
-        })
+        user.tables.where(name: name).first.update_cdb_tablemetadata
       end
 
       def success?
@@ -140,7 +147,7 @@ module CartoDB
 
       def results
         runner.results
-      end 
+      end
 
       def error_code
         runner.results.map(&:error_code).compact.first
@@ -195,18 +202,23 @@ module CartoDB
                 pg_class c, pg_index i,
                 pg_attribute a
               WHERE c.oid  = '#{origin_schema}.#{origin_table_name}'::regclass::oid AND i.indrelid = c.oid
-                    AND (a.attname = '#{::Table::THE_GEOM}' OR a.attname = '#{::Table::THE_GEOM_WEBMERCATOR}')
-                    AND i.indexrelid = ir.oid 
-                    AND i.indnatts = 1
-                    AND i.indkey[0] = a.attnum 
-                    AND a.attrelid = c.oid
-                    AND NOT a.attisdropped 
-                    AND am.oid = ir.relam
+                AND i.indexrelid = ir.oid
+                AND i.indnatts = 1
+                AND i.indkey[0] = a.attnum
+                AND a.attrelid = c.oid
+                AND NOT a.attisdropped
+                AND am.oid = ir.relam
+                AND (
+                  (
+                    (a.attname = '#{::Table::THE_GEOM}' OR a.attname = '#{::Table::THE_GEOM_WEBMERCATOR}')
                     AND am.amname = 'gist'
+                  ) OR (
+                    a.attname = '#{::Table::CARTODB_ID}'
+                    AND ir.relname <> '#{origin_table_name}_pkey'
                   )
-        )].map { |record|
-          record.fetch(:indexdef)
-        }
+                )
+            )
+        )].map { |record| record.fetch(:indexdef) }
       end
 
       def run_index_statements(statements)
@@ -229,4 +241,3 @@ module CartoDB
     end
   end
 end
-

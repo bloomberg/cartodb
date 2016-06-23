@@ -1,6 +1,7 @@
 # What is CartoDB?
 
 [![Code Climate](https://codeclimate.com/github/CartoDB/cartodb20.png)](https://codeclimate.com/github/CartoDB/cartodb20)
+[![Build Status](http://travis-ci.org/CartoDB/cartodb.png?branch=master)](http://travis-ci.org/CartoDB/cartodb)
 
 CartoDB is an open source tool that allows for the storage and
 visualization of geospatial data on the web.
@@ -24,13 +25,12 @@ etc) using a web form and then make it public or private.
 
 After it is uploaded, you can visualize it in a table or on a map, search
 it using SQL, and apply map styles using CartoCSS. You can even access it
-using the CartoDB [API OVERVIEW](http://developers.cartodb.com/documentation/apis-overview.html)
-and [SQL API](http://developers.cartodb.com/documentation/sql-api.html), or export it
+using the CartoDB [APIs](http://docs.cartodb.com/#cartodb-platform), or export it
 to a file.
 
 In other words, with CartoDB you can make awesome maps and build
 powerful geospatial applications! Definitely check out the [CartoDB
-Develop](http://cartodb.com/develop) for interactive examples
+Platform](https://cartodb.com/platform) for interactive examples
 and code.
 
 
@@ -57,8 +57,6 @@ Check the [testing doc](TESTING.md) section.
 
 CartoDB works in any modern browser, but if you want more info:
 
-- [Internet Explorer](http://windows.microsoft.com/en-us/internet-explorer/download-ie) from v10.
-- [Opera](http://www.opera.com/) from v31.
-- [Firefox](https://www.mozilla.org/en-US/firefox/new/) from v38.
-- [Safari](http://www.apple.com/safari/) from v8.
-- [Chrome](https://www.google.com/chrome/browser/desktop/) from v31.
+![Chrome](https://raw.github.com/alrra/browser-logos/master/chrome/chrome_48x48.png) | ![Firefox](https://raw.github.com/alrra/browser-logos/master/firefox/firefox_48x48.png) | ![IE](https://raw.github.com/alrra/browser-logos/master/internet-explorer/internet-explorer_48x48.png) | ![Opera](https://raw.github.com/alrra/browser-logos/master/opera/opera_48x48.png) | ![Safari](https://raw.github.com/alrra/browser-logos/master/safari/safari_48x48.png)
+--- | --- | --- | --- | --- |
+31+ ✔ | 38+ ✔ | 10+ ✔ | 31+ ✔ | 8+ ✔ |

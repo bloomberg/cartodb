@@ -1,5 +1,5 @@
 
-<%= form_for @user, url: (@user.new? ? CartoDB.url(self, 'create_organization_user', {}, current_user) : CartoDB.url(self, 'update_organization_user', {id: @user.username}, current_user)), :class =>'Form' do |f| %>
+<%= form_for @user, url: (@user.new? ? CartoDB.url(self, 'create_organization_user', {}, current_user) : CartoDB.url(self, 'update_organization_user', {id: @user.username}, current_user)), :html => {:class => 'Form js-organizationUserForm'} do |f| %>
 
   <%= f.hidden_field :private_tables_enabled %>
   <%= hidden_field_tag :show_account_settings_flash, true %>
@@ -68,18 +68,21 @@
 
   <% end %>
 
+  <div class="FormAccount-title">
+    <p class="FormAccount-titleText">User quotas</p>
+  </div>
+
+  <span class="FormAccount-separator"></span>
+
   <div class="FormAccount-row">
-    <div class="FormAccount-rowLabel">
-      <label class="FormAccount-label">User quota</label>
-    </div>
-    <div class="OrganizationUser-quota js-quota">
-      <div class="FormAccount-rowData FormAccount-rowData--med OrganizationUser-quotaProgress js-quotaProgress">
-        <div class="progress-bar OrganizationUser-quotaBar">
-          <% assignedPer = ((@user.quota_in_bytes.to_f * 100) / current_user.organization.quota_in_bytes) %>
-          <span class="bar-2 js-assignedBar" style="width:<%= assignedPer %>%"></span>
+    <div class="OrganizationUser-quota js-userQuota">
+      <div class="FormAccount-rowData FormAccount-rowData--med OrganizationUser-quotaProgress js-userQuotaSlider">
+        <div class="UISlider UserQuotaDropdown-slider js-slider progress-bar overflow-visible">
+        <% available_quota_for_user = current_user.organization.unassigned_quota + current_user.quota_in_bytes %>
+          <% assignedPer = ((@user.quota_in_bytes.to_f * 100) / available_quota_for_user) %>
           <% if !@user.new? %>
-            <% usedPer = ((@user.db_size_in_bytes.to_f * 100) / current_user.organization.quota_in_bytes) %>
-            <span class="bar-3" style="width:<%= usedPer %>%"></span>
+            <% usedPer = ((@user.db_size_in_bytes.to_f * 100) / available_quota_for_user) %>
+            <span class="js-usedUserQuota bar-3" style="width:<%= usedPer %>%"></span>
           <% end %>
         </div>
         <ul class="OrganizationUser-quotaLegend">
@@ -99,14 +102,8 @@
           </li>
         </ul>
       </div>
-      <div class="FormAccount-rowInfo OrganizationUser-quotaInfo js-quotaInfo">
-        <span class="js-assignedSize"><%= number_to_human_size(@user.quota_in_bytes) %></span> assigned, <button class="OrganizationUser-quotaInfoLink js-changeQuota">change</button>
-        <% unless cartodb_com_hosted? %>
-        or <a href="<%= current_user.upgrade_url(request.protocol) %>">upgrade your account</a> if needed
-        <% else %>
-        it
-        <% end %>
-
+      <div class="FormAccount-rowInfo FormAccount-rowInfo--marginLeft OrganizationUser-quotaInfo js-userQuotaSliderInput">
+        <span><%= text_field_tag nil, nil, :class => "FormAccount-input OrganizationUser-quotaInfoInput js-assignedSize" %> MB<% unless cartodb_com_hosted? %>, <a href="<%= current_user.upgrade_url(request.protocol) %>">upgrade your account</a> if needed.<% end %></span>
       </div>
       <%= f.hidden_field :quota_in_bytes, :id => "user_quota" %>
     </div>
@@ -118,11 +115,34 @@
     </div>
     <div class="FormAccount-rowData">
       <div class="Toggler">
-        <%= f.check_box :soft_geocoding_limit, :id => "soft_geocoding_limit" %>
+        <%= f.check_box :soft_geocoding_limit, id: "soft_geocoding_limit", disabled: !current_user.soft_geocoding_limit %>
         <%= label_tag(:soft_geocoding_limit, '') %>
       </div>
       <div class="FormAccount-rowInfo FormAccount-rowInfo--marginLeft">
-        <p class="FormAccount-rowInfoText">User has permission to exceed organization's geocoding quota</p>
+        <% if current_user.soft_geocoding_limit %>
+          <p class="FormAccount-rowInfoText">User has permission to exceed organization's geocoding quota</p>
+        <% else %>
+          <p class="FormAccount-rowInfoText">You can't enable extra quota. Contact support for more information.</p>
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <div class="FormAccount-row">
+    <div class="FormAccount-rowLabel">
+      <label class="FormAccount-label">Extra Here Isolines</label>
+    </div>
+    <div class="FormAccount-rowData">
+      <div class="Toggler">
+        <%= f.check_box :soft_here_isolines_limit, id: "soft_here_isolines_limit", disabled: !current_user.soft_here_isolines_limit %>
+        <%= label_tag(:soft_here_isolines_limit, '') %>
+      </div>
+      <div class="FormAccount-rowInfo FormAccount-rowInfo--marginLeft">
+        <% if current_user.soft_here_isolines_limit %>
+          <p class="FormAccount-rowInfoText">User has permission to exceed organization's isolines quota from Here provider</p>
+        <% else %>
+          <p class="FormAccount-rowInfoText">You can't enable extra quota. Contact support for more information.</p>
+        <% end %>
       </div>
     </div>
   </div>
@@ -134,11 +154,15 @@
       </div>
       <div class="FormAccount-rowData">
         <div class="Toggler">
-          <%= f.check_box :soft_twitter_datasource_limit, :id => "soft_twitter_datasource_limit" %>
+          <%= f.check_box :soft_twitter_datasource_limit, id: "soft_twitter_datasource_limit", disabled: !current_user.soft_twitter_datasource_limit %>
           <%= label_tag(:soft_twitter_datasource_limit, '') %>
         </div>
         <div class="FormAccount-rowInfo FormAccount-rowInfo--marginLeft">
-          <p class="FormAccount-rowInfoText">User has permission to exceed organization's Twitter credits</p>
+          <% if current_user.soft_twitter_datasource_limit %>
+            <p class="FormAccount-rowInfoText">User has permission to exceed organization's Twitter credits</p>
+          <% else %>
+            <p class="FormAccount-rowInfoText">You can't enable extra quota. Contact support for more information.</p>
+          <% end %>
         </div>
       </div>
     </div>
@@ -152,7 +176,7 @@
       <div class="FormAccount-rowData">
         <%= f.text_field :api_key, :class => "FormAccount-input FormAccount-input--med is-disabled", :readonly => true %>
         <div class="FormAccount-rowInfo FormAccount-rowInfo--marginLeft">
-          <button class="Button--link js-regenerateOrgUserApiKey" data-username="<%= @user.username %>" data-current_username="<%= current_user.username %>">Regenerate API key</button>
+          <button class="Button--link js-regenerateOrgUserApiKey" data-username="<%= @user.username %>" data-current_username="<%= current_user.username %>" type="button">Regenerate API key</button>
         </div>
       </div>
     </div>
@@ -161,7 +185,7 @@
   <div class="FormAccount-footer">
     <% if !@user.new? && current_user.organization_owner? -%>
       <% if @user != current_user %>
-        <button href="<%= CartoDB.url(self, 'delete_organization_user', {id: @user.username}, current_user) %>" class="Button Button--secondary js-deleteAccount">
+        <button href="<%= CartoDB.url(self, 'delete_organization_user', {id: @user.username}, current_user) %>" type="button" class="Button Button--secondary js-deleteAccount">
           <span>Delete this user</span>
         </button>
       <% else %>
@@ -183,20 +207,11 @@
 <script type="text/javascript">
   <% if !@user.new? %>
     var organization_user_data = <%= safe_js_object @user.data.to_json %>;
+  <% else %>
+    <% @user.values[:db_size_in_bytes] = 0 %>
+    <% @user.values[:organization] = current_user.data[:organization] %>
+    <% @user.values[:quota_available_for_user] = current_user.data[:organization][:unassigned_quota] + @user.values[:quota_in_bytes] %>
+
+    var organization_user_data = <%= safe_js_object @user.values.to_json %>;
   <% end %>
-  <%
-    assigned_quota_in_bytes = 0
-    current_user.organization.users.map { |u|
-      if (u.username != @user.username)
-        assigned_quota_in_bytes = assigned_quota_in_bytes + u.quota_in_bytes
-      end
-    }
-  %>
-  var assigned_user_quota = <%= @user.quota_in_bytes %>;
-  var used_user_quota = <%= @user.db_size_in_bytes rescue 0 %>;
-  var user_name = "<%= @user.username %>";
-  var organization_data = {
-    quota_in_bytes: <%= current_user.organization.quota_in_bytes %>,
-    used_quota_in_bytes: <%= assigned_quota_in_bytes %>
-  };
 </script>

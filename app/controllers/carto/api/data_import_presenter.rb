@@ -106,6 +106,7 @@ module Carto
         values.merge!(original_url: @data_import.original_url)
         values.merge!(data_type: @data_import.data_type)
         values.merge!(warnings: get_warnings)
+        values.merge!(is_raster: @data_import.is_raster?)
 
         if !@data_import.http_response_code.nil? && !@data_import.http_response_code.start_with?('2')
           values.merge!(http_response_code: @data_import.http_response_code)
@@ -180,6 +181,8 @@ module Carto
           warnings.merge!(rejected_layers: @data_import.rejected_layers.split(','))
           warnings.merge!(user_max_layers: @data_import.user.max_layers)
         end
+
+        warnings.merge!(JSON.parse(@data_import.runner_warnings)) if !@data_import.runner_warnings.nil?
 
         warnings.empty? ? nil : warnings
       end

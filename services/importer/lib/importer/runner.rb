@@ -62,6 +62,7 @@ module CartoDB
         @loader_options      = {}
         @results             = []
         @stats               = []
+        @warnings = {}
       end
 
       def loader_options=(value)
@@ -96,6 +97,9 @@ module CartoDB
         @downloader.multi_resource_import_supported? ? multi_resource_import : single_resource_import
         self
       rescue => exception
+        # Delete job temporary table from cdb_importer schema
+        delete_job_table
+
         log.append "Errored importing data:"
         log.append "#{exception.class.to_s}: #{exception.to_s}", truncate=false
         log.append '----------------------------------------------------'
@@ -142,7 +146,7 @@ module CartoDB
         results.select(&:success?).length > 0
       end
 
-      attr_reader :results, :log, :loader, :stats, :downloader
+      attr_reader :results, :log, :loader, :stats, :downloader, :warnings
 
       private
 
@@ -197,6 +201,15 @@ module CartoDB
           additional_support_tables = loader.additional_support_tables
         end
 
+        # Delete job temporary table from cdb_importer schema
+        delete_job_table
+
+        CartoDB::Logger.warning(exception: exception,
+                                message: "Error importing data",
+                                table_name: @job.table_name,
+                                log: @job.logger.to_s,
+                                path: source_file.fullpath)
+
         @job.log "Errored importing data from #{source_file.fullpath}:"
         @job.log "#{exception.class.to_s}: #{exception.to_s}", truncate=false
         @job.log '----------------------------------------------------'
@@ -247,8 +260,11 @@ module CartoDB
           end
 
           @importer_stats.timing('import') do
-            unpacker.source_files.each_with_index { |source_file, index|
+            if unpacker.source_files.length > MAX_TABLES_PER_IMPORT
+              add_warning(max_tables_per_import: MAX_TABLES_PER_IMPORT)
+            end
 
+            unpacker.source_files.each_with_index do |source_file, index|
               next if (index >= MAX_TABLES_PER_IMPORT)
               @job.new_table_name if (index > 0)
 
@@ -256,8 +272,7 @@ module CartoDB
               log.append "Filename: #{source_file.fullpath} Size (bytes): #{source_file.size}"
               import_stats = execute_import(source_file, @downloader)
               @stats << import_stats
-
-            }
+            end
           end
 
           @importer_stats.timing('cleanup') do
@@ -322,6 +337,7 @@ module CartoDB
       def execute_import(source_file, downloader)
         import_stats = {}
         begin
+          import_stats[:filename] = source_file.path
           import_stats[:type] = source_file.extension
           import_stats[:size] = source_file.size
 
@@ -384,6 +400,14 @@ module CartoDB
                                                                user: user,
                                                                db: db
                                                              })
+      end
+
+      def add_warning(warning)
+        @warnings.merge!(warning)
+      end
+
+      def delete_job_table
+        @job.delete_job_table
       end
 
       def raise_if_over_storage_quota(source_file)

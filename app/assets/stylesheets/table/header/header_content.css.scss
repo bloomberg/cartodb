@@ -15,6 +15,8 @@
   @import "../../old_common/vars";
   @import "../../old_common/common-sprite";
   @import "../../table/table-sprite";
+  @import "../variables/colors";
+  @import "../variables/mixins";
 
   $text-shadow-color: rgba(black,0.25);
 
@@ -134,7 +136,7 @@
 
           em { font-style: italic; }
 
-          .link { text-decoration: underline; }
+          .link { text-decoration: none; }
 
           a {
             font-style:normal;
@@ -179,7 +181,7 @@
           height: 20px;
           background: rgba(#EEE, .8) sprite($table-sprites, lock_open, $offset-x: 5px, $offset-y: 4px) no-repeat;
           @include simple-transition(all, 150ms);
-          @include border-radius(3px);
+          @include border-radius(2px);
 
           &.disabled {
             @include opacity(0.5);
@@ -204,29 +206,18 @@
         margin:0;
 
         a.share {
+	  @include actionButton;
           line-height:20px;
-          padding: 0 20px;
-          text-shadow: none;
-          color: #fff;
-          @include box-shadow(none);
-          border-radius: 30px;
-          border: 2px solid #fff;
-          background:none;
-
-          span {
-            padding: 1px 0;
-            @include inline-block();
-            color: #fff;
+          span{
+            @include inline-block();          
             font-size: 12px;
           }
-
-          &:hover {
-            span { text-decoration: underline; }
-          }
-
         }
 
-        &.dropdown { padding-right: 12px; }
+        &.dropdown { 
+          padding-right: 12px; 
+          @include bb_button_style; 
+        }
 
         &:after {
           position:absolute;

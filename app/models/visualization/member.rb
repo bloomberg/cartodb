@@ -12,7 +12,7 @@ require_relative '../table/privacy_manager'
 require_relative '../../../services/minimal-validation/validator'
 require_relative '../../../services/named-maps-api-wrapper/lib/named_maps_wrapper'
 require_relative '../../helpers/embed_redis_cache'
-require_relative '../../helpers/redis_vizjson_cache'
+require_dependency 'cartodb/redis_vizjson_cache'
 
 # Every table has always at least one visualization (the "canonical visualization"), of type 'table',
 # which shares the same privacy options as the table and gets synced.
@@ -252,13 +252,13 @@ module CartoDB
       def delete(from_table_deletion = false)
         # from_table_deletion would be enough for canonical viz-based deletes,
         # but common data loading also calls this delete without the flag to true, causing a call without a Map
-        if user.has_feature_flag?(Carto::VisualizationsExportService::FEATURE_FLAG_NAME) && map
-          begin
+        begin
+          if user.has_feature_flag?(Carto::VisualizationsExportService::FEATURE_FLAG_NAME) && map
             Carto::VisualizationsExportService.new.export(id)
-          rescue => exception
-            # Don't break deletion flow
-            CartoDB.notify_error(exception.message, error: exception.inspect, user: user, visualization_id: id)
           end
+        rescue => exception
+          # Don't break deletion flow
+          CartoDB.notify_error(exception.message, error: exception.inspect, user: user, visualization_id: id)
         end
 
         # Named map must be deleted before the map, or we lose the reference to it
@@ -278,7 +278,7 @@ module CartoDB
         support_tables.delete_all
 
         invalidate_cache
-        overlays.destroy
+        overlays.map(&:destroy)
         layers(:base).map(&:destroy)
         layers(:cartodb).map(&:destroy)
         safe_sequel_delete {
@@ -293,9 +293,11 @@ module CartoDB
                                             child.fetch.delete
                                           }
         }
-        safe_sequel_delete { permission.destroy } if permission
+
+        safe_sequel_delete { permission.destroy_shared_entities } if permission
         safe_sequel_delete { repository.delete(id) }
-        self.attributes.keys.each { |key| self.send("#{key}=", nil) }
+        safe_sequel_delete { permission.destroy } if permission
+        attributes.keys.each { |key| send("#{key}=", nil) }
 
         self
       end
@@ -337,6 +339,14 @@ module CartoDB
         end
       end
 
+      def source_html_safe
+        if source.present?
+          renderer = Redcarpet::Render::Safe
+          markdown = Redcarpet::Markdown.new(renderer, extensions = {})
+          markdown.render source
+        end
+      end
+
       def attributions=(value)
         self.dirty = true if value != @attributions
         self.attributions_changed = true if value != @attributions
@@ -373,6 +383,10 @@ module CartoDB
 
       def private?
         privacy == PRIVACY_PRIVATE and not organization?
+      end
+
+      def is_privacy_private?
+        privacy == PRIVACY_PRIVATE
       end
 
       def organization?
@@ -432,7 +446,7 @@ module CartoDB
         get_surrogate_key(CartoDB::SURROGATE_NAMESPACE_VISUALIZATION, self.id)
       end
 
-      def varnish_vizzjson_key
+      def varnish_vizjson_key
         ".*#{id}:vizjson"
       end
 
@@ -443,6 +457,8 @@ module CartoDB
       def table?
         type == TYPE_CANONICAL
       end
+      # Used at Carto::Api::VisualizationPresenter
+      alias :canonical? :table?
 
       def type_slide?
         type == TYPE_SLIDE
@@ -458,7 +474,7 @@ module CartoDB
 
       def invalidate_cache
         invalidate_redis_cache
-        invalidate_varnish_cache
+        invalidate_varnish_vizjson_cache
 
         parent.invalidate_cache unless parent_id.nil?
       end
@@ -499,7 +515,7 @@ module CartoDB
         ( !@password_salt.nil? && !@encrypted_password.nil? )
       end
 
-      def is_password_valid?(password)
+      def password_valid?(password)
         raise CartoDB::InvalidMember unless ( privacy == PRIVACY_PROTECTED && has_password? )
         ( password_digest(password, @password_salt) == @encrypted_password )
       end
@@ -686,8 +702,8 @@ module CartoDB
         VizJSON.new(self, vizjson_options, configuration).to_poro
       end
 
-      def invalidate_varnish_cache
-        CartoDB::Varnish.new.purge(varnish_vizzjson_key)
+      def invalidate_varnish_vizjson_cache
+        CartoDB::Varnish.new.purge(varnish_vizjson_key)
       end
 
       def close_list_gap(other_vis)
@@ -733,18 +749,14 @@ module CartoDB
 
         set_timestamps
 
-        repository.store(id, attributes.to_hash)
-
-        # Careful to not call Permission.save until after persisted the vis
+        # Ensure a permission is set before saving the visualization
         if permission.nil?
           perm = CartoDB::Permission.new
           perm.owner = user
-          perm.entity = self
           perm.save
           @permission_id = perm.id
-          # Need to save again
-          repository.store(id, attributes.to_hash)
         end
+        repository.store(id, attributes.to_hash)
 
         begin
           save_named_map
@@ -834,7 +846,7 @@ module CartoDB
         if type == TYPE_CANONICAL
           CartoDB::TablePrivacyManager.new(table)
                                       .set_from_visualization(self)
-                                      .propagate_to_varnish
+                                      .update_cdb_tablemetadata
         end
         self
       end

@@ -22,6 +22,7 @@ module CartoDB
       # @param destination_schema String|nil
       # @param public_user_roles Array|nil
       def initialize(runner, table_registrar, quota_checker, database, data_import_id,
+                     overviews_creator,
                      destination_schema = DESTINATION_SCHEMA, public_user_roles=[CartoDB::PUBLIC_DB_USER])
         @aborted                = false
         @runner                 = runner
@@ -29,6 +30,7 @@ module CartoDB
         @quota_checker          = quota_checker
         @database               = database
         @data_import_id         = data_import_id
+        @overviews_creator      = overviews_creator
         @destination_schema     = destination_schema
         @support_tables_helper  = CartoDB::Visualization::SupportTables.new(database,
                                                                             {public_user_roles: public_user_roles})
@@ -50,6 +52,9 @@ module CartoDB
           runner.log.append('Proceeding to register')
           results.select(&:success?).each { |result|
             register(result)
+          }
+          results.select(&:success?).each { |result|
+            create_overviews(result)
           }
 
           if data_import.create_visualization
@@ -76,12 +81,20 @@ module CartoDB
         runner.log.append("Table '#{name}' registered")
       rescue => exception
         if exception.message =~ /canceling statement due to statement timeout/i
+          drop("#{ORIGIN_SCHEMA}.#{result.table_name}")
           raise CartoDB::Importer2::StatementTimeoutError.new(
             exception.message,
             CartoDB::Importer2::ERRORS_MAP[CartoDB::Importer2::StatementTimeoutError]
           )
         else
           raise exception
+        end
+      end
+
+      def create_overviews(result)
+        dataset = @overviews_creator.dataset(result.name)
+        if dataset.should_create_overviews?
+          dataset.create_overviews!
         end
       end
 
@@ -114,8 +127,10 @@ module CartoDB
       end
 
       def drop(table_name)
-        database.execute(%Q(DROP TABLE #{table_name}))
-      rescue
+        Carto::OverviewsService.new(database).delete_overviews table_name
+        database.execute(%(DROP TABLE #{table_name}))
+      rescue => exception
+        runner.log.append("Couldn't drop table #{table_name}: #{exception}. Backtrace: #{exception.backtrace} ")
         self
       end
 
@@ -131,6 +146,9 @@ module CartoDB
           { schema: origin_schema, name: table }
         }
         @support_tables_helper.change_schema(destination_schema, table_name)
+      rescue => e
+        drop("#{origin_schema}.#{table_name}")
+        raise e
       end
 
       def rename(result, current_name, new_name, rename_attempts=0)
@@ -188,8 +206,10 @@ module CartoDB
         if rename_attempts <= MAX_RENAME_RETRIES
           rename(result, current_name, target_new_name, rename_attempts)
         else
+          drop("#{ORIGIN_SCHEMA}.#{current_name}")
           raise CartoDB::Importer2::InvalidNameError.new("#{message} #{rename_attempts} attempts. Data import: #{data_import_id}. ERROR: #{exception}")
         end
+        raise exception
       end
 
       def rename_the_geom_index_if_exists(current_name, new_name)
@@ -237,4 +257,3 @@ module CartoDB
     end
   end
 end
-

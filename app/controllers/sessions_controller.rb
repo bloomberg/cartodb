@@ -3,7 +3,6 @@ require_dependency 'google_plus_config'
 require_dependency 'google_plus_api'
 
 require_relative '../../lib/user_account_creator'
-
 require_relative '../../lib/cartodb/stats/authentication'
 
 class SessionsController < ApplicationController
@@ -13,13 +12,13 @@ class SessionsController < ApplicationController
   ssl_required :new, :create, :destroy, :show, :unauthenticated, :account_token_authentication_error,
                :ldap_user_not_at_cartodb
 
+  skip_before_filter :ensure_org_url_if_org_user # Don't force org urls
+  skip_before_filter :ensure_account_has_been_activated,
+                     only: [:account_token_authentication_error, :ldap_user_not_at_cartodb]
+
   before_filter :load_organization
   before_filter :initialize_google_plus_config
-  before_filter :api_authorization_required, :only => :show
-  # Don't force org urls
-  skip_before_filter :ensure_org_url_if_org_user
-  skip_before_filter :ensure_account_has_been_activated, :only => [ :account_token_authentication_error,
-                     :ldap_user_not_at_cartodb ]
+  before_filter :api_authorization_required, only: :show
 
   def new
     if logged_in?(CartoDB.extract_subdomain(request))
@@ -91,7 +90,7 @@ class SessionsController < ApplicationController
 
     @organization = ::Organization.where(id: organization_id).first
 
-    account_creator = CartoDB::UserAccountCreator.new
+    account_creator = CartoDB::UserAccountCreator.new(Carto::UserCreation::CREATED_VIA_LDAP)
 
     account_creator.with_organization(@organization)
                    .with_username(cartodb_username)
@@ -113,7 +112,7 @@ class SessionsController < ApplicationController
       render 'shared/signup_issue'
     end
   rescue => e
-    CartoDB.notify_exception(e, { new_user: account_creator.user.inspect })
+    CartoDB.report_exception(e, "Creating LDAP user", new_user: account_creator.nil? ? "account_creator nil" : account_creator.user.inspect)
     flash.now[:error] = e.message
     render action: 'new'
   end

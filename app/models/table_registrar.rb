@@ -22,7 +22,7 @@ module CartoDB
 
     def exists?(user, table_name)
       !table_klass.where(user_id: user.id, name: table_name).empty?
-    end 
+    end
 
     def get_valid_table_name(table_name)
       table_klass.get_valid_table_name(table_name, {
@@ -51,8 +51,8 @@ module CartoDB
         end
       end
     rescue => e
-      Rollbar.report_exception(e)
+      CartoDB.notify_exception(e)
+      raise e
     end
   end # TableRegistrar
 end # CartoDB
-
