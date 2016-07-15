@@ -451,7 +451,7 @@ div.map {
 
   &.derived div.cartodb-map {
 
-    @include position(66px, 64px, 0, 0);
+    @include position(66px, 0px, 0, 0);
     @include size(auto);
 
   }
