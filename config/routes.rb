@@ -20,6 +20,7 @@ CartoDB::Application.routes.draw do
   get   '/signup'           => 'signup#signup',     as: :signup
   post  '/signup'           => 'signup#create',  as: :signup_organization_user
   get   '(/user/:user_domain)(/u/:user_domain)/signup_http_authentication' => 'signup#create_http_authentication', as: :signup_http_authentication
+  get   '(/user/:user_domain)(/u/:user_domain)/signup_http_authentication_in_progress' => 'signup#create_http_authentication_in_progress', as: :signup_http_authentication_in_progress
 
   get   '(/user/:user_domain)(/u/:user_domain)/enable_account_token/:id' => 'account_tokens#enable',     as: :enable_account_token_show
   get   '(/user/:user_domain)(/u/:user_domain)/resend_validation_mail/:user_id' => 'account_tokens#resend',     as: :resend_validation_mail
@@ -501,6 +502,7 @@ CartoDB::Application.routes.draw do
 
     # Imports
     post   '(/user/:user_domain)(/u/:user_domain)/api/v1/imports'                          => 'imports#create',                      as: :api_v1_imports_create
+    delete '(/user/:user_domain)(/u/:user_domain)/api/v1/imports/:id'                      => 'imports#destroy',                      as: :api_v1_imports_update
 
     # Import services
     delete '(/user/:user_domain)(/u/:user_domain)/api/v1/imports/service/:id/invalidate_token'    => 'imports#invalidate_service_token',    as: :api_v1_imports_service_invalidate_token

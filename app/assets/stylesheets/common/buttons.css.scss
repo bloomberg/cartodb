@@ -6,47 +6,25 @@
 @import '../variables/sizes';
 
 $cHighlight-mainHover: rgba(#007FBD, 1);
-
+// bb_button
 .Button {
   @include display-flex();
   @include align-items(center, center);
-  height: $sButton-height;
-  padding: 0 16px;
-  background: $btn_background_normal;
-  border: 1px solid $Black;
-  border-radius: 2px;
-  box-shadow: $button_shadow;
-  outline: none;
-  text-align: center;
-  text-decoration: none;
-  &:hover {
-  background: $btn_background_hover;
-  box-shadow: $button_shadow_hover;
- }
- &:active {
-  background: $btn_background_press;
-  box-shadow: $button_shadow_press;
-  }    
+  @include bb_button_style;
+   
 }
 .Button--inline {
   display: inline-block;
   margin: 0 $sMargin-elementInline;
 }
 .Button--centered {
-  margin: auto;
-}
+  margin: auto;}
 .Button,
 .Button span {
-  color: #FFFFFF;
-  font-size: $sFontSize-smallUpperCase;
-  font-weight: $sFontWeight-bold;
-  line-height: $sLineHeight-button;
-  text-transform: uppercase;
-  white-space: nowrap;
-  box-sizing: border-box;
+  white-space: nowrap;  
 }
 .Button-inner {
-  line-height: $sButton-height;
+
 }
 .Button.is-hidden {
   display: none;
@@ -73,7 +51,7 @@ $cHighlight-mainHover: rgba(#007FBD, 1);
 }
 .Button--positive {
   @include actionButton;
-
+  @include bb_big_button;
   &.is-disabled:hover {
 	pointer-events: none; 
  }
@@ -126,21 +104,6 @@ $cHighlight-mainHover: rgba(#007FBD, 1);
     span {
       color: $cTypography-linkHover;
     }
-  }
-}
-.Button-importShowDetails {
-  height: 24px;
-  padding: 0 11px;
-  border: 1px solid #CCCCCC;
-  border-radius: 40px;
-  background: transparent;
-  color: $cTypography-paragraphs;
-  font-size: $sFontSize-smallUpperCase;
-  line-height: 24px;
-
-  &:hover {
-    border-color: $cTypography-paragraphs;
-    color: $cTypography-paragraphs;
   }
 }
 .Button--opacityTransition {

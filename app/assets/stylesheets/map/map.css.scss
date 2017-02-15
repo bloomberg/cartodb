@@ -24,7 +24,7 @@ div.map {
 }
 
 div.map, .mobile_bkg {
-  padding: 84px 84px 20px 20px;
+  padding: 20px 84px 20px 20px;
 }
 
 div.map.animated .cartodb-map {
@@ -32,6 +32,15 @@ div.map.animated .cartodb-map {
   -webkit-transition: all 200ms ease;
   -o-transition: all 200ms ease;
   transition: all 200ms ease;
+}
+
+// Disable animations
+.notransition {
+  -webkit-transition: none !important;
+  -moz-transition: none !important;
+  -o-transition: none !important;
+  -ms-transition: none !important;
+  transition: none !important;
 }
 
 div.map {
@@ -52,6 +61,40 @@ div.map {
     span.tooltip p {
       font-size: 11px;
     }
+  }
+
+  div.cartodb-legend-stack {
+    &:hover {
+      .reset {
+        display: block;
+      }
+    }
+
+    .reset {
+      position: absolute;
+      display: none;
+      background-color: white;
+      cursor: pointer;
+      top: -24px;
+      right: 5px;
+      width: 22px;
+      height: 22px;
+      font-size: 22px;
+      line-height: 22px;
+      text-align: center;
+      // Matches font-family of the legend text. Without this the default font is different,
+      //    which makes the rendering 'jump' when we click to switch to custom styles
+      font-family: Helvetica, Arial;
+      color: #666;
+      @include box-shadow(rgba(black,0.2) 0 0 4px 2px);
+      @include border-radius(5);
+      border: solid 1px #666;
+    }
+  }
+  div.cartodb-legend.choropleth li.graph {
+    border: 1px solid $Black;
+    border-radius: 0;
+
   }
 
   &.table { // TABLE'S MAP
@@ -123,7 +166,8 @@ div.map {
       div.cartodb-logo,
       div.cartodb-zoom,
       div.cartodb-legend-stack,
-      div.cartodb-zoom-info {
+      div.cartodb-zoom-info,
+      .leaflet-control-minimap {
         display:none!important;
       }
 
@@ -188,7 +232,7 @@ div.map {
     @include inline-block();
 
     & > li.button {
-
+      
       &.canvas_setup, &.add_overlay, &.toggle_slides, &.export_image {
 
         position:relative;
@@ -204,6 +248,7 @@ div.map {
       &.add_overlay {
           position: relative;
           padding-right: 18px;
+
           > .thumb { @include map-sprite(add_element);  }
           &:after {
             content: "";
@@ -230,15 +275,10 @@ div.map {
       padding: 0 6px 0 2px;
     }
 
-    .search-bar-input {
-      width: 240px;
-    }
-
     .search-bar-browse {
       float: right;
       text-transform: none;
     }
-    
 
     & > li {
 
@@ -382,7 +422,7 @@ div.map {
     box-sizing: border-box;
     @include inline-block();
     @include bb_button_style;
-    padding: 10px 14px 10px 37px;
+    padding: 5px 8px 6px 35px;
     margin: 0 3px 0 0;
     height: auto;
     min-width: 70px;
@@ -444,31 +484,43 @@ div.map {
 
   &.table div.cartodb-map {
 
-    @include position(66px, 0, 0, 0);
+    @include position(0, 0, 0, 0);
     @include border-radius(0);
 
   }
 
   &.derived div.cartodb-map {
 
-    @include position(66px, 64px, 0, 0);
+    @include position(-1px, 0px, 0, 0);
     @include size(auto);
 
   }
 
   div.cartodb-map {
 
-    & > div.cartodb-searchbox{
+    & > div.cartodb-searchbox {
+      @include bb_entry_style;
+      width: 160px;
       top: 20px;
-      right: 77px;
+      right: 96px;
       float: right;
       position: absolute;
 
-      background-color: $Amber1;
-      border: 1px solid $Black;
+      input {
+        width: 150px;
+        cursor: text;
+      }
       input.text {
         border:none;
         color: $Black;
+        left: 6px;
+      }
+      input.submit {
+        background: none;
+      }
+      span.loader {
+        background: url(../images/loader.svg) no-repeat center;
+        margin-left: -30px;
       }
     } 
 
@@ -484,15 +536,18 @@ div.map {
     z-index: 10001;
     background-color: $DarkGrey2;
     border:1px solid Black;
+    cursor: default;
     div.cartodb-legend {
       display:none;
       @include position(false, 0, 0, false);
       position:relative;
       margin: 0;
+      cursor: default;
       ul li {
         color: $Amber1;
       }
       &.custom, &.cluster, &.bubble, &.color, &.intensity, &.density { display: block; }
+      border-bottom: none;
     }
   }
 
@@ -502,6 +557,7 @@ div.map {
   div.cartodb-legend-stack,
   div.cartodb-share,
   div.cartodb-layer-selector-box,
+  div.cartodb-inset-map-box,
   div.cartodb-searchbox {
     @include transform-style("linear");
     @include transition-property("margin");
@@ -595,6 +651,11 @@ div.map {
     }
   }
 
+  // Inset Map
+  .leaflet-control-minimap {
+    display: none;
+  }
+
   // Fullscreen
   div.cartodb-fullscreen {
     display:none;
@@ -675,32 +736,23 @@ div.map {
     width: 100%;
     height: 37px;
     margin: -18px 0 0 0;
+    top: 69px;
     z-index:1;
 
     p {
       position: fixed;
       left: 50%;
       display: inline;
-      margin: 0 0 0 -50%;
-      padding: 12px 0;
+      margin: -3px 0 0 -50%;
+      padding: 0px 12px;
       width: 100%;
-      border-bottom: 1px solid #ccc;
-      background-color: #E5FAEA;
-      color: #333;
-      color: #666666;
+      background-color: $Black;
       text-align: center;
-      font-size: 13px;
-      font-family: $text-fonts;
       text-indent:0;
       z-index:2;
       @include transform-style("linear");
       @include transition-property("text-indent");
       @include transition-duration(300ms);
-      @include box-shadow(rgba(0, 0, 0, 0.055) 0 3px 1px 0);
-
-      &.warn {
-        background-color: rgba(#FFFFBF, 0.90);
-      }
     }
   } //div.sqlview
 
@@ -719,8 +771,12 @@ div.map {
       div.cartodb-layer-selector-box,
       div.cartodb-legend-stack,
       div.cartodb-searchbox {
-        margin-right:520px;
+        margin-right:600px;
       }
+    }
+
+    &.map.derived .ExportHelper--legend.cartodb-legend-stack {
+      margin-right:0 !important;
     }
 
     &.map.derived.mobile .mobile_bkg:before {
@@ -746,9 +802,12 @@ div.map {
       div.cartodb-layer-selector-box,
       div.cartodb-legend-stack,
       div.cartodb-searchbox {
-        margin-right:375px;
+        margin-right:455px;
       }
+    }
 
+    &.narrow.map.derived .ExportHelper--legend.cartodb-legend-stack {
+      margin-right:0 !important;
     }
 
     // Table
@@ -842,7 +901,7 @@ div.cartodb-edit-buttons {
     height:24px;
     border-right:0;
     margin:0;
-    padding:0!important;
+    padding:0!important; 
     margin:0;
     text-indent: -9999px;
     font-size:0;
@@ -875,28 +934,43 @@ div.cartodb-popup.dark  {
   }
 }
 
+.search-bar-container {
+  background: none !important;
+  padding: 0 0 0 2px;
+}
+
+.search-bar-input {
+  border-radius: 2px 0px 0px 2px;
+  width: 240px;
+  height: 30px;
+  line-height: 30px;
+  cursor: text;
+}
+
+.search-bar-browse {
+  float: right;
+  text-transform: none;
+}
+
+
 div.search-result-dropdown {
-  border:1px solid #ff9e24;
-  border-radius:2px;
-  background-color:#202020;
+  @include bb_dropdown;
 }
 
 .search-result-list {
   list-style-type:none;
 }
 
-.search-result-list li.remote {
-  color: #D0BBA1;
-}
-
 .search-result-row {
-  padding:5px;
-  height:18px;
-  color: #FF9E24;
-
+  height: 19px;
+  line-height: 19px;
+  padding: 0px 12px;
+  min-width: 200px;
+  font-size: 15px;
   .name {
     background: none;
-    width: 250px;
+    max-width: 250px;
+    min-width: 180px;
     margin-right: 15px;
     float: left;
     text-transform: none;
@@ -907,18 +981,21 @@ div.search-result-dropdown {
 
   .tags {
     background: none;
-    width: 300px;
+    color: $Amber1;
+    max-width: 210px;
+    min-width: 180px;
     float: right;
     text-transform: none;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+
   }
 }
 
 .search-result-row:hover {
-  background:#454545;
-  cursor: pointer;
+  background:$DarkGrey2;
+  
 }
 
 .search-result-row.no-result:hover {
@@ -927,7 +1004,10 @@ div.search-result-dropdown {
 }
 
 .search-result-row.selected {
-  background:#373737;
+  background-color: $DarkGrey1;
+  &:hover{
+    background-color: $DarkGrey1;
+  }
 }
 
 .search-result-row .found-sub {

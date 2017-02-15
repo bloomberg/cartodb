@@ -1,0 +1,115 @@
+
+  /**
+   *  Trick 'layer title' panel styles
+   */
+
+  @import "compass/css3/inline-block";
+  @import "compass/css3/transform";
+  @import "compass/css3/transition";
+  @import "../../old_common/vars";
+  @import "../../old_common/mixins";
+  @import "../variables/colors";
+  @import "../variables/mixins"; 
+
+  .title_layer { 
+    position:relative;
+    line-height:40px;
+
+      &.open {     
+        > .title-bar {
+          background-color: $layer_header_background_active; 
+          &:hover {
+            background-color: $layer_header_background_active_hover; 
+          }
+        }
+
+        > .title-layer-body {
+          background-color: $sidebar_panel_background;
+        }
+      }
+
+    > .title-bar {
+      background-color: $layer_header_background;
+      font-family: "AvenirNext_Demi";
+      font-size: 15px;
+      height: 40px;
+      line-height: 40px;
+      position: relative;
+      width: 100%;
+      .title-label {
+        margin-left: 12px;
+      }
+      &:hover {
+        background-color: $layer_header_background_hover;
+      }
+    
+
+      a.info {
+        text-decoration: none;
+        color: $White;
+      }
+
+      // Change title
+      // (Title layer text)
+      .action.title {
+        @include inline-block();
+        &:hover {
+          color: $Teal1;
+          cursor: pointer;
+        }
+      }
+    }
+
+     .title-layer-body {
+      border-top: 1px solid $DarkGrey8;
+      height: 100%;
+      padding: 12px;
+      width: auto;
+      position: relative;      
+
+      .wrapper {
+        position:absolute;
+        top:12px; left:12px; bottom:0; right:12px;
+        margin-bottom: 50px;
+        overflow:auto;
+      }
+
+      .title-layer-contents {
+
+          width: 100%;
+          display: block;
+
+        div.metadata-form {
+          > .title {
+            margin-bottom: 12px;
+            > h2 {
+              font-size: 15px;
+              color: $White;
+              line-height: 19px;
+            }
+          }
+          .Form-row {
+            .Form-input--long, .Form-rowData--long {
+              width: 100%;
+              resize: none;
+              height: 90px;
+              min-height: 40px;
+            }
+
+          }
+
+          .Dialog-stickyFooter {
+            position: relative;
+            width: 100%;
+            height: 30px;
+
+            .EditVisMetadata-formFooter {
+              display: block;
+              width: 100%;
+            }
+          }
+
+        }
+      }
+    }
+  }

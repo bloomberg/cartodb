@@ -9,6 +9,7 @@
 @import "../map/map-sprite";
 @import "../old_elements/elements-sprite";
 @import "../variables/colors";
+@import "../variables/mixins";
 
 .option-button.basemap_dropdown {
 
@@ -27,7 +28,7 @@
   & > .thumb {
 
     margin: 0 5px 0 0;
-    @include position(6px, false, false, 6px);
+    @include position(3px, false, false, 3px);
     @include inline-block();
     @include size(22px);    
 
@@ -64,12 +65,10 @@ div.dropdown.basemap {
   }
 
   div.custom > ul {
+    @include bb_list_separator;
     width: auto;
-    @include box-sizing(border-box);
     margin: 0 10px;
     padding: 10px 10px;
-
-    border-bottom: 1px solid $Black;
 
     & > li {
       //thumb labels

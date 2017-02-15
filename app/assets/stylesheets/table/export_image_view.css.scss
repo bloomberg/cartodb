@@ -9,6 +9,7 @@
   position: absolute;
   width: 100%;
   height: 100%;
+  cursor: crosshair;
 }
 .ExportImageView-Header {
   @include transition(all, 200ms, ease-in-out);
@@ -27,8 +28,7 @@
 }
 .ExportImageView--help {
   position: relative;
-  color: rgba(#FFF, 0.4);
-  font-size: 13px;
+  color: $Grey1;
   text-align: center;
 }
 .ExportImageView-Header .Button {
@@ -132,8 +132,9 @@
   width: auto;
   padding: 0 5px;
   box-sizing: border-box;
-  background: rgba(#FFF, 0.75);
+  background: rgba(#000, 0.32);
   font-size: 11px;
+  color: $Grey2;
 }
 .ExportHelper.ExportHelper--legend {
   display: inline-block;
@@ -143,7 +144,6 @@
   left: auto;
   width: auto;
   padding: 0 5px;
-  box-sizing: border-box;
 }
 
 .ExportHelperTitle {
@@ -205,6 +205,7 @@ $resizeHandlerSize: 8px;
 .CanvasExport {
   position: absolute;
   border: 1px dashed #FFF;
+  box-sizing: content-box; // important, do not remove
   &.draggable {
     cursor: move;
     z-index: 1000000000;
@@ -225,6 +226,7 @@ $resizeHandlerSize: 8px;
   opacity: 0.2;
 }
 .CanvasExport {
+  border: 1px solid $White;
   .ui-resizable { position: relative; }
   .ui-resizable-handle {
     position: absolute;

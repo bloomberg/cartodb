@@ -9,21 +9,20 @@
   @import "compass/css3/opacity";
   @import "../old_common/vars";
   @import "../variables/colors";
+  @import "../variables/mixins";
   div.dropdown {
+    @include bb_dropdown;
     position:absolute;
     display:none;
-    background: $DarkGrey7;
-    border: $dropdownBorder;
-    padding: 12px 0px;
     z-index:50;
 
     &:before {
       content:' ';
       position:absolute;
-      display:block!important;
       width:0;
       height:0;
       z-index:10;
+      display: none;
     }
 
     // Tick for 12 possibilities
@@ -81,10 +80,11 @@
       &:after {
         content:' ';
         position:absolute;
-        display:block!important;
+        
         width:0;
         height:0;
         z-index:1;
+        display: none;
       }
 
       // Tick for 12 possibilities

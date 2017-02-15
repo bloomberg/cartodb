@@ -2,6 +2,7 @@
 @import "compass/css3/box-sizing";
 @import "../old_common/vars";
 @import "../old_common/form-elements";
+@import "../variables/mixins";
 
 .floating.edit_name_dialog.markdown {
 
@@ -126,7 +127,7 @@
       word-spacing: -4px;
 
       .select2-container {width:100px!important;}
-      
+
       & > div.column {
         @include inline-block();
         letter-spacing: 0;
@@ -164,7 +165,7 @@
         }
 
         &:last-child {margin-right:0;}
-      }      
+      }
     }
 
 
@@ -279,7 +280,7 @@
         top:6px;
         left:8px;
         font-style:italic;
-        color:#AAAAAA; 
+        color:#AAAAAA;
         font-size:13px;
         pointer-events:none;
         z-index:10;
@@ -292,50 +293,17 @@
   }
 }
 .floating.edit_name_dialog {
+  z-index:10000;
   min-width:280px;
-  height:37px;
-  padding: 5px;
-  @include background(linear-gradient(rgba(black, 0.5), rgba(#212121,0.5)));
-  @include border-radius(4px);
-  @include box-shadow(rgba(0,0,0,0.12) 0 0 2px 2px);
+  height:30px;  
 
   .content {
     float: left;
     @include inline-block();
   }
 
-  input {
-    position:absolute;
-    top:5px;
-    left:5px;
-    right:65px;
-    bottom:5px;
-    font-size: 15px;
-    color: #333333;
-    border: 1px solid #000;
-    padding: 8px 10px;
-    line-height:normal;
-    @include border-radius(4px);
-    margin: 0 3px 0 0;
-    &:focus {
-      outline:none;
-    }
-  }
-
   a.ok {
-    padding: 9px 15px !important;
-    border: 1px solid #000 !important;
-    font-size: 15px !important;
-    font-weight: bold !important;
-    letter-spacing:0;
-    @include border-radius(4px);
-
-    &:active {
-      border-color:#ACACAC;
-      background:#D3D3D3; // IE
-      @include background(linear-gradient(#F9F9F9,#E1E1E1));
-      @include box-shadow(rgba(255,255,255,0) 0 0 1px 0,rgba(130,126,111,0.6) 0 1px 3px 0 inset);
-    }
+    @include bb_button_style;
   }
 
   &.tags-dialog {

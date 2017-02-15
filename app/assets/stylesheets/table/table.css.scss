@@ -31,13 +31,13 @@
 
 div.panes {
   position:absolute;
-  top:78px;
+  top:47px;
   right:0;
   bottom:0;
   left:0;
 
-  // When table/layer is synced
-  &.synced {top:102px}
+  // Should be value of default panes top + height of table_title below
+  &.table-view { top: 77px; }
 
   .emptyTableContainer {
     position:fixed;
@@ -91,6 +91,21 @@ div.panes {
 
 div.table {
 
+  .table_title {
+    position: fixed;
+    top: 34px;
+    left: 0;
+    right: 0;
+    height: 30px;
+    z-index: 2;
+    background: $DarkGrey6;
+    border-bottom: 1px solid $Black;
+    color: $Grey2;
+    padding: 0 12px;
+    font-size: 15px;
+    line-height: 30px; 
+  }
+
   table {
     position:relative;
     z-index:1;
@@ -99,7 +114,7 @@ div.table {
     // Table head
     thead {
       width:100%;
-      height:60px;
+      height:47px;
 
       div.sqlview {
         position: absolute;
@@ -136,7 +151,7 @@ div.table {
 
       tr {
         width:100%;
-        height:64px;
+        height:47px;
         z-index:2;
         background: image-url('layout/thead_bkg.jpg') repeat 0 0;
 
@@ -148,19 +163,17 @@ div.table {
             position:relative;
             display:block;
             width:100%;
-            height:66px;
+            height:47px;
             z-index:1;
 
             & > div {
               position:fixed;
-              @include inline-block();
+              @include inline-block(); 
               width: inherit;
-              height:41px;
-              margin-top:1px;
-              padding:10px 0 15px;
+              height:48px;
+              margin-top:-1px;
               background: #232323;
               border-bottom:1px solid $Black;
-	      box-shadow: $button_shadow;
               z-index:1;
 
               &:after {
@@ -197,17 +210,15 @@ div.table {
                   &:after {
                     @include inline-block();
                     position:relative;
-                    left:2px;
-                    border-top:3px solid $Grey1;
-                    border-right:3px solid transparent;
-                    border-left:3px solid transparent;
+                    left:3px;
+                    border-top:5px solid $Grey1;
+                    border-right:4px solid transparent;
+                    border-left:4px solid transparent;
                     content:'';
+                    top: 5px;
                   }
 
                   &:hover {
-                    color:#565656;
-                    text-decoration:none;
-                    &:after {border-top-color:#565656;}
                   }
 
 
@@ -289,11 +300,6 @@ div.table {
             @include transition-property("padding-right");
             @include transition-duration(500ms);
             padding-right:62px;
-          }
-
-          // Column options
-          div.dropdown {
-            width:147px!important;
           }
         }
       }
@@ -393,16 +399,17 @@ div.table {
           }
 
           div.cell {
+            color:$Amber1;
             display:block;
-            overflow: hidden;
-            padding:15px 10px;
+            font-size: 15px;
+            line-height: 19px;
+            max-height:26px;
             max-width:280px;
             min-height:13px;
-            max-height:26px;
-            color:$Amber1;
+            overflow: hidden;
+            padding: 0px 12px;
             text-overflow: ellipsis;
             white-space: nowrap;
-            font-size:13px;
 
             &.disabled {
               color: $Amber1;
@@ -416,7 +423,7 @@ div.table {
 
           // Different column types
           div.number {
-            color:#4DC964;
+            color:$Grey1;
           }
 
           &.rowHeader:first-child {
@@ -513,6 +520,7 @@ div.table {
     // Loaders
     tfoot {
       padding:100px 0;
+      background: none;
 
       &.sql_loader {
 
@@ -536,10 +544,10 @@ div.table {
       }
 
       &.page_loader {
-        border:1px solid #ECECEC;
+        border:1px solid transparent;
         border-right:0;
         border-left:0;
-        background:white;
+        background:none;
         z-index:-1;
 
         th {

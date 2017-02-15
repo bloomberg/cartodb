@@ -13,6 +13,7 @@
   @import "../../../old_common/vars";
   @import "../../../old_common/mixins";
   @import "../../../variables/colors";
+  @import "../../../variables/mixins";
 
   // LOCAL VARS
   $corner_radius: 6px;
@@ -65,7 +66,7 @@
       a {
         position:absolute;
         display:block;
-        top:55px;
+        top:35px;
         width:43px;
         height:43px;
         z-index:10;
@@ -107,8 +108,7 @@
       @include position(0, 0, false, 0);
       display:block;
       width:1050px;
-      padding:0 30px;
-      letter-spacing:-4px;
+      padding:0 12px;
 
       li {
         position:relative;
@@ -122,9 +122,8 @@
           position:relative;
           display:block;
           @include size(92px, 90px);
-          margin:30px 0;
+          margin:12px 0;
 
-          @include box-shadow(0 0 3px 4px rgba(black, 0.15));
           @include border-radius(2px);
 
           .name {
@@ -217,11 +216,12 @@
         margin:15px 0 0 0;
 
         li {
+          @include bb_list_separator;
           overflow:hidden;
           display:block;
           width:100%;
-          padding:13px 0;
-          border-bottom:1px solid $DarkGrey9;
+          padding: 6px 0;
+          
 
           & > span:first-child {
             float:left;
@@ -266,13 +266,13 @@
       }
 
       &.panel_content {
-        top:152px;
+        top:99px;
       }
 
       // Color wizard styles
       ul.custom_colors, ul.custom_categories {
         margin:0;
-        border-top:1px solid rgba(#E5E5E5,0.5);
+        border-top:1px solid rgba(#000,0.32);
         li.custom_color_item {
           span {
             max-width:260px;

@@ -19,7 +19,6 @@
   @import "../../../variables/colors";   
   @import "../../../variables/mixins";
 
-
   div.filters_panel {
     width:100%;
     @include box-sizing(border-box);
@@ -36,6 +35,10 @@
 
       @include size(100%, 30px);
 
+    }
+
+    .sql-and-or-toggle {
+      margin-right: 15px;
     }
 
     .content {
@@ -60,7 +63,6 @@
             padding: 14px;
             @include border-radius(5px);
 
-            font-size: 15px;
             a { color:  #666; text-decoration:underline; }
             a:hover { color: #333; }
           }
@@ -76,8 +78,6 @@
           width: 212px;
           margin: 0 auto 17px auto;
           padding: 0;
-          font-size: 15px;
-          color: #666666;
         }
 
         .form_combo {
@@ -85,7 +85,6 @@
           display:block;
           width: 200px;
           padding: 10px;
-          @include border-radius(5px);
 
           & > div { text-align: left; }
 
@@ -134,36 +133,32 @@
     .add_filter {
       display:none;
       position:relative;
-      width: 385px;
+      text-align: left;
+      width: 360px;
+      height: 40px;
       margin: 0 0 40px 0;
 
       & > a.add {
         position:relative;
         top: 15px;
-        padding: 15px;
-        color: #6A9DCA;
-        font-size: 20px;
+        float: left;
       }
 
       .combo {
-
-        
-
         display:none;
         @include box-sizing(border-box);
         position:relative;
         top: 0;
-        padding: 24px;
-
+        padding: 15px 6px 6px 6px;
         width: 100%;
-        background: #FFF9E7;
+        height: 40px;
 
         .remove {
           margin: 0 0 0 7px;
           @include inline-block();
           @include size(13px);
-          @include common-sprite(close_grey);
-          &:hover {@include common-sprite(close_grey, $offset-y:-13px);}
+          @include bb_remove_icon;
+          vertical-align: middle;
         }
 
         .form_combo {
@@ -176,25 +171,28 @@
     }
 
     ul.filters {
-      position:relative;
-
-      width: 385px;
+      padding: 0;
       margin: 0;
+      position:relative;
+      width: 360px;
 
       .filter { // generic styles for all the filters
         position:relative;
-
-        padding: 15px 0 0 0;
-
         border-bottom: 1px solid $DarkGrey6;
-
+        padding-top:12px;
+        padding-bottom: 12px;
         text-align:left;
+        &:first-child {
+          padding-top: 0;
+          > .remove {
+            top: 0px;
+          }
+        }
 
         .header {
           position:relative;
-          padding: 5px 0;
           margin: 0;
-          width: 340px;
+          width: 315px;
 
           text-align:left;
 
@@ -203,30 +201,43 @@
 
           .hidden { display: none; }
 
-          .legend    { float:left; margin: 0 5px 0 0;  color: $Grey1; text-align: left; max-width: 180px; }
+          .legend    { float:left; margin: 0 5px 0 0; color: $Grey1; text-align: left; max-width: 180px; }
           .empty     { float: left; display:none; color: #FF9999; vertical-align: top; }
           .only      { float: left; display:none; color: #FFAB37; vertical-align: top; }
           .loading   { float: left; display:none; color: #FFAB37; vertical-align: top; }
-          .range     { float:left;  display:none; color: $Amber1; }
+          .range, .range-number     { float:left;  display:none; color: $Amber1; }
 
-          .title  { float: left; margin: 0 0 0 30px; }
+          .title  { float: left; }
+          .min, .max {
+            width: 150px;
+          }
         }
 
-        &.date .range { clear:both; margin: 6px 0 0 0; }
+        &.date .range, .range-number { clear:both; margin: 6px 0 0 0; }
 
         &:hover .remove { @include opacity(1); }
 
         .remove {
           float: right; 
           display:block;
+          @include bb_remove_icon;
           @include opacity(0);
-
           @include size(13px);
-          @include position(21px, 30px, false, false);
-          @include simple-transition(opacity, 150ms);
-          @include common-sprite(close_grey);
+          @include position(12px, 0, false, false);
+        }
 
-          &:hover {@include common-sprite(close_grey, $offset-y:-13px);}
+        .remove-inline {
+          float: right;
+          margin-top: 6px;
+          margin-right: 6px;
+          background: url(../images/close_layer.png) no-repeat center;
+          width: 9px;
+          height: 9px;
+
+          &:hover {
+            background-image: url(../images/close_layer_hover.png); 
+          }
+
         }
       }
     }
@@ -301,7 +312,6 @@
         @include size(323px, 40px);
         display:none;
         padding: 0;
-        margin: 0 0 0 30px;
 
         .apply {
           @include position(0px, 7px, false, false);
@@ -336,7 +346,7 @@
 
         }
 
-        .scroll { width: 380px; max-height: 156px; overflow: hidden; outline:none; }
+        .scroll { width: 355px; max-height: 156px; overflow: hidden; outline:none; }
 
       } // data
 
@@ -380,6 +390,7 @@
 
         .scrollers {
           float: right;
+          margin-right: 20px;
 
           &.hidden { display: none; }
 
@@ -396,7 +407,7 @@
             border: 4px solid transparent;
             position: absolute;
             bottom: 0;
-            left: 14px;
+            left: 7px;
             right: 0;
             width: 0px;
           }
@@ -409,38 +420,60 @@
               bottom: 7px;
               top: 0px;
             }
-            margin-right: -3px;
+            margin-right: -6px;
           }
 
           &.down {
             @include border-radius(0 2px 2px 0);
             &:before {
               border-top: 4px solid $Grey1;
-              top: 9px;
+              top: 7px;
               
             }
     
           }
-        } 
+        }
       }
 
-      .items {
-        text-align:left;
-        margin: 0 0 0 30px;
+      .operations {
         padding: 0;
-        width: 325px;
+        width: 350px;
 
         li {
           clear:both;
           overflow:hidden;
 
           position:relative;
-          padding: 10px 0 10px 15px;
+          padding: 6px 0px;
           margin: 0;
-          
-          border-top: 1px solid $Black;
 
-          cursor: pointer;
+          input {
+            width: 145px;
+          }
+
+          .invisible {
+            visibility: hidden;
+          }
+
+          &:last-child { margin-bottom: 0; }
+        }
+      }
+
+      .items {
+        text-align:left;
+        padding: 0;
+        width: 325px;
+
+        li {
+          clear:both;
+          overflow:hidden;
+          position:relative;
+          padding-left: 15px;
+          margin: 0;
+
+          &:hover {
+            cursor: pointer;
+          }
 
           p {
 
@@ -454,21 +487,9 @@
 
           &:last-child { margin-bottom: 0; }
 
-          &:before {
-            @include position(15px, false, false, 0);
-            content: '';
-            @include size(9px);
-
-            background: #fff;
-            border: none;
-            @include border-radius(200px);
-            @include scale(0);
-            @include simple-transition(scale, 220ms);
-          }
-
           &:after {
             @include opacity(1);
-            @include position(13px, false, false, 0);
+            @include position(4px, false, false, 0);
             width: 11px;
             height: 11px;
             content: "";
@@ -477,7 +498,6 @@
             border: 1px solid $Black;
             border-radius: 2px;
             position: absolute;
-            
             }
 
           &.selected:after  { 
@@ -487,13 +507,11 @@
             background-size: 7px 7px;
             background-color: $SelectionBlue2;
           }
-          &.selected:before { background: #82D992; @include scale(1); }
           
 
           .value {
             position:absolute;
-            top: 11px; right: 0; 
-            font-size:13px;
+            right: 0; 
             color:$Grey1;
           }
         }
@@ -502,13 +520,14 @@
 
     // Histogram filter
     ul.filters .filter.histogram {
-
       text-align:center;
-
       .empty  { display:none; }
 
       .loading   { display:block; }
 
+      .range-number { height: 35px; }
+      .range-number input { width: 45%; }
+      .range-number .subtext { display: none; }
       .hist { margin: auto; position: relative; @include inline-block(); bottom: -3px; }
       .background.bar { fill: #E5E5E5; }
       .foreground.bar { fill: #4DC964; fill-opacity: .3; }
@@ -518,3 +537,14 @@
       .brush .resize path { fill: $Grey9; stroke: $Black; }
     }
   }
+
+ select {
+  @include bb_button_style;
+
+  &:focus {
+    outline: none;
+  }
+  option:hover {
+      background-color: yellow;
+}
+}

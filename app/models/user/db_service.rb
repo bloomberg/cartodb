@@ -19,6 +19,7 @@ module CartoDB
       SCHEMA_IMPORTER = 'cdb_importer'.freeze
       SCHEMA_GEOCODING = 'cdb'.freeze
       SCHEMA_CDB_DATASERVICES_API = 'cdb_dataservices_client'.freeze
+      SCHEMA_COMMON_DATA = Cartodb::config[:fdw]['remote_schema'].freeze
       CDB_DATASERVICES_CLIENT_VERSION = '0.2.0'.freeze
 
       def initialize(user)
@@ -194,7 +195,7 @@ module CartoDB
       # Centralized method to provide the (ordered) search_path
       def self.build_search_path(user_schema, quote_user_schema = true)
         quote_char = quote_user_schema ? "\"" : ""
-        "#{quote_char}#{user_schema}#{quote_char}, #{SCHEMA_CARTODB}, #{SCHEMA_CDB_DATASERVICES_API}, #{SCHEMA_PUBLIC}"
+        "#{quote_char}#{user_schema}#{quote_char}, #{SCHEMA_CARTODB}, #{SCHEMA_CDB_DATASERVICES_API}, '#{SCHEMA_COMMON_DATA}', #{SCHEMA_PUBLIC}"
       end
 
       def set_database_search_path
@@ -1181,6 +1182,7 @@ module CartoDB
 
                   try:
                     cache_key = "t:" + GD['base64'].b64encode(GD['hashlib'].sha256('#{@user.database_name}:%s' % table_name).digest())[0:6]
+                    cache_key = cache_key.replace('+', '\\\\+').replace('/', '\\\\\/')
                     # We want to say \b here, but the Varnish telnet interface expects \\b, we have to escape that on Python to \\\\b and double that for SQL
                     client.fetch('#{purge_command} obj.http.Surrogate-Key ~ "\\\\\\\\b%s\\\\\\\\b"' % cache_key)
                     break
@@ -1229,6 +1231,7 @@ module CartoDB
                   try:
                     client = GD['httplib'].HTTPConnection('#{varnish_host}', #{varnish_port}, False, timeout)
                     cache_key = "t:" + GD['base64'].b64encode(GD['hashlib'].sha256('#{@user.database_name}:%s' % table_name).digest())[0:6]
+                    cache_key = cache_key.replace('+', '\\\\+').replace('/', '\\\\\/')
                     client.request('PURGE', '/key', '', {"Invalidation-Match": ('\\\\b%s\\\\b' % cache_key) })
                     response = client.getresponse()
                     assert response.status == 204
