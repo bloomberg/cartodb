@@ -43,22 +43,25 @@ class Table
   # @see services/importer/lib/importer/column.rb -> RESERVED_WORDS
   # @see config/initializers/carto_db.rb -> RESERVED_COLUMN_NAMES
   RESERVED_COLUMN_NAMES = %W{ oid tableoid xmin cmin xmax cmax ctid ogc_fid }
+
   PUBLIC_ATTRIBUTES = {
-      :id                           => :id,
-      :name                         => :name,
-      :privacy                      => :privacy_text,
-      :schema                       => :schema,
-      :updated_at                   => :updated_at,
-      :rows_counted                 => :rows_estimated,
-      :table_size                   => :table_size,
-      :map_id                       => :map_id,
-      :description                  => :description,
-      :geometry_types               => :geometry_types,
-      :table_visualization          => :table_visualization,
-      :dependent_visualizations     => :serialize_dependent_visualizations,
-      :non_dependent_visualizations => :serialize_non_dependent_visualizations,
-      :synchronization              => :serialize_synchronization
-  }
+    id: :id,
+    name: :name,
+    alias: :alias,
+    schema_alias: :schema_alias,
+    privacy: :privacy_text,
+    schema: :schema,
+    updated_at: :updated_at,
+    rows_counted: :rows_estimated,
+    table_size: :table_size,
+    map_id: :map_id,
+    description: :description,
+    geometry_types: :geometry_types,
+    table_visualization: :table_visualization,
+    dependent_visualizations: :serialize_dependent_visualizations,
+    non_dependent_visualizations: :serialize_non_dependent_visualizations,
+    synchronization: :serialize_synchronization
+  }.freeze
 
   DEFAULT_THE_GEOM_TYPE = 'geometry'
 
@@ -1351,6 +1354,22 @@ class Table
                           table_id: table_id,
                           oid: get_table_id,
                           table_name: name)
+  end
+
+  def alias=(alias_)
+    @user_table.alias = alias_
+  end
+
+  def alias
+    @user_table.alias
+  end
+
+  def schema_alias=(schema_alias)
+    @user_table.schema_alias = schema_alias
+  end
+
+  def schema_alias
+    @user_table.schema_alias
   end
 
   private
