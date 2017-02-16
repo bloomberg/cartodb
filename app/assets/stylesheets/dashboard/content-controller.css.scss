@@ -1,6 +1,6 @@
 @import "../variables/colors";
 // Content controller
-// 
+//
 // Main view for new dashboard, where maps or
 // datasets results appear.
 // --------------------------------------------------
@@ -11,10 +11,10 @@
   display: block;
   min-height: 600px;
   margin: 0 auto;
-  padding-top: 81px
+  padding-top: 20px
 }
 
-.ContentController.on-boarding { 
+.ContentController.on-boarding {
   padding-top: 0;
   min-height: initial;
 }

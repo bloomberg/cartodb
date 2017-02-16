@@ -78,9 +78,26 @@ module Carto
           if current_user
             # Prefetching at counts removes duplicates
             response.merge!({
-              total_user_entries: VisualizationQueryBuilder.new.with_types(total_types).with_user_id(current_user.id).with_excluded_names(excludedNames).build.count,
-              total_likes: VisualizationQueryBuilder.new.with_types(total_types).with_liked_by_user_id(current_user.id).with_excluded_names(excludedNames).build.count,
-              total_shared: VisualizationQueryBuilder.new.with_types(total_types).with_shared_with_user_id(current_user.id).with_user_id_not(current_user.id).with_prefetch_table.with_excluded_names(excludedNames).build.count
+              total_user_entries: VisualizationQueryBuilder.new.with_types(total_types)
+                                                        .with_user_id(current_user.id)
+                                                        .with_excluded_names(excludedNames)
+                                                        .build.count,
+              total_likes: VisualizationQueryBuilder.new.with_types(total_types)
+                                                        .with_liked_by_user_id(current_user.id)
+                                                        .with_excluded_names(excludedNames)
+                                                        .build.count,
+              total_shared: VisualizationQueryBuilder.new.with_types(total_types)
+                                                        .with_shared_with_user_id(current_user.id)
+                                                        .with_user_id_not(current_user.id)
+                                                        .with_prefetch_table
+                                                        .with_excluded_names(excludedNames)
+                                                        .build.count,
+              total_library: VisualizationQueryBuilder.new.with_type(Carto::Visualization::TYPE_REMOTE)
+                                                        .with_user_id(current_user.id)
+                                                        .without_synced_external_sources
+                                                        .without_imported_remote_visualizations
+                                                        .with_excluded_names(excludedNames)
+                                                        .build.count
             })
           end
         else
@@ -95,9 +112,22 @@ module Carto
           if current_user
             # Prefetching at counts removes duplicates
             response.merge!({
-              total_user_entries: VisualizationQueryBuilder.new.with_types(total_types).with_user_id(current_user.id).build.count,
-              total_likes: VisualizationQueryBuilder.new.with_types(total_types).with_liked_by_user_id(current_user.id).build.count,
-              total_shared: VisualizationQueryBuilder.new.with_types(total_types).with_shared_with_user_id(current_user.id).with_user_id_not(current_user.id).with_prefetch_table.build.count
+              total_user_entries: VisualizationQueryBuilder.new.with_types(total_types)
+                                                        .with_user_id(current_user.id)
+                                                        .build.count,
+              total_likes: VisualizationQueryBuilder.new.with_types(total_types)
+                                                        .with_liked_by_user_id(current_user.id)
+                                                        .build.count,
+              total_shared: VisualizationQueryBuilder.new.with_types(total_types)
+                                                        .with_shared_with_user_id(current_user.id)
+                                                        .with_user_id_not(current_user.id)
+                                                        .with_prefetch_table
+                                                        .build.count,
+              total_library: VisualizationQueryBuilder.new.with_type(Carto::Visualization::TYPE_REMOTE)
+                                                        .with_user_id(current_user.id)
+                                                        .without_synced_external_sources
+                                                        .without_imported_remote_visualizations
+                                                        .build.count
             })
           end
         end
