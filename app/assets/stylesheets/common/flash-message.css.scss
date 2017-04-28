@@ -7,18 +7,18 @@
 
 .FlashMessage {
   width: 100%;
-  background: #FFF7DF;
+  background: #FADD51;
+  color: $Black;
 }
 .FlashMessage > .u-inner {
   @include display-flex();
   @include justify-content(space-between, justify);
   @include align-items(center);
-  height: 80px;
+  height: 30px;
 }
 .FlashMessage.FlashMessage--inDialogWithFiltersNavListing {
   position: fixed;
-  top: 157px;
-  border-bottom: 1px solid $cStructure-mainLine;
+  top: 101px;
   z-index: 2; // to place any scrolled content under the flash message
   > .u-inner {
     @include justify-content(center, center);
