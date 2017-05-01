@@ -8,7 +8,7 @@ require_relative 'geocoder_config'
 module CartoDB
   class HiresGeocoderFactory
 
-    BATCH_FILES_OVER = 1100 # Use Here Batch Geocoder API with tables over x rows
+    BATCH_FILES_OVER = 500 # Use Here Batch Geocoder API with tables over x rows
 
     def self.get(input_csv_file, working_dir, log, geocoding_model, number_of_rows = 0)
       geocoder_class = nil
