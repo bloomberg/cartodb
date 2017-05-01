@@ -43,7 +43,14 @@ $bannedColor: #E1A7A5;
   &:nth-child(3) { width: 30%; }
   &:nth-child(5) { width: 120px; }
   &:nth-child(6) { width: 24px; }
-  &:nth-child(7) { width: 24px; }
+}
+.DatasetsTableHeaderContainer
+{
+  background: $DarkGrey5;
+  height: 30px;
+  &.padded {
+    padding-right: 12px;
+  }
 }
 
 .DatasetsTable.is-hidden { display: none }
@@ -283,6 +290,23 @@ $bannedColor: #E1A7A5;
 .DatasetsTableScrollable {
   height:calc(100% - 28px);
   overflow-y: auto;
+}
+
+@mixin DatasetsTableHeaderOrder {
+  float: right;
+  width: 10px;
+  height: 25px;
+  margin-top: 5px;
+}
+
+.DatasetsTableHeaderOrderAsc {
+  @include DatasetsTableHeaderOrder;
+  background: url('../images/sprites/table/filters_scroll_up.png') no-repeat top;
+}
+
+.DatasetsTableHeaderOrderDesc {
+  @include DatasetsTableHeaderOrder;
+  background: url('../images/sprites/table/filters_scroll_down.png') no-repeat top;
 }
 
 @media only screen and (max-width: $sMedia-mobile) and (max-width: 959px) {

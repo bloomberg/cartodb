@@ -39,9 +39,20 @@
   .SearchBar {
     .search-bar-input {
       color: black;
-      width:100%;
+      width: 100%;
       height:25px;
       line-height:25px;
+      &::-webkit-search-cancel-button {
+        cursor: default;
+        position:relative;
+        right: -5px;
+        background: $DarkGrey9 url(../images/close_layer.png) no-repeat center;
+        width: 17px;
+        height: 17px;
+        &:hover {
+          background-color: $DarkGrey1;
+        }
+      }
     }
   }
 
