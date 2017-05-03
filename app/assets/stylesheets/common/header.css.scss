@@ -23,7 +23,7 @@ $cHeader-dark:  rgba(#3A91D7, 1);
   @include align-items(center);
 }
 .Header-navigation {
-  width: 205px;
+  width: 210px;
 }
 .Header-navigationList {
   @include display-flex();
@@ -53,14 +53,14 @@ $cHeader-dark:  rgba(#3A91D7, 1);
   margin-left: $sMargin-section;
 }
 .Header-navigationToggles {
-  padding: 6px 7px 6px 6px;
+  padding: 5px;
   border-right: 1px solid #000000;
   display: flex;
 }
 .Header-navigationToggleItem {
   background: #444444;
   padding: 0;
-  width: 93px;
+  width: 50%;
   display: inline-block;
   text-align: center;
   border: 1px solid #000000;

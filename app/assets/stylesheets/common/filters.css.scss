@@ -8,7 +8,7 @@
   display:block;
   top: 0;
   left: 0;
-  padding-left: 10px;
+  padding-left: 5px;
   flex-grow: 1;
   background: transparent;
   z-index: 10;
@@ -302,9 +302,9 @@ a.Filters-cleanSearch { line-height:32px }
   height: 40px;
 }
 .Filters-actionsText {
-  padding-left: 25px;
+  padding-left: 15px;
   font-size: 13px;
-  color: $cTypography-help;
+  color: $Red1;
 }
 .Filters-actionsLink {
   display: inline-block;
