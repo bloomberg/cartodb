@@ -362,6 +362,19 @@ $sNarrower-width: 620px;
     border: 2px solid $Grey6;
   }
 
+  .Dialog-body {
+    height: 100%;
+    overflow-y: hidden;
+  }
+
+  .CreateDialog-listing, .ListingContent, .ListingContent > div {
+    height: 100%;
+  }
+
+  .ContentController {
+    height: calc(100% - 75px);
+  }
+
   .Dialog-footer {
     width: 100%;
     position: relative;
@@ -390,5 +403,9 @@ $sNarrower-width: 620px;
     .Button {
       display: inline-block;
     }
+  }
+
+  .IntermediateInfo {
+    width: 100%;
   }
 }
