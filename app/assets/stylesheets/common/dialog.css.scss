@@ -367,12 +367,8 @@ $sNarrower-width: 620px;
     overflow-y: hidden;
   }
 
-  .CreateDialog-listing, .ListingContent, .ListingContent > div {
+  .CreateDialog-listing, .ListingContent, .ListingContent > div, .ContentController {
     height: 100%;
-  }
-
-  .ContentController {
-    height: calc(100% - 75px);
   }
 
   .Dialog-footer {
