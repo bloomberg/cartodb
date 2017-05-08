@@ -38,6 +38,15 @@ $bannedColor: #E1A7A5;
       height: 27px;
     }
 
+    .DefaultDescription > p {
+      position: absolute;
+      left: 0;
+      right: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     &:nth-child(1) { width: 26px; }
     &:nth-child(2) { width: 34px; }
     &:nth-child(3) { flex: 3 3 30%; }
