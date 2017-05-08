@@ -209,16 +209,6 @@
   -webkit-line-clamp: $lines;
   overflow: hidden;
   text-overflow: ellipsis;
-  &:after {
-    content: ' ';
-    display: block;
-    position: absolute;
-    bottom: 0;
-    right: 0;
-    height: $sLineHeight-normal;
-    width: 2 * $sLineHeight-normal;
-    @include background-horizontal(rgba(255,255,255,0), $DarkGrey6);
-  }
 }
 
 //Buttons 
