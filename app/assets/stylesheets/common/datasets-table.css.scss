@@ -12,38 +12,45 @@ $bannedColor: #E1A7A5;
   position: relative;
   width: 100%;
   margin: 0 auto;
-  
 }
-.DatasetsTable thead {
-  background: $DarkGrey5;
-}
-.DatasetsTable th {
-  border-bottom: 1px solid $Black;
-}
-.DatasetsTable tr {
-  width: 100%;
-}
-.DatasetsTable th,td,
-.DatasetsTable-item th,td
-{
-  text-align: left;  
-  border-right: 1px solid $Black;
-  line-height: 27px;
-  padding: 0px 6px !important;
 
-  .DatasetTitle-link {
-    border-bottom: 1px $Grey2 dotted;
+.DatasetsTableRow {
+  width: 100%;
+  display: flex;
+  border-bottom: 1px solid $Black;
+
+  .DatasetsTableCell {
+    display: inline-block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    text-align: left;
+    border-right: 1px solid $Black;
+    line-height: 27px;
+    padding: 0px 6px !important;
+
+    .DatasetTitle-link {
+      border-bottom: 1px $Grey2 dotted;
+    }
+
+    .EditableField.is-editing .EditableField-input {
+      height: 27px;
+    }
+
+    &:nth-child(1) { width: 26px; }
+    &:nth-child(2) { width: 34px; }
+    &:nth-child(3) { flex: 3 3 30%; }
+    &:nth-child(4) { flex: 4 4 40%; }
+    &:nth-child(5) { width: 120px; }
+    &:nth-child(6) { width: 24px; }
   }
 }
 
-.DatasetsTable th,td
-{
-  &:nth-child(1) { width: 26px; }
-  &:nth-child(2) { width: 34px; }
-  &:nth-child(3) { width: 30%; }
-  &:nth-child(5) { width: 120px; }
-  &:nth-child(6) { width: 24px; }
+.DatasetsTableHeader {
+  background: $DarkGrey5;
 }
+
 .DatasetsTableHeaderContainer
 {
   background: $DarkGrey5;
@@ -54,34 +61,24 @@ $bannedColor: #E1A7A5;
 }
 
 .DatasetsTable.is-hidden { display: none }
-.DatasetsTable-item {
-  border: 1px solid transparent;
-  border-bottom: 1px solid $Black;
-  padding: 6px;
-}
 
-.DatasetsTable-item--selectable:hover,
-.DatasetsTable-item--selectable.is--selected {  
+.DatasetsTableRow--selectable:hover,
+.DatasetsTableRow--selectable.is--selected {  
 }
-.DatasetsTable-item--selectable:hover {
+.DatasetsTableRow--selectable:hover {
   background-color: $gridRowBackgroundHover;
   cursor: pointer;
-  .DatasetsTable-itemDescription .DefaultDescription:after {
-    @include background-horizontal(rgba(255,255,255,0), $gridRowBackgroundHover);
-  }
 }
-.DatasetsTable-item--selectable.is--selected {
+.DatasetsTableRow--selectable.is--selected {
   background-color: $gridRowBackgroundSelected;
   outline: 1px solid $SelectionBlue2;
   &:hover { cursor: default }
-  .DatasetsTable-itemDescription .DefaultDescription:after {
-    @include background-horizontal(rgba(255,255,255,0), $gridRowBackgroundSelected);
-  }
 }
 
 .RowCheckbox,
 .RowCheckbox.is--selected {
-  top: 4px;
+  position: relative;
+  top: 7px;
   left: 0;
   width: 13px;
   height: 13px;
@@ -99,7 +96,7 @@ $bannedColor: #E1A7A5;
 }
 
 .DatasetTypeIcon {
-  margin-top: 3px;
+  margin-top: 4px;
   width: 20px;
   height: 20px;
   background-size: contain;
@@ -124,12 +121,12 @@ $bannedColor: #E1A7A5;
   @include opacity(0);
   @include transition(opacity, $opacityTransition);
 }
-.DatasetsTable.is-loading .DatasetsTable-item,
-.DatasetsTable.is-loading .DatasetsTable-item--selectable,
-.DatasetsTable.is-loading .DatasetsTable-item--selectable.is--selected,
-.DatasetsTable.is-loading .DatasetsTable-item:hover,
-.DatasetsTable.is-loading .DatasetsTable-item--selectable:hover,
-.DatasetsTable.is-loading .DatasetsTable-item--selectable:hover.is--selected {
+.DatasetsTable.is-loading .DatasetsTableRow,
+.DatasetsTable.is-loading .DatasetsTableRow--selectable,
+.DatasetsTable.is-loading .DatasetsTableRow--selectable.is--selected,
+.DatasetsTable.is-loading .DatasetsTableRow:hover,
+.DatasetsTable.is-loading .DatasetsTableRow--selectable:hover,
+.DatasetsTable.is-loading .DatasetsTableRow--selectable:hover.is--selected {
   margin: 0;
   padding: $sMargin-group 0;
   border: none;
@@ -165,8 +162,8 @@ $bannedColor: #E1A7A5;
 .DatasetsTable-itemCategory.is--pointDataset { @include geometry-type-icon() }
 .DatasetsTable-itemCategory.is--rasterDataset { @include geometry-type-icon(-120px) }
 
-.DatasetsTable-item--selectable:hover,
-.DatasetsTable-item--selectable.is--selected {
+.DatasetsTableRow--selectable:hover,
+.DatasetsTableRow--selectable.is--selected {
   .DatasetsTable-itemCategory { @include geometry-type-icon(-160px, -40px) }
   .DatasetsTable-itemCategory.is--lineDataset { @include geometry-type-icon(-40px, -40px) }
   .DatasetsTable-itemCategory.is--polygonDataset { @include geometry-type-icon(-80px, -40px) }
