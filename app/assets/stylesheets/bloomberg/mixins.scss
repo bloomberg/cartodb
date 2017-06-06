@@ -1,0 +1,130 @@
+//Buttons 
+@mixin actionButton {
+  background-color: $nTeal7;
+  border: 1px solid $Black;
+  border-radius: 2px;
+  color: $nGrey1;
+  -webkit-user-select: none;
+  &:hover {
+    background-color: $nTeal6;
+    color: white;
+  }
+  &:active {
+    background-color: $nTeal8;
+    color: white;
+    } 
+  }
+
+//bloomberg theme 
+//button 
+ @mixin bb_button_style {
+    background-color: $btn_background_normal;
+    background-repeat: no-repeat;
+    background-position: center;
+    border: 1px solid $Black;
+    border-radius: 2px;
+    color: $nGrey1; 
+    cursor: default;
+    font-size: 13px;
+    height: 19px;
+    line-height: 17px;
+    padding: 0px 6px;
+    text-decoration: none;
+    text-transform: capitalize;
+    -webkit-user-select: none;
+
+      &:hover {
+        background-color: $btn_background_hover;
+        color: $nGrey1;
+        cursor: default;
+
+      }
+      
+      &:active {
+        background-color: $btn_background_press;
+        text-decoration: none;
+      }
+
+      &.disabled, &:disabled:hover {
+        background-color: $btn_background_disabled;
+        color: $nGrey1;
+      }
+ }
+
+//Entry style
+ @mixin bb_entry_style {
+    background-color: $nAmber5;
+    border: 1px solid $Black;
+    border-radius: 2px;
+    color: $Black;
+    font-size: 13px;
+    line-height: 17px;
+    padding: 0px 6px;
+    //&:focus {
+      //border: 1px solid $focus_visual_color;
+      //box-shadow: inset 0px 0px 0px 1px $Black;
+   // }
+ }
+
+@mixin bb_big_button {
+  height: 30px;
+  line-height: 28px;
+  padding: 0px 12px;
+}
+
+
+ //dropdown list
+ @mixin bb_dropdown {
+    background: $nGrey16;
+    border: $dropdownBorder;
+    padding: 12px 0px;
+ }
+ @mixin bb_list_separator {
+    border-bottom: 1px solid rgba($Black, .32);
+ }
+
+//sidebar layer header
+@mixin bb_sidebar_layer_header {
+    background-color: $layer_header_background;
+    border-bottom: 1px solid $nGrey17;
+    font-size: 15px;
+    font-family: "AvenirNext_regular";
+    height: 30px;
+    line-height: 26px;
+    &:hover {
+      background-color: $layer_header_background_hover;
+    }
+  } 
+
+
+//color wheel;
+
+@mixin colorWheel($width: 11px) {
+  $borderWidth: $width/2;
+  $blurWidth: $width/5;
+  width: $width; height: $width;
+  border-radius: 50%;
+  background: grey;
+  overflow: hidden;
+  &:before {
+  content: '';
+  display: block;
+  border: $borderWidth solid;
+  border-color: yellow magenta orange green;
+  border-radius: 50%;
+  @include filter(blur($blurWidth));
+  }
+  box-shadow: 0px 0px 0px 1px black;
+}
+
+
+
+
+//remove icon
+@mixin bb_remove_icon {
+ background: url(../images/beam_standard_button_icon_delete.png) no-repeat center;
+  &:hover {
+    background-image: url(../images/beam_standard_button_icon_delete.png); 
+  }
+
+}

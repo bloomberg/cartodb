@@ -9,36 +9,26 @@ $fieldBgColor: transparent;
 $fieldBorderColor: #DFE8EC;
 
 .EditableField {  
-
   .EditableField-button {
-    font-style: italic;
-    color: $Teal2;
-    margin-right: 0;
+    color: $nTeal6;
+    padding: 0px;
+    width: 100%;
+    text-align: left;
 
     &:hover {
-      color: $Teal1;
+      color: $nTeal4;
       text-decoration: none;
     }
   }
   .EditableField-input {
-    background: none;
-    border: none;
+    color: $Black;
     outline: none;
     display: none;
     height: 100%;
+    min-height: 19px;
     overflow: hidden;
     width: 100%;
 
-    font-size: $sFontSize-normal;
-    line-height: $sLineHeight-normal;
-    color: $cTypography-secondary;
-
-    background: -webkit-linear-gradient(bottom, $fieldBorderColor 0%, $fieldBgColor 8%) 0 0px;
-    background: -moz-linear-gradient(bottom, $fieldBorderColor 0%, $fieldBgColor 8%) 0 0px;
-    background: -ms-linear-gradient(bottom, $fieldBorderColor 0%, $fieldBgColor 8%) 0 0px;
-    background: -o-linear-gradient(bottom, $fieldBorderColor 0%, $fieldBgColor 8%) 0 0px;
-    background: linear-gradient(bottom, $fieldBorderColor 0%, $fieldBgColor 8%) 0 0px;
-    background-size: 100% $sLineHeight-normal;
   }
 }
 

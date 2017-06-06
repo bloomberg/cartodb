@@ -12,7 +12,7 @@
   @include flex-direction(column);
   @include align-items(center, center);
   @include justify-content(center, center);
-  width: 100%;
+  width: $sLayout-width;
   min-height: 360px;
   margin: 0 auto;
   text-align: center;
@@ -40,4 +40,9 @@ _:-ms-lang(x),
 .IntermediateInfo.IntermediateInfo--pullUp {
   margin-top: -50px;
   padding: 0 0 50px;
+}
+.IntermediateInfo.IntermediateInfo--no-result {
+  background: url(../images/help_arrow.png) no-repeat 884px 6px;
+  background-size: 34px 56px;
+  max-width: 940px; 
 }

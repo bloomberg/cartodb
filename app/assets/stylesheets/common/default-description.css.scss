@@ -8,9 +8,14 @@
 .DefaultDescription {
   font-size: $sFontSize-normal;  
   line-height: $sLineHeight-normal;
-  color: $Amber1;
+  color: $nAmber5;
   overflow-wrap: break-word;
   position: relative;
+
+  &.disabled {
+    color: $nGrey4;
+    cursor: default;
+  }
 }
 .DefaultDescription > * {
   margin: 0;

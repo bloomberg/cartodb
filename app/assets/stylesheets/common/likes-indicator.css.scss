@@ -8,7 +8,7 @@
 $cLiked: #D93F56;
 
 .LikesIndicator {
-  color: $Grey7;
+  color: $nGrey9;
 }
 .LikesIndicator-count {
   display: inline-block;
@@ -17,7 +17,7 @@ $cLiked: #D93F56;
 }
 .LikesIndicator-icon {
   @include transforms(1);
-  color: $Grey7;
+  color: $nGrey9;
   font-size: $sFontSize-small;
   width: $sFontSize-small;
   height: $sFontSize-small;

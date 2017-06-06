@@ -67,6 +67,7 @@ class ApplicationController < ActionController::Base
   end
 
   def http_header_authentication
+    puts "header-auth : subdomain is - #{CartoDB.extract_subdomain(request)} -"
     authenticate(:http_header_authentication, scope: CartoDB.extract_subdomain(request))
     if current_user
       validate_session(current_user)
@@ -74,7 +75,7 @@ class ApplicationController < ActionController::Base
       authenticator = Carto::HttpHeaderAuthentication.new
       if authenticator.autocreation_enabled?
         if authenticator.creation_in_progress?(request)
-          render_http_code(409, 500, 'Creation already in progress')
+          redirect_to CartoDB.path(self, 'signup_http_authentication_in_progress')
         else
           redirect_to CartoDB.path(self, 'signup_http_authentication')
         end

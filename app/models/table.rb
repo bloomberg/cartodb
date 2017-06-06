@@ -43,22 +43,25 @@ class Table
   # @see services/importer/lib/importer/column.rb -> RESERVED_WORDS
   # @see config/initializers/carto_db.rb -> RESERVED_COLUMN_NAMES
   RESERVED_COLUMN_NAMES = %W{ oid tableoid xmin cmin xmax cmax ctid ogc_fid }
+
   PUBLIC_ATTRIBUTES = {
-      :id                           => :id,
-      :name                         => :name,
-      :privacy                      => :privacy_text,
-      :schema                       => :schema,
-      :updated_at                   => :updated_at,
-      :rows_counted                 => :rows_estimated,
-      :table_size                   => :table_size,
-      :map_id                       => :map_id,
-      :description                  => :description,
-      :geometry_types               => :geometry_types,
-      :table_visualization          => :table_visualization,
-      :dependent_visualizations     => :serialize_dependent_visualizations,
-      :non_dependent_visualizations => :serialize_non_dependent_visualizations,
-      :synchronization              => :serialize_synchronization
-  }
+    id: :id,
+    name: :name,
+    name_alias: :name_alias,
+    column_aliases: :column_aliases,
+    privacy: :privacy_text,
+    schema: :schema,
+    updated_at: :updated_at,
+    rows_counted: :rows_estimated,
+    table_size: :table_size,
+    map_id: :map_id,
+    description: :description,
+    geometry_types: :geometry_types,
+    table_visualization: :table_visualization,
+    dependent_visualizations: :serialize_dependent_visualizations,
+    non_dependent_visualizations: :serialize_non_dependent_visualizations,
+    synchronization: :serialize_synchronization
+  }.freeze
 
   DEFAULT_THE_GEOM_TYPE = 'geometry'
 
@@ -531,7 +534,10 @@ class Table
       tags:         (@user_table.tags.split(',') if @user_table.tags),
       privacy:      UserTable::PRIVACY_VALUES_TO_TEXTS[default_privacy_value],
       user_id:      self.owner.id,
-      kind:         kind
+      kind:         kind,
+      exportable:   esv.nil? ? true : esv.exportable,
+      export_geom:  esv.nil? ? true : esv.export_geom,
+      category:     esv.nil? ? -1 : esv.category
     )
 
     member.store
@@ -578,7 +584,24 @@ class Table
         CartoDB::StdoutLogger.info 'Table#after_destroy error', "maybe table #{qualified_table_name} doesn't exist: #{e.inspect}"
       end
       Carto::OverviewsService.new(user_database).delete_overviews qualified_table_name
-      user_database.run(%{DROP TABLE IF EXISTS #{qualified_table_name}})
+      begin
+        user_database.run(%{DROP TABLE IF EXISTS #{qualified_table_name}})
+      rescue => e
+        if e.message.include? "Use DROP VIEW"
+          user_database.run(%{DROP VIEW IF EXISTS #{qualified_table_name}})
+          begin
+            user_database.run(%{DROP FOREIGN TABLE IF EXISTS #{qualified_remote_table_name}})
+          rescue => e
+            # If the error is drop...cascade, we ignore because we don't want to delete the
+            # foreign table if there are other views referencing it
+            if !e.message.include? "Use DROP ... CASCADE"
+              raise e
+            end
+          end
+        else
+          raise e
+        end
+      end
     end
   end
 
@@ -1183,7 +1206,7 @@ class Table
     record = owner.in_database.select(:pg_class__oid)
       .from(:pg_class)
       .join_table(:inner, :pg_namespace, :oid => :relnamespace)
-      .where(:relkind => 'r', :nspname => owner.database_schema, :relname => name).first
+      .where(:relkind => ['r', 'f', 'v'], :nspname => owner.database_schema, :relname => name).first
     record.nil? ? nil : record[:oid]
   end # get_table_id
 
@@ -1237,6 +1260,11 @@ class Table
 
   def qualified_table_name
     "\"#{owner.database_schema}\".\"#{@user_table.name}\""
+  end
+
+  def qualified_remote_table_name
+    schema_common_data = CartoDB::UserModule::DBService::SCHEMA_COMMON_DATA
+    "\"#{schema_common_data}\".\"#{@user_table.name}\""
   end
 
   def database_schema
@@ -1327,6 +1355,22 @@ class Table
                           table_id: table_id,
                           oid: get_table_id,
                           table_name: name)
+  end
+
+  def name_alias=(name_alias)
+    @user_table.name_alias = name_alias
+  end
+
+  def name_alias
+    @user_table.name_alias
+  end
+
+  def column_aliases=(column_aliases)
+    @user_table.column_aliases = column_aliases
+  end
+
+  def column_aliases
+    @user_table.column_aliases
   end
 
   private

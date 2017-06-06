@@ -1,0 +1,109 @@
+@import "../variables/mixins";
+@import "../variables/colors";
+@import "../variables/sizes";
+
+
+.LeftMenu {
+  flex-shrink: 0;
+  height: 100%;
+  width: 200px;
+  border-right: 1px solid $Black;
+  background-color: $nGrey16;
+} 
+
+.LeftMenuScrollable {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.LeftMenuContent {
+  .MenuItem {
+    cursor:pointer;
+    padding: 0px 12px;
+    color: $nGrey6;
+    line-height: 23px;
+    &:hover {
+      background-color: #292929;
+    }
+    &.selected {
+      background: #1E6AB4;
+      color: $White;
+    }
+    &.expanded .ParentChevron {
+      background-image: url('../images/blp_tree_arrow_down.svg');
+    }
+    &.MenuItem-samples {
+      margin-top: 13px;
+      color: $White;
+    }
+  }
+
+  a {
+    color: inherit;
+  }
+
+  .CategoryCount {
+    float: right;
+  }
+}
+.CategoryTree {
+  .SubCategories {
+    display: none;
+    &.expanded {
+      display: block;
+    }
+  }
+  .SubCategory {
+    margin-left:30px;
+    .MenuItem {
+      margin-left: -30px;
+      padding-left: 42px;
+    }
+  }
+  .ChevronPlaceholder {
+    display:inline-block;
+    width:12px;
+    height:12px;
+    margin-right:5px;
+  }
+  .ParentChevron {
+    display: inline-block;
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+    background-image: url("../images/blp_tree_arrow_right.svg");
+    background-size: 8px;
+    background-repeat: no-repeat;
+    background-color: transparent;
+    background-position: center 7px;
+  }
+}
+
+
+//bloomberg styles 
+
+.blp-navigator {
+  background: #1e1e1e;
+}
+
+.blp-navigator-category {
+  color: $White;
+  margin-top: 8px;
+  padding: 0px 12px;
+}
+
+.blp-navigator-item {
+  cursor: pointer;
+  padding: 0px 12px;
+  color: $nGrey6;
+  line-height: 23px;
+
+  &:hover {
+    background-color: $nGrey14;
+  }
+
+
+  &.blp-selected {
+      background: #1E6AB4;
+  }
+}
