@@ -95,7 +95,7 @@
     .scrollpane {
       overflow: auto;
       outline: none;
-
+      min-height: 375px;
       &:hover .jspVerticalBar { @include opacity(1); }
 
       .jspContainer { overflow: hidden; position: relative; }
@@ -186,6 +186,24 @@
           padding-top: 0;
           > .remove {
             top: 0px;
+          }
+        }
+        input.filterInput {
+          background: #fff url(data:image/gif;base64,R0lGODlhBwAHAIAAAP///5KSkiH5BAAAAAAALAAAAAAHAAcAAAIMTICmsGrIXnLxuDMLADs=) no-repeat right -10px center;
+          border: 1px solid #999;
+          padding: 3px 18px 3px 4px; 
+          border-radius: 3px;
+          transition: background 0.4s;
+        }
+        input.filterInput.x { background-position: right 5px center; }
+        input.filterInput.x { cursor: pointer; }
+        input.filterInput.x::-ms-clear {display: none; width:0; height:0;}
+
+        .filterSelectViewOptions {
+          margin: 0 30px 0 30px;
+
+          ul.items {
+             margin: 0;
           }
         }
 
@@ -346,7 +364,14 @@
 
         }
 
-        .scroll { width: 355px; max-height: 156px; overflow: hidden; outline:none; }
+        .scroll { 
+          width: 370px; 
+          max-height: 156px; 
+          overflow: hidden; 
+          outline:none;
+          overflow-y: scroll; 
+          overflow-x: hidden;
+        }
 
       } // data
 
@@ -358,7 +383,7 @@
         padding: 0;
         clear:both;
         overflow:hidden;
-        z-index: 100;
+        z-index: 50;
         
 
         .view_mode {
@@ -464,6 +489,13 @@
         padding: 0;
         width: 325px;
 
+        .li-focus-item {
+          border-top-color: red;
+          border-bottom: solid;
+          border-bottom-width: 1px;
+          border-bottom-color: red
+        }
+
         li {
           clear:both;
           overflow:hidden;
@@ -514,6 +546,30 @@
             right: 0; 
             color:$nGrey1;
           }
+          .value-largeset {
+            position:absolute;
+            top: 0; right: 25px;
+            font-size:10px;
+            padding: 2px 4px;
+            border:none;
+            background:none;
+            color:$Grey1;
+          }
+
+          &:hover .remove-item { @include opacity(1); }
+
+          .remove-item {
+            float: right;
+            margin-top: 0px;
+            margin-right: 5px;
+            min-height: 13px;
+            background: url(../images/beam_standard_button_icon_delete.png) no-repeat center;
+            @include opacity(0);
+
+            @include size(13px);
+            @include position(4px, 0, false, false);
+            @include simple-transition(opacity, 150ms);
+          }
         }
       }
     } // filter.selection
@@ -525,13 +581,51 @@
 
       .loading   { display:block; }
 
+      .range-text {
+        padding: 1px 3px 1px 3px;
+        display: inline;
+      }
+
+      .range-text:hover {
+        padding: 0 2px 0 2px;
+        border: solid thin #666;
+        cursor: pointer;
+      }
+
+      .range-date-text {
+        padding: 1px 3px 1px 3px;
+        display: inline;
+      }
+
+      .range-date-text:hover {
+        padding: 0 2px 0 2px;
+        border: solid thin #666;
+        cursor: pointer;
+      }
+
+      .date-min, .date-max {
+        width: 80px;
+        cursor: text;
+      }
+
+      .has-focus {
+        border-color: red;
+      }
+
+      .ui-datepicker-div {
+        position: absolute;
+        z-index: 1;
+        top: 68px;
+        left: 30px;        
+      }
+
       .range-number { height: 35px; }
       .range-number input { width: 45%; }
       .range-number .subtext { display: none; }
       .hist { margin: auto; position: relative; @include inline-block(); bottom: -3px; }
       .background.bar { fill: #E5E5E5; }
       .foreground.bar { fill: #4DC964; fill-opacity: .3; }
-      .axis path, .axis line { fill: none; stroke: #000; shape-rendering: crispEdges; }
+      .axis path, .axis line { fill: none; stroke: #d8d8d8; shape-rendering: crispEdges; }
       .axis text { font: 10px sans-serif; }
       .brush rect.extent { fill: $SelectionBlue3; fill-opacity: .2; }
       .brush .resize path { fill: $nGrey10; stroke: $Black; }
