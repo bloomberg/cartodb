@@ -144,7 +144,7 @@ class Api::Json::SynchronizationsController < Api::ApplicationController
 
     if load_common_data_needed
       dataset_name = params.fetch(:value)
-      visualizations_api_url = CartoDB::Visualization::CommonDataService.build_url(self) + "&q=" + dataset_name
+      visualizations_api_url = CartoDB::Visualization::CommonDataService.build_url(self, dataset_name)
       current_user.load_common_data(visualizations_api_url)
       new_vis = Carto::Visualization.where(type: 'remote', name: dataset_name, user_id: current_user.id).first
       if new_vis
