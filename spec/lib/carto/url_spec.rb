@@ -21,21 +21,21 @@ module Carto
     it 'supports indifferent access' do
       url = Carto::Url.new('http://abc.com?a=1&b=2')
 
-      (url.get_param('a') == ['1']).should be_true
-      (url.get_param(:a) == ['1']).should be_true
-      (url.get_param('a') == url.get_param(:a)).should be_true
+      url.get_param('a').should eq ['1']
+      url.get_param(:a).should eq ['1']
+      url.get_param('a').should eq url.get_param(:a)
 
-      (url.get_param('b') == ['2']).should be_true
-      (url.get_param(:b) == ['2']).should be_true
-      (url.get_param('b') == url.get_param(:b)).should be_true
+      url.get_param('b').should eq ['2']
+      url.get_param(:b).should eq ['2']
+      url.get_param('b').should eq url.get_param(:b)
 
-      (url.get_params['a'] == ['1']).should be_true
-      (url.get_params[:a] == ['1']).should be_true
-      (url.get_params['a'] == url.get_params[:a]).should be_true
+      url.get_params['a'].should eq ['1']
+      url.get_params[:a].should eq ['1']
+      url.get_params['a'].should eq url.get_params[:a]
 
-      (url.get_params['b'] == ['2']).should be_true
-      (url.get_params[:b] == ['2']).should be_true
-      (url.get_params['b'] == url.get_params[:b]).should be_true
+      url.get_params['b'].should eq ['2']
+      url.get_params[:b].should eq ['2']
+      url.get_params['b'].should eq url.get_params[:b]
     end
 
     it 'returns new array as default key' do
