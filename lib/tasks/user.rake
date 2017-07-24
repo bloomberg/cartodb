@@ -1,13 +1,14 @@
 namespace :user do
   namespace :deletion do
     desc 'Delete a user given a username'
-    task :by_username, [:username] => [:environment] do |task, args|
+    task :by_username, [:username, :force] => [:environment] do |task, args|
       raise 'Please specify the username of the user to be deleted' if args[:username].blank?
+      args.with_defaults(force: "false")
 
       user = ::User.find(username: args[:username])
       raise "The username '#{args[:username]}' does not correspond to any user" if user.nil?
 
-      raise 'Deletion aborted due to bad confirmation' if !deletion_confirmed?(user)
+      raise 'Deletion aborted due to bad confirmation' if args[:force] != "true" && !deletion_confirmed?(user)
 
       user.destroy
     end
