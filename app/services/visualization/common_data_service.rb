@@ -3,7 +3,7 @@ require_relative '../../models/visualization/member'
 require_relative '../../models/visualization/collection'
 require_relative '../../models/visualization/external_source'
 require_relative '../../models/common_data/singleton'
-require_relative '../../../lib/cartodb/url_utils'
+require_relative '../../../lib/carto/url'
 
 module CartoDB
 
@@ -31,28 +31,26 @@ module CartoDB
       # return only records for visualizations with that name.
       # @param controller ActionController::Base
       # @param visualization_name String
-      def self.build_url(controller, visualization_name = nil)
+      def self.build_url(controller, visualization_name: nil)
         common_data_config = Cartodb.config[:common_data]
         return nil unless common_data_config
 
         common_data_base_url = common_data_config['base_url']
         common_data_username = common_data_config['username']
         common_data_user = Carto::User.where(username: common_data_username).first
-        visualization_name_filter = visualization_name ? "&q=#{visualization_name}" : ""
+
+        params = {type: 'table', privacy: 'public'}
+        params[:q] = visualization_name if !visualization_name.nil?
+
         if !common_data_base_url.nil?
           # We set user_domain to nil to avoid duplication in the url for subdomainfull urls. Ie. user.cartodb.com/u/cartodb/...
-          common_data_base_url + CartoDB.path(
-              controller,
-              'api_v1_visualizations_index',
-              {type: 'table', privacy: 'public', user_domain: nil}
-          ) + visualization_name_filter
+          params[:user_domain] = nil
+          URI.join(
+              common_data_base_url,
+              CartoDB.path(controller, 'api_v1_visualizations_index', params)
+          ).to_s
         elsif !common_data_user.nil?
-          CartoDB.url(
-              controller,
-              'api_v1_visualizations_index',
-              {type: 'table', privacy: 'public'},
-              common_data_user
-          ) + visualization_name_filter
+          CartoDB.url(controller, 'api_v1_visualizations_index', params, common_data_user)
         else
           CartoDB.notify_error(
             'cant create common-data url. User doesn\'t exist and base_url is nil',
@@ -77,7 +75,7 @@ module CartoDB
         }
         # If the common data query specifies a particular visualization, ignore
         # all other remotes for that user
-        visualization_name_filter = CartoDB::UrlUtils::get_url_param(visualizations_api_url, 'q')
+        visualization_name_filter = Carto::Url.new(visualizations_api_url).get_param(:q)
         user_remotes_filters[:name] = visualization_name_filter.first if !visualization_name_filter.empty?
 
         user_remotes = CartoDB::Visualization::Collection.new.fetch(user_remotes_filters)
