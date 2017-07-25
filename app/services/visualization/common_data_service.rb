@@ -45,10 +45,7 @@ module CartoDB
         if !common_data_base_url.nil?
           # We set user_domain to nil to avoid duplication in the url for subdomainfull urls. Ie. user.cartodb.com/u/cartodb/...
           params[:user_domain] = nil
-          URI.join(
-              common_data_base_url,
-              CartoDB.path(controller, 'api_v1_visualizations_index', params)
-          ).to_s
+          common_data_base_url + CartoDB.path(controller, 'api_v1_visualizations_index', params)
         elsif !common_data_user.nil?
           CartoDB.url(controller, 'api_v1_visualizations_index', params, common_data_user)
         else
