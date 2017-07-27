@@ -40,7 +40,7 @@ module CartoDB
         common_data_user = Carto::User.where(username: common_data_username).first
 
         params = {type: 'table', privacy: 'public'}
-        params[:q] = visualization_name if !visualization_name.nil?
+        params[:name] = visualization_name if !visualization_name.nil?
 
         if !common_data_base_url.nil?
           # We set user_domain to nil to avoid duplication in the url for subdomainfull urls. Ie. user.cartodb.com/u/cartodb/...
@@ -72,7 +72,7 @@ module CartoDB
         }
         # If the common data query specifies a particular visualization, ignore
         # all other remotes for that user
-        visualization_name_filter = Carto::Url.new(visualizations_api_url).get_param(:q)
+        visualization_name_filter = Carto::Url.new(visualizations_api_url).get_param(:name)
         user_remotes_filters[:name] = visualization_name_filter.first if !visualization_name_filter.empty?
 
         user_remotes = CartoDB::Visualization::Collection.new.fetch(user_remotes_filters)

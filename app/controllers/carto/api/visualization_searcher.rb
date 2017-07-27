@@ -30,6 +30,7 @@ module Carto
         bbox_parameter = params.fetch(:bbox,nil)
         privacy = params.fetch(:privacy,nil)
         only_with_display_name = params[:only_with_display_name] == 'true'
+        name = params[:name]
 
         vqb = VisualizationQueryBuilder.new
             .with_prefetch_user
@@ -99,6 +100,10 @@ module Carto
 
         if pattern.present?
           vqb.with_partial_match(pattern)
+        end
+
+        if name.present?
+          vqb.with_name(name)
         end
 
         vqb

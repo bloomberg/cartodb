@@ -61,13 +61,13 @@ module Carto
         emptyDatasetName = ''
         if current_user && !current_user.has_feature_flag?('bbg_disabled_shared_empty_dataset') then
           emptyDatasetName = Cartodb.config[:shared_empty_dataset_name]
-          if current_user[:username] != Cartodb.config[:common_data]['username'] && params[:q] != emptyDatasetName then
+          if current_user[:username] != Cartodb.config[:common_data]['username'] && params[:name] != emptyDatasetName then
             hideSharedEmptyDataset = true
           end
         end
         parent_category = params.fetch('parent_category', -1)
         asc_order = params.fetch('asc_order', 'false')
-        q = params.fetch(:q, '')
+        name = params[:name]
 
         presenter_cache = Carto::Api::PresenterCache.new
 
@@ -116,8 +116,8 @@ module Carto
           end
         end
 
-        if response[:visualizations].empty? && q != ''
-          lib_datasets = common_data_user.visualizations.where(type: 'table', privacy: 'public', name: q).map do |v|
+        if response[:visualizations].empty? && name
+          lib_datasets = common_data_user.visualizations.where(type: 'table', privacy: 'public', name: name).map do |v|
             VisualizationPresenter.new(v, current_viewer, self, { related: false })
               .with_presenter_cache(presenter_cache)
               .to_poro
