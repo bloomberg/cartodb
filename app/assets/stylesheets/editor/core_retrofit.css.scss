@@ -8,13 +8,8 @@
 body {
   min-width: $w;
 }
+//bb_editor_override
 a {
-  color: #2483B4;
-  text-decoration: none;
-  &:hover {
-    text-decoration: none;
-    color: #333;
-  }
   &.disabled {
     @include opacity(0.3);
     &:hover {
@@ -35,8 +30,6 @@ a {
 h2,h3,h4,h5,h6 { color: #333333 }
 h2 {
   font-size: 28px;
-  letter-spacing: -1px;
-  word-spacing: -1px;
   line-height: 34px;
 }
 h3 { font-size: 25px }

@@ -67,6 +67,11 @@ class Carto::VisualizationQueryBuilder
     self
   end
 
+  def with_excluded_names(names)
+    @excluded_names = names
+    self
+  end
+
   def without_synced_external_sources
     @exclude_synced_external_sources = true
     self
@@ -153,6 +158,11 @@ class Carto::VisualizationQueryBuilder
     self
   end
 
+  def with_parent_category(category)
+    @parent_category = category
+    self
+  end
+
   def with_locked(locked)
     @locked = locked
     self
@@ -208,6 +218,10 @@ class Carto::VisualizationQueryBuilder
       query = query.where('visualizations.id not in (?)', @excluded_ids)
     end
 
+    if @excluded_names and !@excluded_names.empty?
+      query = query.where('visualizations.name not in (?)', @excluded_names)
+    end
+
     if @name
       query = query.where(name: @name)
     end
@@ -250,13 +264,14 @@ class Carto::VisualizationQueryBuilder
     end
 
     if @exclude_synced_external_sources
-      query = query.joins(%Q{
+      query = query.joins(%{
                             LEFT JOIN external_sources es
                               ON es.visualization_id = visualizations.id
                           })
-                   .joins(%Q{
+                   .joins(%{
                             LEFT JOIN external_data_imports edi
-                              ON  edi.external_source_id = es.id
+                              ON edi.external_source_id = es.id
+                              AND (SELECT state FROM data_imports WHERE id = edi.data_import_id) <> 'failure'
                               #{exclude_only_synchronized}
                           })
                    .where("edi.id IS NULL")
@@ -282,6 +297,10 @@ class Carto::VisualizationQueryBuilder
 
     if @types
       query = query.where(type: @types)
+    end
+
+    if @parent_category
+      query = query.where('visualizations.category = ? OR visualizations.category = ANY(get_viz_child_category_ids(?))', @parent_category, @parent_category)
     end
 
     if !@locked.nil?

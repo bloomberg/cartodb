@@ -1206,11 +1206,14 @@ describe Visualization::Member do
       @license = "apache"
       @source = "[source](http://www.example.com)"
       @attributions = "Attributions example"
+      @exportable = true
+      @export_geom = true
+      @category = nil
     end
 
     it 'should create a new remote member' do
       remote_member = CartoDB::Visualization::Member.remote_member(
-        @name, @user_id, @privacy, @description, @tags, @license, @source, @attributions, @display_name
+        @name, @user_id, @privacy, @description, @tags, @license, @source, @attributions, @display_name, @exportable, @export_geom, @category
       )
       remote_member.name.should eq @name
       remote_member.user_id.should eq @user_id
@@ -1225,9 +1228,9 @@ describe Visualization::Member do
 
     it 'should update a remote member' do
       remote_member = CartoDB::Visualization::Member.remote_member(
-        @name, @user_id, @privacy, @description, @tags, @license, @source, @attributions, @display_name
+        @name, @user_id, @privacy, @description, @tags, @license, @source, @attributions, @display_name, @exportable, @export_geom, @category
       )
-      remote_member.update_remote_data(@privacy, "Another description", @tags, @license, @source, @attributions, @display_name)
+      remote_member.update_remote_data(@privacy, "Another description", @tags, @license, @source, @attributions, @display_name, @exportable, @export_geom, @category)
       remote_member.store
       remote_member.description.should eq "Another description"
     end

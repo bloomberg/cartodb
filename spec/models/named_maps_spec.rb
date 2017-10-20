@@ -1007,7 +1007,7 @@ describe CartoDB::NamedMapsWrapper::NamedMaps do
   # Basemaps with labels on top create an additional topmost layer. This causes issues if running the tests locally
   # with such basemaps, so we warn and not run any tests performing layer counting checks
   def disable_if_config_has_maps_with_labels
-    if Cartodb.config[:basemaps]['CartoDB'].select { |basemap| !basemap['labels'].nil? }.count > 0
+    if Cartodb.config[:basemaps]['Bloomberg'].select { |basemap| !basemap['labels'].nil? }.count > 0
       pending "Your app_config.yml contains at least one CartoDB basemap with labels on top. Please use app_config.yml.testing configuration for running this spec"
     end
   end

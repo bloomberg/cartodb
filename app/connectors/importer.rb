@@ -4,6 +4,8 @@ require 'uuidtools'
 require_relative '../models/visualization/support_tables'
 require_relative '../helpers/bounding_box_helper'
 
+require_relative '../../services/importer/lib/importer/connectors/cdb_data_library_connector'
+
 module CartoDB
   module Connector
     class Importer
@@ -57,6 +59,9 @@ module CartoDB
             create_overviews(result)
           }
 
+          if runner.instance_of? CartoDB::Importer2::CDBDataLibraryConnector
+            update_table_vis_with_remote_config
+          end
           if data_import.create_visualization
             create_visualization
           end
@@ -68,14 +73,17 @@ module CartoDB
       def register(result)
         @support_tables_helper.reset
 
-        # Sanitizing table name if it corresponds with a PostgreSQL reseved word
-        result.name = "#{result.name}_t" if CartoDB::POSTGRESQL_RESERVED_WORDS.map(&:downcase).include?(result.name.downcase)
-
-        runner.log.append("Before renaming from #{result.table_name} to #{result.name}")
-        name = rename(result, result.table_name, result.name)
-        result.name = name
-        runner.log.append("Before moving schema '#{name}' from #{ORIGIN_SCHEMA} to #{@destination_schema}")
-        move_to_schema(result, name, ORIGIN_SCHEMA, @destination_schema)
+        if runner.instance_of? CartoDB::Importer2::CDBDataLibraryConnector
+          name = result.name
+        else
+          # Sanitizing table name if it corresponds with a PostgreSQL reseved word
+          result.name = "#{result.name}_t" if CartoDB::POSTGRESQL_RESERVED_WORDS.map(&:downcase).include?(result.name.downcase)
+          runner.log.append("Before renaming from #{result.table_name} to #{result.name}")
+          name = rename(result, result.table_name, result.name)
+          result.name = name
+          runner.log.append("Before moving schema '#{name}' from #{ORIGIN_SCHEMA} to #{@destination_schema}")
+          move_to_schema(result, name, ORIGIN_SCHEMA, @destination_schema)
+        end
         runner.log.append("Before persisting metadata '#{name}' data_import_id: #{data_import_id}")
         persist_metadata(result, name, data_import_id)
         runner.log.append("Table '#{name}' registered")
@@ -109,6 +117,106 @@ module CartoDB
         end
       end
 
+      def update_table_vis_with_remote_config
+        begin
+          tables = get_imported_tables
+          if tables.length != 1
+            runner.log.append("WARNING: Skipping remote vis metadata copy - imported more than one table")
+            return
+          end
+          table = tables[0]
+          if table.name != runner.foreign_table_name
+            runner.log.append("WARNING: Skipping remote vis metadata copy - local #{table.name} != remote #{runner.foreign_table_name}")
+            return
+          end
+
+          remote_api_key = Cartodb.config[:common_data]['api_key']
+          if remote_api_key.blank?
+            runner.log.append("Skipping remote visualization copy for new FDW import due to missing Cartodb.config[:common_data]['api_key']")
+            return
+          end
+
+          # set some vars for use
+          user = ::User.where(id: data_import.user_id).first
+          http_client = Carto::Http::Client.get('fdw_vis_import', log_requests: true)
+
+          remote_protocol = Cartodb.config[:common_data]['protocol']
+
+          # Get visualization id of remote table so we can pull its layer configs
+          if Cartodb.config[:common_data]['base_url']
+            remote_base_url = Cartodb.config[:common_data]['base_url']
+          else
+            remote_protocol = Cartodb.config[:common_data]['protocol']
+            remote_user = Cartodb.config[:common_data]['username']
+            remote_base_url = "#{remote_protocol}://#{remote_user}.cartodb.com"
+          end
+          url = "#{remote_base_url}/api/v1/tables/#{runner.foreign_table_name}"
+          response = http_client.get(url, params: {
+            api_key: remote_api_key
+          })
+          if response.code != 200
+            runner.log.append("Skipping remote vis copy: Error fetching #{url} - #{response.code} #{response.body}")
+            return
+          end
+          data = JSON.parse(response.response_body)
+          table_visualization_map_id = data['table_visualization']['map_id']
+          table.name_alias = data['name_alias']
+          table.column_aliases = data['column_aliases']
+          table.save
+
+          table.name_alias = data['name_alias']
+          table.column_aliases = data['column_aliases']
+
+          url = "#{remote_base_url}/api/v1/maps/#{table_visualization_map_id}"
+          response = http_client.get(url, params: {
+            api_key: remote_api_key
+          })
+
+          if response.code != 200
+            runner.log.append("Skipping remote vis copy: Error fetching #{url} - #{response.code} #{response.body}")
+            return
+          end
+
+          data = JSON.parse(response.response_body)
+          table.map.provider = data['provider']
+          table.map.bounding_box_sw = data['bounding_box_sw']
+          table.map.bounding_box_ne = data['bounding_box_ne']
+          table.map.center = data['center']
+          table.map.zoom = data['zoom']
+          table.map.view_bounds_sw = data['view_bounds_sw']
+          table.map.view_bounds_ne = data['view_bounds_ne']
+          table.map.legends = data['legends']
+          table.map.scrollwheel = data['scrollwheel']
+          table.save
+
+          # Get remote vis layer configs
+          url = "#{remote_base_url}/api/v1/maps/#{table_visualization_map_id}/layers"
+          response = http_client.get(url, params: {
+            api_key: remote_api_key
+          })
+          if response.code != 200
+            runner.log.append("Skipping remote vis copy: Error fetching #{url} - #{response.code} #{response.body}")
+            return
+          end
+          data = JSON.parse(response.response_body)
+          remote_layers = data['layers']
+
+          table.map.layers.each_with_index do |layer, index|
+            layer_params = remote_layers[index]
+            if layer_params.include?('options') && layer_params['options'].include?('table_name')
+              layer_params['options']['table_name'] = layer.options['table_name']
+            end
+            if layer_params.include?('options') && layer_params['options'].include?('user_name')
+              layer_params['options']['user_name'] = layer.options['user_name']
+            end
+            layer.raise_on_save_failure = true
+            layer.update(layer_params.slice('options', 'kind', 'infowindow', 'tooltip', 'order'))
+          end
+        rescue => e
+          runner.log.append("WARNING: Failed to import remote vis metadata - #{e}")
+        end
+      end
+
       def get_imported_tables
         tables = []
         @imported_table_visualization_ids.each do |table_id|
@@ -128,7 +236,11 @@ module CartoDB
 
       def drop(table_name)
         Carto::OverviewsService.new(database).delete_overviews table_name
-        database.execute(%(DROP TABLE #{table_name}))
+        if runner.instance_of? CartoDB::Importer2::CDBDataLibraryConnector
+            database.execute(%(DROP VIEW #{table_name}))
+        else
+            database.execute(%(DROP TABLE #{table_name}))
+        end
       rescue => exception
         runner.log.append("Couldn't drop table #{table_name}: #{exception}. Backtrace: #{exception.backtrace} ")
         self
@@ -161,14 +273,14 @@ module CartoDB
 
         if data_import
           user_id = data_import.user_id
-          if exists_user_table_for_user_id(new_name, user_id)
+          if exists_user_table_for_user_id(new_name, user_id) || common_data_table(new_name)
             # Since get_valid_table_name should only return nonexisting table names (with a retry limit)
             # this is likely caused by a table deletion, so we run ghost tables to cleanup and retry
             if rename_attempts == 1
               runner.log.append("Triggering ghost tables for #{user_id} because collision on #{new_name}")
               ::User.where(id: user_id).first.link_ghost_tables
 
-              if exists_user_table_for_user_id(new_name, user_id)
+              if exists_user_table_for_user_id(new_name, user_id) || common_data_table(new_name)
                 runner.log.append("Ghost tables didn't fix the collision.")
                 raise "Existing #{new_name} already registered for #{user_id}. Running ghost tables did not help."
               else
@@ -250,6 +362,21 @@ module CartoDB
 
       def exists_user_table_for_user_id(table_name, user_id)
         !Carto::UserTable.where(name: table_name, user_id: user_id).first.nil?
+      end
+
+      def common_data_table(table_name)
+        if common_data_user
+          common_data_user.visualizations.where(privacy: 'public', type: 'table', name: table_name).first
+        end
+      end
+
+      def common_data_user
+        return @common_data_user if @common_data_user
+
+        common_data_config = Cartodb.config[:common_data]
+        username = common_data_config && common_data_config['username']
+
+        @common_data_user = Carto::User.find_by_username(username)
       end
 
       attr_reader :runner, :table_registrar, :quota_checker, :database, :data_import_id

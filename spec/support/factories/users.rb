@@ -143,7 +143,8 @@ module CartoDB
       end
 
       data_import.data_source = file_name
-      data_import.send :new_importer
+      importer, runner, datasource_provider, manual_fields = data_import.send(:new_importer)
+      data_import.send(:execute_importer, importer, runner, datasource_provider, manual_fields)
       data_import
     end
 

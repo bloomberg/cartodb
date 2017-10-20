@@ -32,6 +32,10 @@ describe Visualization::Overlays do
 
   describe 'default' do
     it 'should create all overlays' do
+      user_mock = mock
+      user_mock.stubs(:has_feature_flag?).with('bbg_pro_ui').returns(true)
+      user_mock.stubs(:has_feature_flag?).with('disabled_cartodb_logo').returns(false)
+      @visualization.stubs(:user).returns(user_mock)
       Visualization::Overlays.new(@visualization).create_default_overlays
 
       @visualization.overlays.count.should eq 5
@@ -41,6 +45,7 @@ describe Visualization::Overlays do
 
     it 'should not create logo if user has disabled_cartodb_logo feature_flag' do
       user_mock = mock
+      user_mock.stubs(:has_feature_flag?).with('bbg_pro_ui').returns(true)
       user_mock.stubs(:has_feature_flag?).with('disabled_cartodb_logo').returns(true)
       @visualization.stubs(:user).returns(user_mock)
 

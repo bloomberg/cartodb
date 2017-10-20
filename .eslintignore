@@ -278,7 +278,7 @@
 **/lib/assets/javascripts/cartodb/dashboard/datasets/fake_datasets_item.js
 **/lib/assets/javascripts/cartodb/dashboard/datasets/loading_library_view.js
 **/lib/assets/javascripts/cartodb/dashboard/datasets/remote_datasets_item.js
-**/lib/assets/javascripts/cartodb/dashboard/editable_fields/editable_description.js
+**/lib/assets/javascripts/cartodb/dashboard/editable_fields/editable_text.js
 **/lib/assets/javascripts/cartodb/dashboard/editable_fields/editable_tags.js
 **/lib/assets/javascripts/cartodb/dashboard/entry.js
 **/lib/assets/javascripts/cartodb/dashboard/filters_view.js
@@ -682,7 +682,7 @@
 **/lib/assets/test/spec/cartodb/dashboard/dialogs/create/footer/privacy_toggler_view.spec.js
 **/lib/assets/test/spec/cartodb/dashboard/dialogs/create/listing/navigation_view.spec.js
 **/lib/assets/test/spec/cartodb/dashboard/dialogs/video_tutorial.spec.js
-**/lib/assets/test/spec/cartodb/dashboard/editable_fields/editable_description.spec.js
+**/lib/assets/test/spec/cartodb/dashboard/editable_fields/editable_text.spec.js
 **/lib/assets/test/spec/cartodb/dashboard/editable_fields/editable_tags.spec.js
 **/lib/assets/test/spec/cartodb/dashboard/filters_view.spec.js
 **/lib/assets/test/spec/cartodb/dashboard/header_view_model.spec.js

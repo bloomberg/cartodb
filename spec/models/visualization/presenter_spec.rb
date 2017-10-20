@@ -95,6 +95,10 @@ describe Visualization::Member do
       vis_mock.stubs(:active_child).returns(nil)
       vis_mock.stubs(:likes).returns([])
       vis_mock.stubs(:likes_count).returns(0)
+      vis_mock.stubs(:legend_style).returns(nil)
+      vis_mock.stubs(:exportable).returns(true)
+      vis_mock.stubs(:export_geom).returns(true)
+      vis_mock.stubs(:category).returns(nil)
 
       vis_mock.stubs(:synchronization).returns(nil)
 
