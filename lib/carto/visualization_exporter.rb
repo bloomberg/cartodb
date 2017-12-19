@@ -9,20 +9,70 @@ module Carto
     end
 
     # Returns the file
-    def export_table(user_table, folder, format)
+    def export_table(user_table, folder, format, is_remote)
       table_name = user_table.name
 
       query = %{select * from "#{table_name}"}
       url = sql_api_query_url(query, table_name, user_table.user, privacy(user_table), format)
       exported_file = "#{folder}/#{table_name}.#{format}"
+
       @http_client.get_file(url, exported_file, ssl_verifypeer: false, ssl_verifyhost: 0)
+
+      # Hack for Samples 2.0 - Save As
+      if(format == 'gpkg')
+        # Verify if the data is remote or if it is local
+        if(is_remote)
+          Carto::GpkgCartoMetadataUtil.open( geopkg_file: exported_file ) do |md|
+            md.metadata = { 
+              vendor: 'carto',
+              data: {
+                source: {
+                  type: 'fdw',
+                  configuration: {
+                    parent_table: table_name
+                  }
+                }
+              }
+            }.with_indifferent_access
+            
+            # Clear the data
+            md.clear_table(table_name: table_name)
+          end
+          # Rename the file to .carto.gpkg to designate it has metadata
+          # We do not immediately write to .carto.gpkg because the SQL api
+          # does not honor .carto.gpkg format at this time
+          
+          File.rename(exported_file, "#{folder}/#{table_name}.carto.gpkg")
+        end
+      end
     end
 
     def export_visualization_tables(visualization, user, dir, format, user_tables_ids: nil)
-      visualization.
-        related_tables_readable_by(user).
+      # Get all synchronizations
+      synchronizations = visualization.related_canonical_visualizations.
+        map { |v| v.synchronization }.
+        select {|s| !s.nil? }
+      
+      # Get all tables
+      tables = visualization.
+        related_tables_and_common_shared_data_readable_by(user).
         select { |ut| user_tables_ids.nil? || user_tables_ids.include?(ut.id) }.
-        map { |ut| export_table(ut, dir, format) }
+        map do |ut| 
+          # We will do inefficient array search for now since the array length should be 
+          #    no longer than 8 (total number of allowed layers).  Plus this logic
+          #    will change from the hack for Sample 2.0 Save As to full solution 
+          #    in the future
+          
+          # Find table in synchronizations
+          is_remote = false
+          for s in synchronizations
+            if(ut.name == s.name)
+              is_remote = true if s.service_name == 'connector'
+            end
+          end
+
+          export_table(ut, dir, format, is_remote)
+        end
     end
 
     private
@@ -85,7 +135,8 @@ module Carto
                format: DEFAULT_EXPORT_FORMAT,
                data_exporter: DataExporter.new,
                visualization_export_service: Carto::VisualizationsExportService2.new,
-               base_dir: exporter_folder)
+               base_dir: exporter_folder,
+               name_suffix: nil)
       visualization_id = visualization.id
       export_dir = export_dir(visualization, base_dir: base_dir)
       tmp_dir = tmp_dir(visualization, parent_dir: export_dir)
@@ -98,7 +149,11 @@ module Carto
         format,
         user_tables_ids: user_tables_ids)
 
-      visualization_json = visualization_export_service.export_visualization_json_string(visualization_id, user)
+      if name_suffix
+        visualization_json = visualization_export_service.export_visualization_json_string_with_name_suffix(visualization_id, user, name_suffix)
+      else
+        visualization_json = visualization_export_service.export_visualization_json_string(visualization_id, user)
+      end
       visualization_json_file = "#{tmp_dir}/#{visualization_id}#{EXPORT_EXTENSION}"
       File.open(visualization_json_file, 'w') { |file| file.write(visualization_json) }
 

@@ -13,6 +13,8 @@ require_relative '../../../../lib/cartodb/stats/importer'
 require_relative '../../../../lib/carto/visualization_exporter'
 require_relative '../helpers/quota_check_helpers'
 
+require_relative '../../../../lib/carto/geopkg_carto_metadata_util'
+
 module CartoDB
   module Importer2
     class Runner
@@ -246,7 +248,6 @@ module CartoDB
             @downloader.run(available_quota)
             return self unless remote_data_updated?
           end
-
           log.append "Starting import for #{@downloader.source_file.fullpath}"
           log.store   # Checkpoint-save
 
@@ -277,8 +278,44 @@ module CartoDB
 
               log.store   # Checkpoint-save
               log.append "Filename: #{source_file.fullpath} Size (bytes): #{source_file.size}"
-              import_stats = execute_import(source_file, @downloader)
-              @stats << import_stats
+
+              # Hack for Samples 2.0 Save As - Tech debt to clean up with more elegant solution
+              if(source_file.extension == '.gpkg' && File.extname(source_file.name) == '.carto')
+                md = Carto::GpkgCartoMetadataUtil.new( geopkg_file: source_file.fullpath )
+
+                # Check if FDW
+                if(md.metadata.has_key?('data') &&
+                   md.metadata['data'].has_key?('source') &&
+                   md.metadata['data']['source'].has_key?('type') &&
+                   md.metadata['data']['source']['type'] == 'fdw')
+
+                  job.log "FDW gpkg detected.  Setting up foreign tables"
+
+                  # Create the correct runner and execute....
+                  temp_connector = CartoDB::Importer2::CDBDataLibraryConnector.new(
+                    "driver=postgres;channel=postgres_fdw;table=#{md.metadata['data']['source']['configuration']['parent_table']}",
+                    user: @user,
+                    pg: @pg_options,
+                    log: @log
+                  )
+                  temp_connector.run(&@tracker)
+                  @results.concat( temp_connector.results )
+
+                  # For continuity let's add stats
+                  import_stats = {}
+                  import_stats[:filename] = source_file.path
+                  import_stats[:type] = source_file.extension
+                  import_stats[:size] = source_file.size
+                  @stats << import_stats
+                else
+                  # assume if the file is .carto.gpkg then it must have the
+                  # metadata we are looking for.
+                  raise LoadError.new "ERROR Invalid metadata in #{source_file.fullpath}."
+                end
+              else
+                import_stats = execute_import(source_file, @downloader)
+                @stats << import_stats
+              end
             end
 
             visualization_files = visualization_files(source_files)

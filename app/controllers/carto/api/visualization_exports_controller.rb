@@ -45,7 +45,9 @@ module Carto
         # In order to generate paths you need to be in a controller, so path is sent to Resque
         download_path_params = { visualization_export_id: visualization_export.id }
         download_path = CartoDB.path(self, 'visualization_export_download', download_path_params)
-        Resque.enqueue(Resque::ExporterJobs, job_id: visualization_export.id, download_path: download_path)
+        # Hack - Samples 2.0 Save As
+        # name_suffix is hardcoded.
+        Resque.enqueue(Resque::ExporterJobs, job_id: visualization_export.id, download_path: download_path, name_suffix: "Copy")
 
         if current_viewer
           current_viewer_id = current_viewer.id

@@ -207,6 +207,14 @@ module Carto
       export_visualization_json_hash(visualization_id, user).to_json
     end
 
+    def export_visualization_json_string_with_name_suffix(visualization_id, user, name_suffix)
+      # Sample 2.0 Save As Hack
+      # There should be a separate save as resque job instead which will perform this change
+      vis = export_visualization_json_hash(visualization_id, user)
+      vis[:visualization][:name] = vis[:visualization][:name] + " " + name_suffix
+      vis.to_json
+    end
+
     def export_visualization_json_hash(visualization_id, user)
       {
         version: CURRENT_VERSION,
@@ -222,7 +230,7 @@ module Carto
     end
 
     def export_visualization(visualization, user)
-      layers = visualization.layers_with_data_readable_by(user)
+      layers = visualization.layers_with_data_and_common_shared_data_readable_by(user)
       active_layer_id = visualization.active_layer_id
       layer_exports = layers.map do |layer|
         export_layer(layer, active_layer: active_layer_id == layer.id)

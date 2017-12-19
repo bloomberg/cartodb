@@ -10,6 +10,12 @@ require_relative '../factories/pg_connection'
 include CartoDB::Importer2
 
 describe Ogr2ogr do
+  let(:ogr2ogr2_options) do
+    {
+      ogr2ogr_binary: Cartodb.config[:ogr2ogr]['binary']
+    }
+  end
+
   before(:all) do
     @user             = create_user
     @user.save
@@ -25,7 +31,7 @@ describe Ogr2ogr do
     @table_name       = "importer_#{rand(99999)}"
     @full_table_name  = "cdb_importer.#{@table_name}"
     @dataset          = @db[@table_name.to_sym]
-    @wrapper          = CartoDB::Importer2::Ogr2ogr.new(@table_name, @filepath, @pg_options)
+    @wrapper          = CartoDB::Importer2::Ogr2ogr.new(@table_name, @filepath, @pg_options, nil, ogr2ogr2_options)
   end
 
   after(:each) do
@@ -92,7 +98,7 @@ describe Ogr2ogr do
       data   = ["5", "cell_#{rand(999)}"]
       csv    = Factories::CSV.new.write(header, data)
 
-      @wrapper = CartoDB::Importer2::Ogr2ogr.new(@table_name, csv.filepath, @pg_options)
+      @wrapper = CartoDB::Importer2::Ogr2ogr.new(@table_name, csv.filepath, @pg_options, nil, ogr2ogr2_options)
       @wrapper.run
 
       record    = @dataset.first
@@ -104,7 +110,7 @@ describe Ogr2ogr do
       data   = ["5", "cell_#{rand(999)}"]
       csv    = Factories::CSV.new.write(header, data)
 
-      @wrapper = CartoDB::Importer2::Ogr2ogr.new(@table_name, csv.filepath, @pg_options)
+      @wrapper = CartoDB::Importer2::Ogr2ogr.new(@table_name, csv.filepath, @pg_options, nil, ogr2ogr2_options)
       @wrapper.run
 
       record    = @dataset.first
@@ -115,11 +121,12 @@ describe Ogr2ogr do
 
   describe '#command_output' do
     it 'returns stdout and stderr from ogr2ogr binary' do
-      wrapper = CartoDB::Importer2::Ogr2ogr.new(@table_name, 'non_existent', @pg_options)
+      pending("ogr2ogr needs to be recompiled with updated driver")
+      wrapper = CartoDB::Importer2::Ogr2ogr.new(@table_name, 'non_existent', @pg_options, nil, ogr2ogr2_options)
       wrapper.run
       wrapper.command_output.should_not eq ''
 
-      wrapper = CartoDB::Importer2::Ogr2ogr.new(@table_name, @filepath, @pg_options)
+      wrapper = CartoDB::Importer2::Ogr2ogr.new(@table_name, @filepath, @pg_options, nil, ogr2ogr2_options)
       wrapper.run
       wrapper.command_output.should eq ''
     end
@@ -127,11 +134,11 @@ describe Ogr2ogr do
 
   describe '#exit_code' do
     it 'returns the exit code from the ogr2ogr binary' do
-      wrapper = CartoDB::Importer2::Ogr2ogr.new(@table_name, 'non_existent', @pg_options)
+      wrapper = CartoDB::Importer2::Ogr2ogr.new(@table_name, 'non_existent', @pg_options, nil, ogr2ogr2_options)
       wrapper.run
       wrapper.exit_code.should_not eq 0
 
-      wrapper = CartoDB::Importer2::Ogr2ogr.new(@table_name, @filepath, @pg_options)
+      wrapper = CartoDB::Importer2::Ogr2ogr.new(@table_name, @filepath, @pg_options, nil, ogr2ogr2_options)
       wrapper.run
       wrapper.exit_code.should eq 0
     end
@@ -149,7 +156,7 @@ describe Ogr2ogr do
       csv_2 = Factories::CSV.new(name=nil, how_many_duplicates=0)
         .write(header, data_2)
 
-      ogr2ogr = CartoDB::Importer2::Ogr2ogr.new(@table_name, csv_1.filepath, @pg_options)
+      ogr2ogr = CartoDB::Importer2::Ogr2ogr.new(@table_name, csv_1.filepath, @pg_options, nil, ogr2ogr2_options)
       ogr2ogr.run
 
       ogr2ogr.filepath = csv_2.filepath
@@ -160,5 +167,5 @@ describe Ogr2ogr do
       @dataset.all.count.should eq 2
     end
   end
-
 end
+

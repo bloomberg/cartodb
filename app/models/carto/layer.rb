@@ -118,8 +118,16 @@ module Carto
       user_tables.select { |ut| ut.readable_by?(user) }
     end
 
+    def user_tables_and_common_shared_data_readable_by(user)
+      user_tables.select { |ut| ut.readable_with_common_shared_data_by?(user) }
+    end
+
     def data_readable_by?(user)
       user_tables.all? { |ut| ut.readable_by?(user) }
+    end
+
+    def data_and_common_shared_data_readable_by?(user)
+      user_tables.all? { |ut| ut.readable_with_common_shared_data_by?(user) }
     end
 
     def legend

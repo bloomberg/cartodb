@@ -124,12 +124,12 @@ module CartoDB
         if normalizer
           sample.each do |row|
             elem = normalizer.call(row[column_name_sym])
-            frequency_table[elem] += 1 rescue frequency_table[elem] = 1
+            (frequency_table[elem] += 1) rescue frequency_table[elem] = 1
           end
         else
           sample.each do |row|
             elem = row[column_name_sym]
-            frequency_table[elem] += 1 rescue frequency_table[elem] = 1
+            (frequency_table[elem] += 1) rescue frequency_table[elem] = 1
           end
         end
         length = sample.count.to_f

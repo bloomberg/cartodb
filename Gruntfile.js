@@ -290,7 +290,7 @@
       'copy:cartodbjs_v4'
     ]);
     grunt.registerTask('css', ['copy:vendor', 'css_editor_3', 'copy:app', 'compass', 'concat:css']);
-    grunt.registerTask('default', ['pre_default', 'css', 'manifest']);
+    grunt.registerTask('default', ['pre_default', 'css', 'manifest', 'js']);
     grunt.registerTask('minimize', ['default', 'copy:js', 'exorcise', 'uglify']);
     grunt.registerTask('release', ['check_release', 'minimize', 's3', 'invalidate']);
     grunt.registerTask('build-jasmine-specrunners', _

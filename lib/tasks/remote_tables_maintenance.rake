@@ -164,6 +164,7 @@ namespace :cartodb do
       ]
 
       lib_datasets.each { |dataset_name, dataset_category|
+        dataset_category ||= 'NULL'
         sql_query = %Q[
           UPDATE visualizations SET category=#{dataset_category} WHERE name='#{dataset_name}';
           ]
@@ -374,7 +375,7 @@ namespace :cartodb do
         end
 
         # only update dataset tables with same name and imported from library, skip library user
-        ut_ids = Carto::UserTable.includes(visualization: { synchronization: :external_data_imports })
+        ut_ids = Carto::UserTable.includes(map: { visualization: { synchronization: :external_data_imports }})
           .where(name: name)
           .where('external_data_imports.id IS NOT NULL')
           .where('user_tables.user_id <> ?', common_data_user.id)

@@ -53,6 +53,7 @@ describe 'csv regression tests' do
                                log: CartoDB::Importer2::Doubles::Log.new(@user),
                                user: @user
                              })
+    runner.loader_options = ogr2ogr2_options_binary_only
     runner.run
 
     result = runner.results.first
@@ -68,6 +69,7 @@ describe 'csv regression tests' do
                                log: CartoDB::Importer2::Doubles::Log.new(@user),
                                user: @user
                              })
+    runner.loader_options = ogr2ogr2_options_binary_only
     runner.run
 
     result = runner.results.first
@@ -96,6 +98,7 @@ describe 'csv regression tests' do
                                log: CartoDB::Importer2::Doubles::Log.new(@user),
                                user: @user
                              })
+    runner.loader_options = ogr2ogr2_options_binary_only
     runner.run
 
     geometry_type_for(runner, @user).should eq 'POINT'
@@ -112,6 +115,7 @@ describe 'csv regression tests' do
         log: CartoDB::Importer2::Doubles::Log.new(@user),
         user: @user
       )
+      runner.loader_options = ogr2ogr2_options_binary_only
       runner.run
 
       result = runner.results.first
@@ -129,6 +133,7 @@ describe 'csv regression tests' do
                                log: CartoDB::Importer2::Doubles::Log.new(@user),
                                user: @user
                              })
+    runner.loader_options = ogr2ogr2_options_binary_only
     runner.run
 
     geometry_type_for(runner, @user).should eq 'MULTIPOLYGON'
@@ -147,6 +152,7 @@ describe 'csv regression tests' do
                                log: CartoDB::Importer2::Doubles::Log.new(@user),
                                user: @user
                              })
+    runner.loader_options = ogr2ogr2_options_binary_only
     runner.run
 
     geometry_type_for(runner, @user).should eq 'POINT'
@@ -184,6 +190,7 @@ describe 'csv regression tests' do
                                log: CartoDB::Importer2::Doubles::Log.new(@user),
                                user: @user
                              })
+    runner.loader_options = ogr2ogr2_options_binary_only
     runner.run
 
     result = runner.results.first
@@ -203,6 +210,7 @@ describe 'csv regression tests' do
                                log: CartoDB::Importer2::Doubles::Log.new(@user),
                                user: @user
                              })
+    runner.loader_options = ogr2ogr2_options_binary_only
     runner.run
 
     result = runner.results.first
@@ -222,6 +230,7 @@ describe 'csv regression tests' do
                                log: CartoDB::Importer2::Doubles::Log.new(@user),
                                user: @user
                              })
+    runner.loader_options = ogr2ogr2_options_binary_only
     runner.run
 
     result = runner.results.first
@@ -241,6 +250,7 @@ describe 'csv regression tests' do
                                log: CartoDB::Importer2::Doubles::Log.new(@user),
                                user: @user
                              })
+    runner.loader_options = ogr2ogr2_options_binary_only
     runner.run
 
     result = runner.results.first
@@ -266,6 +276,7 @@ describe 'csv regression tests' do
                                log: CartoDB::Importer2::Doubles::Log.new(@user),
                                user: @user
                              })
+    runner.loader_options = ogr2ogr2_options_binary_only
     runner.run
 
     result = runner.results.first
@@ -298,6 +309,7 @@ describe 'csv regression tests' do
                                  log: CartoDB::Importer2::Doubles::Log.new(@user),
                                  user: @user
                                })
+      runner.loader_options = ogr2ogr2_options_binary_only
       runner.run
 
       result = runner.results.first
@@ -336,6 +348,7 @@ describe 'csv regression tests' do
                                log: CartoDB::Importer2::Doubles::Log.new(@user),
                                user: @user
                              })
+    runner.loader_options = ogr2ogr2_options_binary_only
     runner.run
 
     result = runner.results.first
@@ -388,8 +401,15 @@ describe 'csv regression tests' do
   # Using the version 2.x of ogr2ogr to check features like auto-guessing for example
   def ogr2ogr2_options
     {
-      ogr2ogr_binary:         'which ogr2ogr2',
+      ogr2ogr_binary:         Cartodb.config[:ogr2ogr]['binary'] || 'which ogr2ogr2',
       ogr2ogr_csv_guessing:   'yes'
+    }
+  end
+
+  # Using the version 2.x of ogr2ogr to check features like auto-guessing for example
+  def ogr2ogr2_options_binary_only
+    {
+      ogr2ogr_binary:         Cartodb.config[:ogr2ogr]['binary'] || 'which ogr2ogr2',
     }
   end
 
@@ -405,6 +425,8 @@ describe 'csv regression tests' do
                })
     if add_ogr2ogr2_options
       runner.loader_options = ogr2ogr2_options
+    else
+      runner.loader_options = ogr2ogr2_options_binary_only
     end
     runner
   end

@@ -16,6 +16,7 @@ describe 'UserMigration' do
   end
 
   it 'exports and reimports a user' do
+    pending("UserMigration is not used by Bloomberg")
     CartoDB::UserModule::DBService.any_instance.stubs(:enable_remote_db_user).returns(true)
     user = FactoryGirl.build(:valid_user).save
     carto_user = Carto::User.find(user.id)
@@ -56,6 +57,7 @@ describe 'UserMigration' do
     include_context 'organization with users helper'
 
     it 'exports and reimports an organization' do
+      pending("UserMigration is not used by Bloomberg")
       org_attributes = @carto_organization.attributes
       owner_attributes = @carto_org_user_owner.attributes
 

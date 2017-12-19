@@ -37,7 +37,7 @@ describe Carto::Api::SynchronizationsController do
       @headers = {
         'CONTENT_TYPE' => 'application/json'
       }
-      host! "#{@user.username}.localhost.lan"
+      host! CartoDB.base_url(@user.username).sub!(/^https?\:\/\//, '')
     end
 
     after(:all) do
@@ -45,6 +45,8 @@ describe Carto::Api::SynchronizationsController do
       bypass_named_maps
       @user.destroy
     end
+
+    let(:params) { { :api_key => @api_key } }
 
     describe 'GET /api/v1/synchronizations/:id' do
       it 'returns a synchronization record' do
@@ -54,10 +56,10 @@ describe Carto::Api::SynchronizationsController do
           url:        'http://www.foo.com'
         }
 
-        post "/api/v1/synchronizations?api_key=#{@api_key}", payload.to_json, @headers
+        post api_v1_synchronizations_index_url(params), payload.to_json, @headers
         id = JSON.parse(last_response.body).fetch('id')
 
-        get "/api/v1/synchronizations/#{id}?api_key=#{@api_key}", nil, @headers
+        get api_v1_synchronizations_show_url(params.merge(id: id)), nil, @headers
         last_response.status.should == 200
 
         response = JSON.parse(last_response.body)
@@ -66,7 +68,7 @@ describe Carto::Api::SynchronizationsController do
       end
 
       it 'returns 404 for unknown synchronizations' do
-        get "/api/v1/synchronizations/56b40691-541b-4ef3-96da-f2be29563566?api_key=#{@api_key}", nil, @headers
+        get api_v1_synchronizations_show_url(params.merge(id: "56b40691-541b-4ef3-96da-f2be29563566")), nil, @headers
         last_response.status.should == 404
       end
     end
@@ -79,10 +81,10 @@ describe Carto::Api::SynchronizationsController do
           url:        'http://www.foo.com'
         }
 
-        post "/api/v1/synchronizations?api_key=#{@api_key}", payload.to_json, @headers
+        post api_v1_synchronizations_index_url(params), payload.to_json, @headers
         id = JSON.parse(last_response.body).fetch('id')
 
-        get "/api/v1/synchronizations/#{id}/sync_now?api_key=#{@api_key}", nil, @headers
+        get api_v1_synchronizations_syncing_url(params.merge(id: id)), nil, @headers
         last_response.status.should == 200
 
         response = JSON.parse(last_response.body)
@@ -92,7 +94,7 @@ describe Carto::Api::SynchronizationsController do
 
     describe 'GET /api/v1/synchronizations/' do
       it 'returns sync list' do
-        get "/api/v1/synchronizations?api_key=#{@api_key}", nil, @headers
+        get api_v1_synchronizations_index_url(params), nil, @headers
         last_response.status.should == 200
       end
     end

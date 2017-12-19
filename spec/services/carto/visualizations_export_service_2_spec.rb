@@ -1333,6 +1333,35 @@ describe Carto::VisualizationsExportService2 do
       destroy_visualization(imported_viz.id)
     end
 
+    it 'importing an exported visualization should create a new visualization with matching metadata and suffix name' do
+      exported_string = export_service.export_visualization_json_string_with_name_suffix(@visualization.id, @user, "Copy")
+      built_viz = export_service.build_visualization_from_json_export(exported_string)
+      imported_viz = Carto::VisualizationsExportPersistenceService.new.save_import(@user, built_viz)
+
+      imported_viz = Carto::Visualization.find(imported_viz.id)
+      verify_visualizations_match(imported_viz,
+                                  @visualization,
+                                  importing_user: @user,
+                                  imported_name: "#{@visualization.name} Copy")
+
+      destroy_visualization(imported_viz.id)
+    end
+
+    it 'importing an exported visualization several times should change imported name with suffix name' do
+      exported_string = export_service.export_visualization_json_string_with_name_suffix(@visualization.id, @user, "Copy")
+
+      built_viz = export_service.build_visualization_from_json_export(exported_string)
+      imported_viz = Carto::VisualizationsExportPersistenceService.new.save_import(@user, built_viz)
+      imported_viz.name.should eq "#{@visualization.name} Copy"
+
+      built_viz = export_service.build_visualization_from_json_export(exported_string)
+      imported_viz2 = Carto::VisualizationsExportPersistenceService.new.save_import(@user, built_viz)
+      imported_viz2.name.should eq "#{@visualization.name} Copy Import"
+
+      destroy_visualization(imported_viz.id)
+      destroy_visualization(imported_viz2.id)
+    end
+
     describe 'basemaps' do
       describe 'custom' do
         before(:each) do

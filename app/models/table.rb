@@ -233,7 +233,7 @@ class Table
       table_name, table_schema = Table.table_and_schema(t)
       unless table_schema.nil?
         owner = ::User.where(username:table_schema).first
-        unless owner.nil?
+        if owner && owner.organization && viewer_user.organization && viewer_user.organization.id == owner.organization.id
           user_id = owner.id
         end
       end
@@ -1501,9 +1501,18 @@ class Table
     Carto::ValidTableNameProposer.new.propose_valid_table_name(contendent, taken_names: user_table_names)
   end
 
+  def common_data_user
+    return @common_data_user if @common_data_user
+
+    common_data_config = Cartodb.config[:common_data]
+    username = common_data_config && common_data_config['username']
+
+    @common_data_user = Carto::User.find_by_username(username)
+  end
+
   def common_data_table_names
     if common_data_user
-      common_data_user.visualizations.where(type: 'table', privacy: 'public').map(:name)
+      common_data_user.visualizations.where(type: 'table', privacy: 'public').map(&:name)
     else
       []
     end

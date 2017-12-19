@@ -311,6 +311,7 @@ SPEC_HELPER_MIN_SPECS = \
 	spec/lib/carto/storage_options/local_spec.rb \
 	spec/models/carto/username_proposer_spec.rb \
 	spec/services/carto/overquota_users_service_spec.rb \
+	spec/lib/carto/geopkg_carto_metadata_util_spec.rb \
 	$(NULL)
 
 # This class must be tested isolated as pollutes namespace
@@ -320,7 +321,7 @@ WORKING_SPECS_carto_db_class = \
 
 CDB_PATH=lib/assets/javascripts/cdb
 
-BUNDLE_INSTALL_OPTS = BUNDLE_BUILD__FFI="--with-pkg-config=/bb/datavis/cartodb/embedded/lib/pkgconfig/"
+# BUNDLE_INSTALL_OPTS = BUNDLE_BUILD__FFI="--with-pkg-config=/bb/datavis/cartodb/embedded/lib/pkgconfig/"
 
 prepare-test-db:
 	# Else coverage reports add up and hits/line metric is invalid
@@ -369,7 +370,7 @@ check-frontend:
 
 # update cartodb.js submodule files
 update_cdb:
-	cd $(CDB_PATH); BUNDLE_BUILD__FFI="--with-pkg-config=/bb/datavis/cartodb/embedded/lib/pkgconfig/" bundle install
+	cd $(CDB_PATH); bundle install
 	cd $(CDB_PATH); npm install
 	cd $(CDB_PATH); make cartodb dist/cartodb.css
 	cp $(CDB_PATH)/dist/cartodb.full.uncompressed.js vendor/assets/javascripts/cartodb.uncompressed.js

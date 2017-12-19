@@ -45,12 +45,12 @@ $shadow-color: rgba(black, 0.1);
 
 .Sessions-title {
   font-weight: 400;
-  font-size: 30px;
-  line-height: 48px;
+  font-size: 38px;
+  line-height: 38px;
   text-shadow: 0px 1px $shadow-color, 1px 0px $shadow-color, 0 0 $shadow-color, 1px -1px $shadow-color, -1px 1px $shadow-color;
   color: #fff;
-  width: 360px;
-  margin-left: -20px;
+  text-align:center;
+  margin: 0;
 }
 
 .Sessions-title--organization {
@@ -102,6 +102,10 @@ $shadow-color: rgba(black, 0.1);
 
   &:last-child {
     margin-bottom: 0;
+  }
+
+  .Btn {
+    border-radius: 4px;
   }
 }
 

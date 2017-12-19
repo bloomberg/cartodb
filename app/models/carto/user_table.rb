@@ -141,6 +141,18 @@ module Carto
       !private? || is_owner?(user) || visualization_readable_by?(user)
     end
 
+    def readable_with_common_shared_data_by?(user)
+      !private? || is_owner?(user) || visualization_readable_by?(user) || common_shared_dataset?
+    end
+
+    def common_shared_dataset?
+        di = DataImport.find_by_id(data_import_id)
+        return false unless di
+        sync = Synchronization.find_by_id(di.synchronization_id)
+        return false unless sync
+        'connector' == sync.service_name
+    end
+
     def raster?
       service.is_raster?
     end

@@ -30,7 +30,7 @@ shared_context 'organization with users helper' do
   def test_organization
     organization = Organization.new
     organization.name = unique_name('org')
-    organization.quota_in_bytes = 1234567890
+    organization.quota_in_bytes = 3145728000
     organization.seats = 15
     organization.viewer_seats = 15
     organization.builder_enabled = false

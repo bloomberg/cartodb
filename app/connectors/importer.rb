@@ -75,6 +75,10 @@ module CartoDB
 
         if runner.instance_of? CartoDB::Importer2::CDBDataLibraryConnector
           name = result.name
+        # HACK - Samples 2.0 Save As - The actual runner of some tables are hidden because they arecreated under the scenes
+        #  Longer term a new runner should be created and additional info needs to be passed up
+        elsif result.schema != ORIGIN_SCHEMA && File.extname(@runner.downloader.source_file.filename) == '.carto'
+          name = result.name
         else
           # Sanitizing table name if it corresponds with a PostgreSQL reseved word
           result.name = Carto::DB::Sanitize.sanitize_identifier(result.name)
@@ -167,7 +171,6 @@ module CartoDB
           end
 
           # set some vars for use
-          user = ::User.where(id: data_import.user_id).first
           http_client = Carto::Http::Client.get('fdw_vis_import', log_requests: true)
 
           remote_protocol = Cartodb.config[:common_data]['protocol']
@@ -344,10 +347,22 @@ module CartoDB
       end
 
       def persist_metadata(result, name, data_import_id)
-        table_registrar.register(name, data_import_id)
-        @table = table_registrar.table
-        @imported_table_visualization_ids << @table.table_visualization.id
-        BoundingBoxHelper.update_visualizations_bbox(table)
+        # HACK - Samples 2.0 Save As
+        if result.schema != ORIGIN_SCHEMA && !runner.instance_of?(CartoDB::Importer2::CDBDataLibraryConnector) && File.extname(@runner.downloader.source_file.filename) == '.carto'
+          # Check if table already exists
+          unless Carto::UserTable.where(user_id: table_registrar.user.id, name: name).exists?
+            registrar = CartoDB::TableRegistrar.new(table_registrar.user, ::FDWTable)
+            registrar.register(name, data_import_id)
+            @table = registrar.table
+            @imported_table_visualization_ids << @table.table_visualization.id
+            BoundingBoxHelper.update_visualizations_bbox(table)
+          end
+        else
+          table_registrar.register(name, data_import_id)
+          @table = table_registrar.table
+          @imported_table_visualization_ids << @table.table_visualization.id
+          BoundingBoxHelper.update_visualizations_bbox(table)
+        end
         self
       end
 
