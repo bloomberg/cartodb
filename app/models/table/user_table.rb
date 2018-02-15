@@ -64,6 +64,12 @@ class UserTable < Sequel::Model
     PRIVACY_LINK => 'link'
   }
 
+  PRIVACY_TEXTS_TO_VALUES = {
+     'private' => PRIVACY_PRIVATE,
+     'public' => PRIVACY_PUBLIC,
+     'link' => PRIVACY_LINK
+  }
+
   # For compatibility with AR model
   def new_record?
     new?
@@ -251,6 +257,7 @@ class UserTable < Sequel::Model
     PRIVACY_VALUES_TO_TEXTS[self.privacy].upcase
   end
 
+
   # TODO move privacy to value object
   # enforce standard format for this field
   def privacy=(value)
@@ -369,7 +376,8 @@ class UserTable < Sequel::Model
   private
 
   def default_privacy_value
-    user.try(:private_tables_enabled) ? PRIVACY_PRIVATE : PRIVACY_PUBLIC
+    esv = external_source_visualization
+    esv.nil?  ? (user.try(:private_tables_enabled) ? PRIVACY_PRIVATE : PRIVACY_PUBLIC) : PRIVACY_TEXTS_TO_VALUES[esv.privacy]
   end
 
   def set_default_table_privacy
@@ -405,7 +413,7 @@ class UserTable < Sequel::Model
       attributions: esv.try(:attributions),
       source:       esv.try(:source),
       tags:         (tags.split(',') if tags),
-      privacy:      UserTable::PRIVACY_VALUES_TO_TEXTS[default_privacy_value],
+      privacy:      esv.nil? ? UserTable::PRIVACY_VALUES_TO_TEXTS[default_privacy_value] : esv.privacy,
       user_id:      user.id,
       kind:         kind,
       exportable:   esv.nil? ? true : esv.exportable,
