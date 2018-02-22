@@ -3,33 +3,35 @@
 require_relative '../../../spec_helper'
 require_relative '../../../../app/controllers/carto/api/overlays_controller'
 require_relative '../../../../spec/requests/api/json/overlays_controller_shared_examples'
+require_relative '../../../helpers/feature_flag_helper'
 
 describe Carto::Api::OverlaysController do
+  include FeatureFlagHelper
 
   it_behaves_like 'overlays controllers' do
   end
 
   before(:all) do
-    @user = create_user(
-      username: 'test',
-      email:    'client@example.com',
-      password: 'clientex'
-    )
+    @user = create_user
     @api_key = @user.api_key
 
     @user2 = create_user
 
-    host! 'test.localhost.lan'
+    # Create the feature flags that determine the default overlays
+    @feature_flag = FactoryGirl.create(:feature_flag, name: 'bbg_pro_ui')
+    @feature_flag = FactoryGirl.create(:feature_flag, name: 'disabled_cartodb_logo')
+
+    host! "#{@user.username}.localhost.lan"
   end
 
   before(:each) do
-    stub_named_maps_calls
+    bypass_named_maps
     delete_user_data @user
     @table = create_table user_id: @user.id
   end
 
   after(:all) do
-    stub_named_maps_calls
+    bypass_named_maps
     @user.destroy
   end
 
@@ -42,7 +44,9 @@ describe Carto::Api::OverlaysController do
       existing_overlay_ids = []
       get_json overlays_url(params) do |response|
         response.status.should be_success
-        response.body.count.should eq 5 # Newly created overlays have this amount of layers
+        # The search overlay is hidden behind the bbg_pro_ui feature flag in Bloomberg
+        # Therefore this value is one lower than the carto upstream unit tests
+        response.body.count.should eq 4 # Newly created overlays have this amount of layers
         existing_overlay_ids = response.body.map { |overlay| overlay['id'] }
       end
 
@@ -60,6 +64,47 @@ describe Carto::Api::OverlaysController do
         response.body.count.should == new_overlay_ids.count + existing_overlay_ids.count
         # == checks order, while intersection doesn't
         (current_overlay_ids & (existing_overlay_ids + new_overlay_ids) == current_overlay_ids).should eq true
+      end
+    end
+
+    it 'lists all overlays with advanced ui user' do
+      begin
+        orig_host = host
+        bbg_user = create_user
+        # Enable the bbg_pro_ui flag to have all 5 layers return
+        set_feature_flag(bbg_user, 'bbg_pro_ui', true)
+        set_feature_flag(bbg_user, 'disabled_cartodb_logo', false)
+        bbg_table = create_table user_id: bbg_user.id
+
+        existing_overlay_ids = []
+        old_host = host
+        get_json overlays_url({ api_key: bbg_user.api_key, visualization_id: bbg_table.table_visualization.id, host: "#{bbg_user.username}.localhost.lan"}) do |response|
+          response.status.should be_success
+          response.body.count.should eq 5 # Newly created overlays have this amount of layers
+          existing_overlay_ids = response.body.map { |overlay| overlay['id'] }
+        end
+
+        header_overlay = Carto::Overlay.new(type: 'header', visualization_id: bbg_table.table_visualization.id, order: 1)
+        header_overlay.save
+
+        text_overlay = Carto::Overlay.new(type: 'text', visualization_id: bbg_table.table_visualization.id, order: 2)
+        text_overlay.save
+
+        new_overlay_ids = [header_overlay.id, text_overlay.id]
+
+        get_json overlays_url({ api_key: bbg_user.api_key, visualization_id: bbg_table.table_visualization.id, host: "#{bbg_user.username}.localhost.lan"}) do |response|
+          response.status.should be_success
+          current_overlay_ids = response.body.map { |overlay| overlay['id'] }
+          response.body.count.should == new_overlay_ids.count + existing_overlay_ids.count
+          # == checks order, while intersection doesn't
+          (current_overlay_ids & (existing_overlay_ids + new_overlay_ids) == current_overlay_ids).should eq true
+        end
+      ensure
+        # overlays_url caches and resets the host.  Therefore we need to 
+        # restore host and call the url helper once more with the old host to restore the original value
+        # TODO: Is there a way to disable the cache?
+        host! orig_host
+        get overlays_url(params.merge(host: host))
       end
     end
 
@@ -110,7 +155,7 @@ describe Carto::Api::OverlaysController do
         type: 'header',
         template: 'wadus',
         order: 0,
-        options: { "display" => true }
+        options: { display: true }
       }
 
       post_json overlays_url(params), payload do |response|
@@ -127,7 +172,7 @@ describe Carto::Api::OverlaysController do
       overlay.type.should eq payload[:type]
       overlay.template.should eq payload[:template]
       overlay.order.should eq payload[:order]
-      overlay.options.should eq payload[:options]
+      overlay.options.symbolize_keys.should eq payload[:options]
     end
 
     it 'fails to create two overlays of the same unique type' do
@@ -174,7 +219,7 @@ describe Carto::Api::OverlaysController do
         type: 'header',
         template: 'wadus',
         order: 0,
-        options: { "display" => true }
+        options: { display: true }
       }
 
       put_json overlay_url(params.merge(id: overlay.id)), payload do |response|
@@ -190,7 +235,7 @@ describe Carto::Api::OverlaysController do
       overlay.type.should eq payload[:type]
       overlay.template.should eq payload[:template]
       overlay.order.should eq payload[:order]
-      overlay.options.should eq payload[:options]
+      overlay.options.symbolize_keys.should eq payload[:options]
     end
 
     it 'fails to update two overlays of the same unique type' do

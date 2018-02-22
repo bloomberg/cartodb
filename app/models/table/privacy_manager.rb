@@ -11,30 +11,30 @@ module CartoDB
     end
 
     def apply_privacy_change(metadata_table, old_privacy, privacy_changed = false)
-      begin
+      @table.map.save
+
+      # Separate on purpose as if fails here no need to revert visualizations' privacy
+      revertable_privacy_change(metadata_table, old_privacy) do
+        # Map saving actually doesn't changes privacy, but to keep on same reverting logic
         @table.map.save
+        set_from_table_privacy(@table.privacy)
+      end
 
-        # Separate on purpose as if fails here no need to revert visualizations' privacy
-        revertable_privacy_change(metadata_table, old_privacy) do
-          # Map saving actually doesn't changes privacy, but to keep on same reverting logic
-          @table.map.save
-          set_from_table_privacy(@table.privacy)
-        end
+      revertable_privacy_change(metadata_table, old_privacy,
+                                [@table.table_visualization] + metadata_table.affected_visualizations) do
+        propagate_to([@table.table_visualization])
+        notify_privacy_affected_entities(metadata_table) if privacy_changed
+      end
 
-        revertable_privacy_change(metadata_table, old_privacy,
-                                  [metadata_table.table_visualization] + metadata_table.affected_visualizations) do
-          propagate_to([metadata_table.table_visualization])
-          notify_privacy_affected_entities(metadata_table) if privacy_changed
-        end
-
-      rescue NoMethodError => exception
-        CartoDB.notify_debug("#{exception.message} #{exception.backtrace}", {
-          table_id: @table.id,
-          table_name: @table.name,
-          user_id: @table.user_id,
-          data_import_id: @table.data_import_id
-          })
-
+    rescue NoMethodError => exception
+      if @table.map.nil? && exception.message =~ /undefined method `save' for nil:NilClass/
+        CartoDB::Logger.debug(message: 'Privacy change of table with no map',
+                              exception: exception,
+                              table_id: @table.id,
+                              table_name: @table.name,
+                              user: User.where(id: @table.user_id),
+                              data_import_id: @table.data_import_id)
+      else
         raise exception
       end
     end
@@ -42,7 +42,7 @@ module CartoDB
     def set_from_visualization(visualization)
       set_public                if visualization.public?
       set_public_with_link_only if visualization.public_with_link?
-      set_private               if visualization.private? or visualization.organization?
+      set_private               if visualization.private? || visualization.organization?
       table.update(privacy: privacy)
       self
     end
@@ -70,11 +70,12 @@ module CartoDB
     # Propagation flow: Table -> Table PrivacyManager -> Visualization -> Visualization NamedMap
     def propagate_to(visualizations, table_privacy_changed = false)
       visualizations.each do |visualization|
-        if (visualization.user) 
-          visualization.store_using_table({
-                                          privacy_text: ::UserTable::PRIVACY_VALUES_TO_TEXTS[privacy],
-                                          map_id: visualization.map_id
-                                        }, table_privacy_changed)
+        if visualization.user
+          if visualization.type == CartoDB::Visualization::Member::TYPE_CANONICAL
+            # Each table has a canonical visualization which must have privacy synced
+            visualization.privacy = ::UserTable::PRIVACY_VALUES_TO_TEXTS[privacy]
+          end
+          visualization.store_using_table(table_privacy_changed)
         else
           CartoDB::Logger.error(message:
                                 "user doesn't exist for visualization", visualization: visualization)
@@ -160,7 +161,7 @@ module CartoDB
         end
       end
 
-      if errors.length > 0
+      if !errors.empty?
         CartoDB.notify_error("Errors reverting Table privacy", user_id: metadata_table.user_id,
                                                                table_id: metadata_table.id,
                                                                errors: errors)

@@ -4,12 +4,14 @@ require_dependency 'carto/http_header_authentication'
 
 class ApplicationController < ActionController::Base
   include ::SslRequirement
+  include UrlHelper
   protect_from_forgery
 
   helper :all
 
   around_filter :wrap_in_profiler
 
+  before_filter :set_security_headers
   before_filter :http_header_authentication, if: :http_header_authentication?
   before_filter :store_request_host
   before_filter :ensure_user_organization_valid
@@ -382,4 +384,8 @@ class ApplicationController < ActionController::Base
     Carto::HttpHeaderAuthentication.new.valid?(request)
   end
 
+  def set_security_headers
+    headers['X-Frame-Options'] = 'DENY'
+    headers['X-XSS-Protection'] = '1; mode=block'
+  end
 end

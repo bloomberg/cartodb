@@ -26,18 +26,18 @@ describe Admin::TablesController do
   end
 
   before(:each) do
-    stub_named_maps_calls
+    bypass_named_maps
     CartoDB::Varnish.any_instance.stubs(:send_command).returns(true)
     @db = Rails::Sequel.connection
     delete_user_data @user
     @headers = {
       'CONTENT_TYPE'  => 'application/json',
     }
-    host! "#{@user.username}.localhost.lan"
+    host! CartoDB.base_url(@user.username).sub!(/^https?\:\/\//, '')
   end
 
   after(:all) do
-    stub_named_maps_calls
+    bypass_named_maps
     delete_user_data(@user)
     @user.destroy
   end
@@ -46,7 +46,7 @@ describe Admin::TablesController do
     it 'returns a list of tables' do
       login_as(@user, scope: @user.username)
 
-      get "/dashboard", {}, @headers
+      get dashboard_bis_url, {}, @headers
       last_response.status.should == 200
     end
   end # GET /tables
@@ -56,7 +56,7 @@ describe Admin::TablesController do
       id = factory.id
       login_as(@user, scope: @user.username)
 
-      get "/tables/#{id}", {}, @headers
+      get public_tables_show_bis_url(id: id), {}, @headers
       last_response.status.should == 200
     end
   end # GET /tables/:id

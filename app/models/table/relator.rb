@@ -5,16 +5,11 @@ require_relative '../visualization/member'
 module CartoDB
   class TableRelator
     INTERFACE = %w{
-      table_visualization
-      serialize_dependent_visualizations
-      serialize_non_dependent_visualizations
-      dependent_visualizations
-      non_dependent_visualizations
-      affected_visualizations
+      serialize_fully_dependent_visualizations
+      serialize_partially_dependent_visualizations
       synchronization
       serialize_synchronization
       row_count_and_size
-      set_table_visualization
       related_templates
     }
 
@@ -23,32 +18,16 @@ module CartoDB
       @table  = table
     end
 
-    def table_visualization
-      @table_visualization ||= Visualization::Collection.new.fetch(
-        map_id: @table.map_id,
-        type:   Visualization::Member::TYPE_CANONICAL
-      ).first
+    def serialize_fully_dependent_visualizations
+      table.fully_dependent_visualizations.map { |object| preview_for(object) }
     end
 
-    # INFO: avoids doble viz fetching when table is itself generated from viz
-    def set_table_visualization(table_visualization)
-      @table_visualization = table_visualization
-    end
-
-    def serialize_dependent_visualizations
-      dependent_visualizations.map { |object| preview_for(object) }
-    end
-
-    def serialize_non_dependent_visualizations
-      non_dependent_visualizations.map { |object| preview_for(object) }
+    def serialize_partially_dependent_visualizations
+      table.partially_dependent_visualizations.map { |object| preview_for(object) }
     end
 
     def dependent_visualizations
-      affected_visualizations.select(&:dependent?)
-    end
-
-    def non_dependent_visualizations
-      affected_visualizations.select(&:non_dependent?)
+      affected_visualizations.select { |v| v.dependent_on?(table) }
     end
 
     def affected_visualizations
@@ -61,12 +40,13 @@ module CartoDB
       data = {
         id:         object.id,
         name:       object.name,
-        updated_at: object.updated_at
+        updated_at: object.updated_at,
+        auth_tokens: ::User.where(id: object.user_id).first.try(:get_auth_tokens)
       }
       if object[:permission_id].present? && !object.permission.nil?
-        data[:permission] = object.permission.to_poro.select {|key, val|
+        data[:permission] = CartoDB::PermissionPresenter.new(object.permission).to_poro.select do |key, _val|
           [:id, :owner].include?(key)
-        }
+        end
       end
       data
     end
@@ -118,4 +98,3 @@ module CartoDB
 
   end
 end
-

@@ -51,6 +51,7 @@ $cHeader-dark:  rgba(#3A91D7, 1);
 }
 .Header-navigationItem {
   margin-left: $sMargin-section;
+  font-family: 'AvenirNext_demi';
 }
 .Header-navigationToggles {
   padding: 5px;
@@ -140,6 +141,7 @@ $cHeader-dark:  rgba(#3A91D7, 1);
   font-size: $sFontSize-smallUpperCase;
   line-height: $sLineHeight-larger;
   text-transform: uppercase;
+  font-family: 'AvenirNext_demi';
 }
 .Header-settingsItem--avatar {}
 .Header-settingsLink {

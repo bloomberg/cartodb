@@ -84,7 +84,8 @@ class CommonData
         method: :get,
         connecttimeout: CONNECT_TIMEOUT,
         timeout: DEFAULT_TIMEOUT,
-        params: {per_page: NO_PAGE_LIMIT}
+        params: { per_page: NO_PAGE_LIMIT },
+        followlocation: true
       )
       cache_key = request.url
       cached_data = redis_cache.get(cache_key)

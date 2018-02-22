@@ -3,21 +3,21 @@ module CartoDB
     def self.log(level, exception: nil, message: nil, user: nil, **additional_data)
       # Include the call stack if not already present
       if exception.nil? && additional_data[:stack].nil?
-        additional_data[:stack] = caller[0..25]
+        additional_data[:stack] = caller
       end
 
-      if Rails.env.development?
+      if !Rollbar.configuration.enabled || Rails.env.development?
         report_error_to_console(level, exception: exception, message: message, user: user, **additional_data)
       end
 
       if rollbar_scope(user).log(level, exception, message, additional_data) == 'error'
         # Error reporting to Rollbar, usually caused by unserializable data in payload
-        Rollbar.log('warning', nil, 'Could not report to Rollbar', stack: caller[0..25])
+        Rollbar.log('warning', nil, 'Could not report to Rollbar', stack: caller)
       end
-    rescue
+    rescue => rollbar_exception
       # Last chance to report error
       begin
-        Rollbar.error(e)
+        Rollbar.error(rollbar_exception)
       rescue
       end
     end
@@ -55,21 +55,24 @@ module CartoDB
       error_msg = "#{level}: #{message}\n"
       unless exception.nil?
         error_msg += exception.inspect + "\n"
-        error_msg += exception.backtrace.inspect + "\n"
+        error_msg += exception.backtrace.join("\n") + "\n"
       end
       unless user.nil?
-        error_msg += user.inspect + "\n"
+        error_msg += "user: #{user.inspect}\n"
       end
-      error_msg += additional_data.inspect + "\n"
+      additional_data.each do |k, v|
+        error_msg += "#{k}: #{v}\n"
+      end
 
-      ::Logger.new(STDOUT).error(error_msg)
+      rails_level = level == 'warning' ? :warn : level.to_sym
+      Rails.logger.send(rails_level, error_msg)
     end
     private_class_method :report_error_to_console
   end
 
   # Deprecated logging
   class StdoutLogger
-    def self.info(title = "CartoDB Log", message)
+    def self.info(title = "CARTO Log", message)
       Rails.logger.info "[#{title}] === #{message}"
     end
   end

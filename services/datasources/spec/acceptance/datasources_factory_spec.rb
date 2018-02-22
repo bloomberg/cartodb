@@ -1,7 +1,7 @@
 # encoding: utf-8
 
-require 'yaml'
 require_relative '../../../../spec/rspec_configuration'
+require_relative '../../../../spec/spec_helper'
 
 require_relative '../../lib/datasources'
 require_relative '../doubles/user'
@@ -11,12 +11,13 @@ include CartoDB::Datasources
 describe DatasourcesFactory do
 
   def get_config
-    @config ||= YAML.load_file("#{File.dirname(__FILE__)}/../../../../config/app_config.yml")['defaults']
+    @config ||= Cartodb.config
   end
 
   describe '#provider_instantiations' do
     it 'tests all available provider instantiations' do
       user_mock = CartoDB::Datasources::Doubles::User.new
+      user_mock.stubs('has_feature_flag?').with('gnip_v2').returns(false)
       DatasourcesFactory.set_config(get_config)
 
       dropbox_provider = DatasourcesFactory.get_datasource(Url::Dropbox::DATASOURCE_NAME, user_mock)
@@ -25,6 +26,8 @@ describe DatasourcesFactory do
       dropbox_provider = DatasourcesFactory.get_datasource(Url::Box::DATASOURCE_NAME, user_mock)
       dropbox_provider.is_a?(Url::Box).should eq true
 
+      # Stubs Google Drive client for connectionless testing
+      Google::APIClient.any_instance.stubs(:discovered_api)
       gdrive_provider = DatasourcesFactory.get_datasource(Url::GDrive::DATASOURCE_NAME, user_mock)
       gdrive_provider.is_a?(Url::GDrive).should eq true
 
@@ -44,4 +47,3 @@ describe DatasourcesFactory do
   end
 
 end
-

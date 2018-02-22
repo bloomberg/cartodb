@@ -9,11 +9,15 @@ module Carto
       @status = status
       @user_message = user_message
     end
+
+    def self.with_full_messages(active_record_exception)
+      new(active_record_exception.record.errors.full_messages.join(', '))
+    end
   end
 
   class UUIDParameterFormatError < CartoError
-    def initialize(parameter, status = 400)
-      super("Parameter not UUID format: #{parameter}", status)
+    def initialize(parameter:, value:, status: 400)
+      super("Parameter not UUID format. Parameter: #{parameter}. Value: #{value}", status)
     end
   end
 
@@ -43,7 +47,7 @@ module Carto
       if is_uuid?(param)
         param
       else
-        raise Carto::UUIDParameterFormatError.new(parameter)
+        raise Carto::UUIDParameterFormatError.new(parameter: parameter, value: param)
       end
     end
 
@@ -64,6 +68,23 @@ module Carto
         format.html { render text: message, status: 500 }
         format.json { render json: { errors: message }, status: 500 }
       end
+    end
+
+    def rescue_from_validation_error(exception)
+      render_jsonp({ errors: exception.record.errors.messages }, 422)
+    end
+
+    def rescue_from_record_not_found
+      render_jsonp({ errors: 'Record not found' }, 404)
+    end
+  end
+
+  module DefaultRescueFroms
+    def setup_default_rescues
+      rescue_from StandardError, with: :rescue_from_standard_error
+      rescue_from CartoError, with: :rescue_from_carto_error
+      rescue_from ActiveRecord::RecordNotFound, with: :rescue_from_record_not_found
+      rescue_from ActiveRecord::RecordInvalid, with: :rescue_from_validation_error
     end
   end
 end

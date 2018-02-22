@@ -11,15 +11,27 @@ shared_examples_for "organization models" do
 
   describe "#get_geocoding_calls" do
 
-    it "counts all geocodings in a single query" do
-      FactoryGirl.create(:high_resolution_geocoding, user: @org_user_1, formatter: 'admin0', processed_rows: 2, cache_hits: 3)
-      FactoryGirl.create(:high_resolution_geocoding, user: @org_user_2, formatter: 'admin0', processed_rows: 4, cache_hits: 5)
-      FactoryGirl.create(:high_resolution_geocoding, user: @user1, formatter: 'admin0', processed_rows: 2, cache_hits: 3)
+    it "counts all geocodings within the org" do
+      org_user_1_geocoder_metrics = CartoDB::GeocoderUsageMetrics.new(
+        @org_user_1.username,
+        @org_user_1.organization.name
+      )
+      org_user_1_geocoder_metrics.incr(:geocoder_here, :success_responses, 2)
+      org_user_1_geocoder_metrics.incr(:geocoder_cache, :success_responses, 3)
 
-      expect {
-        ::User.any_instance.expects(:get_geocoding_calls).never
-        get_geocoding_calls_by_organization_id(@organization.id).should == 14
-      }.to make_database_queries(count: 0..5)
+      org_user_2_geocoder_metrics = CartoDB::GeocoderUsageMetrics.new(
+        @org_user_2.username,
+        @org_user_2.organization.name
+      )
+      org_user_2_geocoder_metrics.incr(:geocoder_here, :success_responses, 4)
+      org_user_2_geocoder_metrics.incr(:geocoder_cache, :success_responses, 5)
+
+      user1_geocoder_metrics = CartoDB::GeocoderUsageMetrics.new(@user1.username, nil)
+      user1_geocoder_metrics.incr(:geocoder_here, :success_responses, 2)
+      user1_geocoder_metrics.incr(:geocoder_cache, :success_responses, 3)
+
+      ::User.any_instance.expects(:get_geocoding_calls).never
+      get_geocoding_calls_by_organization_id(@organization.id).should == 14
     end
 
   end
@@ -42,19 +54,34 @@ shared_examples_for "organization models" do
   end
 
   describe "#signup_page_enabled" do
-
     it 'is true if domain whitelist is not empty' do
-      get_organization.whitelisted_email_domains = ['cartodb.com']
-      get_organization.signup_page_enabled.should == true
+      organization = get_organization
+      organization.auth_username_password_enabled = true
+      organization.whitelisted_email_domains = ['carto.com']
+      organization.signup_page_enabled.should == true
     end
 
     it 'is false if domain whitelist is empty' do
-      get_organization = FactoryGirl.build(:organization)
-      get_organization.whitelisted_email_domains = []
-      get_organization.signup_page_enabled.should == false
+      organization = get_organization
+      organization.auth_username_password_enabled = true
+      organization.whitelisted_email_domains = []
+      organization.signup_page_enabled.should == false
     end
 
+    it 'is false if no authentication is enabled' do
+      organization = get_organization
+      organization.auth_username_password_enabled = false
+      organization.auth_google_enabled = false
+      organization.auth_github_enabled = false
+      organization.whitelisted_email_domains = ['carto.com']
+      organization.signup_page_enabled.should be_false
+    end
   end
 
+  it 'generates auth_tokens and save them for future accesses' do
+    token = get_organization.get_auth_token
+    token.should be
+    get_organization.reload
+    get_organization.get_auth_token.should eq token
+  end
 end
-

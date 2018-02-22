@@ -103,14 +103,19 @@ module CartoDB
         rescue => e
           execute_as_superuser create_foreign_table_command
         end
-        execute_as_superuser %{
-          CREATE VIEW "#{@user.database_schema}".#{foreign_table_name}
-            AS SELECT * FROM "#{@schema}".#{foreign_table_name};
-          ALTER VIEW "#{@user.database_schema}".#{foreign_table_name} OWNER TO "#{@user.database_username}";
-        }
-        # Ensure view has proper permissions
-        execute_as_superuser %{ GRANT SELECT ON "#{@user.database_schema}".#{foreign_table_name} TO "#{@user.database_username}" }
-        execute_as_superuser %{ GRANT SELECT ON "#{@user.database_schema}".#{foreign_table_name} TO publicuser }
+        begin
+          # Only create the view if it already exists.  Otherwise we should not create the view
+          execute_as_superuser %{ SELECT '#{@user.database_schema}.#{foreign_table_name}'::regclass }
+        rescue => e
+          execute_as_superuser %{
+            CREATE VIEW "#{@user.database_schema}".#{foreign_table_name}
+              AS SELECT * FROM "#{@schema}".#{foreign_table_name};
+            ALTER VIEW "#{@user.database_schema}".#{foreign_table_name} OWNER TO "#{@user.database_username}";
+          }
+          # Ensure view has proper permissions
+          execute_as_superuser %{ GRANT SELECT ON "#{@user.database_schema}".#{foreign_table_name} TO "#{@user.database_username}" }
+          execute_as_superuser %{ GRANT SELECT ON "#{@user.database_schema}".#{foreign_table_name} TO publicuser }
+        end
       end
 
       def create_foreign_table_command
@@ -128,7 +133,7 @@ module CartoDB
           execute_as_superuser %{select '#{@schema}.cdb_tablemetadata'::regclass}
         rescue => e
           execute_as_superuser %{
-            CREATE FOREIGN TABLE "#{@schema}".cdb_tablemetadata (tabname text, updated_at timestamp with time zone)
+            CREATE FOREIGN TABLE IF NOT EXISTS "#{@schema}".cdb_tablemetadata (tabname text, updated_at timestamp with time zone)
               SERVER #{server_name}
               OPTIONS (table_name 'cdb_tablemetadata_text', schema_name 'cartodb', updatable 'false');
             GRANT SELECT ON "#{@schema}".cdb_tablemetadata TO publicuser;

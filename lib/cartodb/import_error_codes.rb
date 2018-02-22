@@ -119,6 +119,11 @@ module CartoDB
       what_about: "We do not have permission to access your files at Box. Please import file again.",
       source: ERROR_SOURCE_USER
     },
+    1022 => {
+      title: 'All tables were skipped',
+      what_about: "You set 'skip' collision strategy and all tables already exist, so nothing was imported.",
+      source: ERROR_SOURCE_USER
+    },
     1100 => {
       title: 'Download file not found',
       what_about: "Provided URL doesn't return a file (error 404). Please check that URL is still valid and that you can download the file and try again.",
@@ -132,6 +137,11 @@ module CartoDB
     1102 => {
       title: 'Unknown server URL',
       what_about: "Provided URL can't be resolved to a known server. Maybe that URL is wrong or behind a private network. Please provide a valid, public URL and try again.",
+      source: ERROR_SOURCE_USER
+    },
+    1103 => {
+      title: 'Partial file error',
+      what_about: "The resource you are trying to reach is accessible but the file transfer was shorter or larger than expected. This happens when the server first reports an expected transfer size, and then delivers data that doesn't match the previously given size. Please, try again.",
       source: ERROR_SOURCE_USER
     },
     1500 => {
@@ -257,6 +267,12 @@ module CartoDB
     8005 => {
       title: "Max layers per map reached",
       what_about: "You can't add more layers to your map. Please contact Bloomberg Help Desk.",
+      source: ERROR_SOURCE_USER
+    },
+    8006 => {
+      title: "Not enough Twitter credits",
+      what_about: "Unfortunately, you don't have enough Twitter credits to proceed. Please contact <a href='mailto:sales@carto.com?subject=Exceeded%20Twitter%20quota'>" \
+                  "Sales</a> if you have questions about how to obtain more credits.",
       source: ERROR_SOURCE_USER
     },
     6666 => {

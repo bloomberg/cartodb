@@ -73,11 +73,16 @@ module CartoDB
       end
 
       def newline_remover_command
-        [newline_remover_path]
+        [CartoDB.python_bin_path, newline_remover_path]
       end
 
       def in2csv_command
+        python_path = CartoDB.python_path
+        if python_path.empty?
           "in2csv"
+        else
+          "#{python_path}/in2csv"
+        end
       end
 
       attr_reader :filepath, :job

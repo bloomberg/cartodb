@@ -1,5 +1,6 @@
 # encoding: utf-8
 require 'fileutils'
+require 'securerandom'
 require_relative '../../lib/importer/unp'
 require_relative '../../../../spec/rspec_configuration.rb'
 
@@ -69,20 +70,30 @@ describe Unp do
   end
 
   describe '#crawl' do
+    before(:all) do
+      # Make carto tmp directory
+      @tmp_dir = "/var/tmp/carto-#{SecureRandom.uuid}"
+      FileUtils.mkdir_p(@tmp_dir)
+    end
+
+    after(:all) do
+      # Clean the carto tmp directory
+      FileUtils.rm_r(@tmp_dir)
+    end
+
     it 'returns a list of full paths for files in the directory' do
-      fixture1  = '/var/tmp/bogus1.csv'
-      fixture2  = '/var/tmp/bogus2.csv'
-      FileUtils.touch(fixture1)
-      FileUtils.touch(fixture2)
+      fixture1  = Tempfile.new('bogus1.csv', @tmp_dir)
+      fixture2  = Tempfile.new('bogus2.csv', @tmp_dir)
+      begin
+        unp       = Unp.new
+        files     = unp.crawl(@tmp_dir)
 
-      unp       = Unp.new
-      files     = unp.crawl('/var/tmp')
-
-      files.should include(fixture1)
-      files.should include(fixture2)
-
-      FileUtils.rm(fixture1)
-      FileUtils.rm(fixture2)
+        files.should include(fixture1.path)
+        files.should include(fixture2.path)
+      ensure
+        fixture1.close!
+        fixture2.close!
+      end
     end
   end
 
@@ -182,7 +193,7 @@ describe Unp do
   describe '#rename' do
     it 'renames a file' do
       fixture   = "/var/tmp/#{Time.now.to_i}.txt"
-      new_name  = '/var/tmp/foo.txt'
+      new_name  = '/var/tmp/unp_spec_renamed.txt'
       File.open(fixture, 'w').close
 
       unp = Unp.new
@@ -268,4 +279,3 @@ describe Unp do
     zipfile
   end
 end
-

@@ -35,6 +35,7 @@ describe Visualization::Overlays do
       user_mock = mock
       user_mock.stubs(:has_feature_flag?).with('bbg_pro_ui').returns(true)
       user_mock.stubs(:has_feature_flag?).with('disabled_cartodb_logo').returns(false)
+      user_mock.stubs(:profile_attributes).returns({})
       @visualization.stubs(:user).returns(user_mock)
       Visualization::Overlays.new(@visualization).create_default_overlays
 
@@ -47,6 +48,7 @@ describe Visualization::Overlays do
       user_mock = mock
       user_mock.stubs(:has_feature_flag?).with('bbg_pro_ui').returns(true)
       user_mock.stubs(:has_feature_flag?).with('disabled_cartodb_logo').returns(true)
+      user_mock.stubs(:profile_attributes).returns({})
       @visualization.stubs(:user).returns(user_mock)
 
       Visualization::Overlays.new(@visualization).create_default_overlays

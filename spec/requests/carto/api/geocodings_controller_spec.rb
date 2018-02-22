@@ -3,6 +3,7 @@
 require_relative '../../../spec_helper'
 require_relative '../../api/json/geocodings_controller_shared_examples'
 require_relative '../../../../app/controllers/carto/api/geocodings_controller'
+require 'mock_redis'
 
 describe Carto::Api::GeocodingsController do
   it_behaves_like 'geocoding controllers' do
@@ -12,18 +13,18 @@ describe 'legacy behaviour tests' do
     let(:params) { { :api_key => @user.api_key } }
 
     before(:all) do
-      @user = create_user(username: 'test')
+      @user = create_user
     end
 
     before(:each) do
-      stub_named_maps_calls
+      bypass_named_maps
       delete_user_data @user
       host! "#{@user.username}.localhost.lan"
       login_as(@user, scope: @user.username)
     end
 
     after(:all) do
-      stub_named_maps_calls
+      bypass_named_maps
       @user.destroy
     end
 
@@ -42,6 +43,10 @@ describe 'legacy behaviour tests' do
     describe 'GET /api/v1/geocodings/:id' do
 
       it 'returns a geocoding' do
+        redis_mock = MockRedis.new
+        user_geocoder_metrics = CartoDB::GeocoderUsageMetrics.new(@user.username, _orgname = nil, _redis = redis_mock)
+        CartoDB::GeocoderUsageMetrics.stubs(:new).returns(user_geocoder_metrics)
+        user_geocoder_metrics.incr(:geocoder_here, :success_responses, 100)
         geocoding = FactoryGirl.create(:geocoding, table_id: UUIDTools::UUID.timestamp_create.to_s, formatter: 'b', user: @user, used_credits: 100, processed_rows: 100, kind: 'high-resolution')
 
         get_json api_v1_geocodings_show_url(params.merge(id: geocoding.id)) do |response|
@@ -56,8 +61,8 @@ describe 'legacy behaviour tests' do
       it 'does not return a geocoding owned by another user' do
         geocoding = FactoryGirl.create(:geocoding, table_id: UUIDTools::UUID.timestamp_create.to_s, formatter: 'b', user_id: UUIDTools::UUID.timestamp_create.to_s)
 
-        get api_v1_geocodings_show_url(params.merge(id: geocoding.id)) do |response|
-          last_response.status.should eq 404
+        get_json api_v1_geocodings_show_url(params.merge(id: geocoding.id)) do |response|
+          response.status.should eq 404
         end
       end
     end

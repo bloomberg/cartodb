@@ -1,5 +1,265 @@
+Development
+-----------
+### Security fixes
+* An attacker could execute commands in the server running the queues by importing a file with a carefully crafted filename. Fixed in #11782
+
+### Features
+* New dropdown for Data Observatory (#11618)
+* Quota pre-check to analyses that consume quota.
+* Marking 'Do not show me again' in Layer Onboarding affects every tab. (#11586)
+* Adding Google-Maps basemaps (#11447)
+* Improve dialog forms to render them floated. (#7786)
+* Adds slider component to the forms (#11617)
+* New organization assets (#11034):
+  * REST API available at `/api/v1/organization/<org_id>/assets`
+  * Has DB migration
+  * Assets stored in s3 if configured, local storage is used otherwise.
+    * S3: bucket must exists and its name be present as `bucket` in conf.
+    * Local: automatic as long as S3 is not configured. You may configure max size in bytes for an asset or a custom subdirectory as shown below.
+```yaml
+  # app_config.yml example for organization assets
+  assets:
+    organization:
+      bucket: <bucket name> # required, bucket must exist beforehand
+      max_size_in_bytes: 1048576 # optional, default is 1 MB
+      location: 'organization_assets' # optional subdirectory for local assets, default is 'organization_assets'
+```
+* Pluggable frontends (#11022):
+  * Allow to override some parts of the frontend for customization
+  * Changes the asset build process:
+    * The core frontend is in `lib/assets/core`
+    * The customizations are in `lib/assets/client`
+    * The end result are in `lib/assets/`
+  * You may also plug backend view templates by specifying alternative paths in `app_config.yml`:
+    * Paths are inspected in the supplied order. First valid template is used. Default path is always inspected last.
+```yaml
+  custom_paths:
+    views: [] # an array of paths were alternate view templates are located.
+```
+* Snapshots (backend: #10928) allow to save and share map state.
+* Import API parameter: `collision_strategy`. Support for `skip` #11385.
+* Allow to override S3 endpoint for visualization exports and data imports when using S3 compatible storage services (#11614)
+* Icon styling through in component (#11005)
+* Allow to set opacity for color ramps (#10952)
+* Added Fullstory integration, can be configured in app_config
+* SAML Authentication for organizations. Example:
+  * Use the task at `lib/tasks/saml.rake` for configuration.
+  * Subdomainless URLs:
+    * Login page: http(s)://<ip-address>/user/ORGANIZATION_NAME/login.
+    * `assertion_consumer_service_url`: 'https://<ip-address>/user/<org-name>/saml/finalize'. Check that your server has this URL for the service provider ACS URL.
+* Autostyling (#10420)
+  * Correctly handle legends (#11121)
+* Updated ogr2ogr version to 2.1.2. To install or upgrade it in the system:
+  * `sudo apt-get update`
+  * `sudo apt-get install gdal2.1-static-bin`
+* Style with icons
+  * Removed Pin, and Simple icons (#11479)
+  * Select an icon previously uploaded by the organization admin (#11462)
+  * Sets the default initial size for icons to 20px (#11498)
+* Onboarding for layer edition (#10905)
+* Initial support for Rails engines with CARTO Gears.
+  * Notification API (#11850)
+* Improved empty bounds map handling (#11711).
+* Updated diagnosis page versions.
+* Improved formula widget description field. (#11469)
+* In an organization, only the owner sees the Google API keys.
+* Added support for Zeus for faster testing (#11574). Check `CONTRIBUTING.md` for configuration details.
+* Migrate to use GNIP v2 for twitter search connector (#10051, #11595)
+* Organization notifications (WIP) (#11734, #11780, #11734, #11821)
+* Invite to georeference proactively when detecting non-georeferenced data (#11316)
+* Update tangram with smooth point outline.
+* GME users can change to any basemap #11785.
+* Improve affordance of layer item (#11359)
+* Revamp of quota management code
+    * **Removed the usage of the feature flag `new_geocoder_quota`**. The behavior is as if it was activated for all users (which's been the case for all cloud users for a long while). (#11784)
+    * Fixed bug in validation of metrics before storing them. (#11784)
+    * Removed deprecated methods `Geocoding.get_geocoding_calls`, `User.get_db_system_geocoding_calls`, `get_new_system_geocoding_calls`. (#11784)
+    * Optimized access to redis storage (#11809)
+    * Add back FREE users to overquota calculation (#11848)
+* Update tangram-cartocss to use smooth point outline.
+* Update cartodb.js to use multiple subdomains.
+* Adds library to read/write metadata to .carto.gpkg files. (#12546)
+
+### Bug fixes
+* Fixes image export in editor (#13089)
+* Fixed layers order when creating a new layer dragging from a compound analysis (#11827)
+* Fixed problem after filtering a widget, where style pane was not working (#11819)
+* Fixed problem removing a layer within the proper layer is throwing a JS error (#11803)
+* Fixed histogram filtering when there is no bucket in that range (#11798)
+* Fixed problem with clipped contextual menu in widgets (#11790)
+* Fixed copy for confirm analysis with quota (#11749)
+* Using clean method instead of remove for context-menu-view (#11778)
+* Adds https protocol to WMS Proxy URLs (#11786)
+* Fixed time widget loader (#11754)
+* Fixed problems related with IE11
+* Fixed silent problem with jQuery selector (cartodb/deep-insights.js#527)
+* Form editors remains open if a modal is open even triggering document click or ESC (#11686)
+* Fixed font style for the "You have run out of quota" module (#11690)
+* Ensured all analysis onboarding screens link to carto.learn guides (#11193)
+* Fixed problem with Bubbles legend when a new analysis is applied (#11666)
+* Fixed missing metadata option in header when dataset is sync (#11458)
+* Fixed problem with dates when filtering time series widget
+* Fixed problem switching between qualitative and quantitative attributes (#10654)
+* Fixed problem found in Surfaces related with map panning and widgets filtering
+* Style with icons
+  * Reset icon on map when you remove that custom icon
+  * Made icon's clicking area larger
+  * Avoid request when url is not defined
+  * Fix copy when deleting icons in organization.
+* Start using layers<->user_table cache in all places (#11303)
+  * Run `cartodb:db:register_table_dependencies` rake to update caches for existing maps
+* Categories legend are now static (#10972)
+* Fixed a bug with vizjson invalidation (#11092). It was introduced in #10934
+* Refactor Layer model (#10934) and UserTable (#11589, #11700).
+* Correctly render map previews for maps with google basemaps (#11608)
+* Do not trigger visualization hooks on state update (#11701)
+* Refactor Layer model (#10934)
+* Correctly register table dependencies of torque layers (#11549)
+* Validate number of organization seats in user update (#11839, #11859)
+* Fix bugs where legends where being hidden by reordering layers (#11088)
+* Correctly ask for alternative username when signing up with Google/GitHub into an organization
+* Avoid loading all rake code in resque workers (#11069)
+* Fix analysis notification in running state (#11079)
+* Warn about affected maps on dataset deletion (regression, fixed in #11801)
+* Fix color for "Other" category (#11078)
+* Validate that only one legend per type (color/size) is allowed (#11556)
+* Enable more security HTTP headers (#11727)
+* Clean up import directory when importing from URL (#11599)
+* Custom errors for latitude/longitude out of bounds (#11060, #11048)
+* Fix timeseries widget height (#11077)
+* Fix a DB deadlock while simultaneously updating and deleting layers (#11568)
+* Improve speed of map name availability check, improves map creation and renaming times (#11435)
+* Fix redirection after logout for subdomainless URLs (#11361)
+* Fix scrollbar in carousel (#11061)
+* Fix layer loading at embeds (#11554)
+* Restrict login from organization pages to organization users, and redirect to Central otherwise
+* Correctly refresh map after adding/editing map geometries (#11064)
+* Fix inconsistent state after user deletion failed (#11606)
+* Return embed private instead of 404 in visualization embeds where the visualization doesn't exist (#11056)
+* `app_config.yml.sample` configuration for dataservices.
+* Fix error loading builder in visualizations without permissions (#10996)
+* Correctly update legend styles (with custom titles) (#10889, #10904)
+* Hide sync options in builder table view for non-owners (#10986)
+* Fix issues with edition of custom color infowindows (#10985)
+* UI fixes for georeference. Changes of copy and validation warning. (#11426)
+* Show layer name in legends for Torque layers (#11715)
+* Color scheme is now clickable in category ramps (#11413)
+* Fix responsive layout in onboarding steps (#11444)
+* Speed improvements to parallel tests (#11636)
+* Fix for race condition when importing files and deploying at the same time (#11653)
+* Correctly create custom category legend if style has icons (#11592)
+* Fixed error handling if json "errors" field contains one single string (#11752)
+* Fix problem with perfect-scrollbar in Edge browsers (CartoDB/perfect-scrollbar/#2)
+* Layer onboardings are now aware on sync'd layers and highlighted area is clicked. (#11583)
+* Do not show builder activated notification for new users (#11720)
+* Fixed overflow on loaders.
+* JOIN Analysis Fails Without Error Message (#11184)
+* Fix problem with perfect-scrollbar in Edge browsers (CartoDB/perfect-scrollbar/#2)
+* Correctly autostyle layers based on geometry when adding layers from modal (#11813)
+* Fix problem creating analyses without Data Services API (#11745)
+* Fix problem when number column is used like categories in fill component (#11736)
+* Don't let user to apply icons over categories when auto-style is applied (#11761)
+* Update leaflet from 0.7.x to 1.0.x
+
+4.0.x (2016-12-05)
+------------------
+
+### NOTICE
+This release includes the new Builder, so it includes major changes. The logs only includes changes to editor.
+
+### NOTICE
+This release rebrands CartoDB as CARTO, so a few maintenance tasks have to be run:
+ - `bundle exec rake carto:db:set_carto_attribution`
+ - Update basemaps configuration to use CARTO as a category instead of CartoDB
+
+### NOTICE
+This release introduces a new Resque queue: `user_dbs`. It is needed for operation on user databases, i.e: linking
+ghost tables, importing common data and automatic index creation.
+
+### NOTICE
+This release changes the way visualization tokens are stored, so am igration task has to be run for password
+protected visualizations to keep working: `bundle exec rake cartodb:vizs:update_auth_tokens`
+
+### NOTICE
+PostgreSQL 9.5 is needed.
+
+### NOTICE
+This release upgrades the CartoDB PostgreSQL extension to `0.18.1`. Run the following to have it available:
+```shell
+cd $(git rev-parse --show-toplevel)/lib/sql
+sudo make install
+```
+
+### Features
+* Automatic creation of indexes on columns affected by a widget
+* Update CartoDB PostgreSQL extension to 0.18.1:
+  * Change CDB_ZoomFromScale() to use a formula and raise
+    maximum overview level from 23 to 29. (0.16.4)
+    [#259](https://github.com/CartoDB/cartodb-postgresql/pull/259)
+  * Fix bug in overview creating causing it to fail when `x` or
+    `y` columns exist with non-integer type. Prevent also
+    potential integer overflows limiting maximum overview level
+    to 23.
+    [#258](https://github.com/CartoDB/cartodb-postgresql/pull/258) (0.16.4)
+  * Add export config for cdb_analysis_catalog table (0.17.0)
+  * Add some extra fields to cdb_analysis_catalog table. Track user, error_message for failures, and last entity modifying the node (0.17.0)
+  * Exclude overviews from user data size (0.17.0)
+  * Add cache_tables column to cdb_analysis_catalog table (0.17.1)
+  * Fix: exclude NULL geometries when creating Overviews (0.18.0)
+  * Function to check analysis tables limits (0.18.0)
+  * Exclude analysis cache tables from the quota (0.18.0)
+  * Increase analysis limit factor to 2 [#284](https://github.com/CartoDB/cartodb-postgresql/pull/284) (0.18.1)
+* Viewer users for organizations.
+* Oauth integration with GitHub
+* Configurable [Redis timeouts: connect_timeout, read_timeout, write_timeout](https://github.com/redis/redis-rb#timeouts).
+* Configurable paths for logs and configurations through environment variables. If not set, they default to `Rails.root` as usual.
+  * `RAILS_CONFIG_BASE_PATH`. Example: /etc/carto
+  * `RAILS_LOG_BASE_PATH`. Example: /tmp/carto
+  Both are replacements for `Rails.root` and expect the same internal structure so, for example,
+  if you place `app_config.yml` at `/etc/carto/config/app_config.yml`, `RAILS_CONFIG_BASE_PATH` must be `/etc/carto`.
+    The same happens with logs, which are stored into `#{RAILS_LOG_BASE_PATH}/logs/filename.log`).
+    This way those variables can be a drop-in replacement for `Rails.root`, guaranteeing compatibility with Rails project structure.
+* Configurable path for public uploads:
+  * `RAILS_PUBLIC_UPLOADS_PATH`. Example: /var/carto/assets. Defaults to `env_app_config[:importer]["uploads_path"]`
+  This will store user uploaded assets at `#{RAILS_PUBLIC_UPLOADS_PATH}/uploads` (needed for backwards compatibility).
+* Don't display Twitter or MailChimp if user can't import it.
+* Updated ogr2ogr version to 2.1.1, configurable in `app_config.yml`. To install it in the system:
+  * `sudo apt-get update`
+  * `sudo apt-get install gdal2.1-static-bin`
+  * edit your `config/app_config.yml` and make sure the `ogr2ogr` entry contains the following `binary: 'which ogr2ogr2.1'`. See [app_config.yml.sample](https://github.com/CartoDB/cartodb/blob/0529b291623a9d9d78c8f21ff201f9938aa51aca/config/app_config.yml.sample#L8) for an example.
+* Salesforce and ArcGIS connectors can now be enabled independently of `cartodb_com_hosted` (in the `datasources` section in `app_config.yml.sample`)
+* Custom labels for legends (#10763)
+* Builder is enabled by default
+* New option for centering the map according a layer data (#10116).
+
+### Bug Fixes
+* Incorrect error message when password validation failed
+* Fix visualization not found error when exporting maps created from datasets
+* Performance improvements updating visualizations
+* Fixes for organization invitations
+* Fix for updating tables with an `id` column
+* Prefer city guessing over country guessing when possible for file imports
+* Fixed an issue registering table dependencies for users with hyphens in the username
+* Support for export visualizations with characters outside iso-8859-1
+* Forward compatibility for infowindows at Builder
+* Correctly copy map privacy from source tables
+* Fix permissions in quota trigger for shared datasets. Run `bundle exec rake cartodb:db:reset_trigger_check_quota_for_user[<username>]` to fix existing users.
+* Several auth_token related fixes
+* Fix issue importing/duplicating maps where the original had an incomplete map.options
+* New builder default geometry styles are now properly initialized at the backend upon dataset import.
+* Fixed list of layers in Add basemap WMS URL tab
+* This release introduces the Magic Positioner helper to render context menus in the best position inside the viewport.
+* Removed non used fonts (Lato and Proxima Nova) and the font loader.
+* Fixed problem generating Histogram stats in columns with only one value (#9737).
+* 'Clear' button in SQL view shows up if the first SQL edition fails (#9869).
+* Minimum buckets is 2 for histogram widgets (#10645).
+* Fixed with category widgets and aggregation (#10773)
+
 3.13.0 (2016-XX-XX)
 -------------------
+### NOTICE
+For the analysis catalog feature existing users require to run `rake cartodb:db:set_user_privileges_in_cartodb_schema['$USERNAME']`.
+
 ### NOTICE
 This release introduces a different method of doing cache invalidations, using Surrogate Keys instead of the older X-Cache-Channel header.
 See [CartoDB Surrogate Keys](https://github.com/CartoDB/cartodb/wiki/CartoDB-Surrogate-Keys) on the wiki for more information about this change.
@@ -23,36 +283,66 @@ The task will report visualization that could not be automatically fixed, where 
 which should be fixed manually.
 
 ### Features
+* Update CartoDB PostgreSQL extension to 0.16.3:
+  * Support for analysis catalog (0.16.0)
+  * Schema quoting bugfix for overviews (0.16.3)
 * Change Varnish table-related invalidations and tagging to use [Surrogate Keys](https://github.com/CartoDB/cartodb/wiki/CartoDB-Surrogate-Keys)
 * Remove Varnish table invalidations from Rails and replaced them with CDB_TableMetadataTouch calls (delegating invalidation responsibility to the database)
 * Adds optional strong passwords for organization signups
+* Improved logging for custom installations where Rollbar is not used
 * Add new function User#direct_db_connection which uses a new direct_port paramerer to be specified in database.yml to connect to the database. Usage instructions:
   * Use `port` in database.yml to specify the port through which the db is accessed for regular queries (such as pgbouncer connections)
   * Use `direct_port` in database.yml to specify the port through which the db can be directly accessed (i.e. the port in which Postgres is running)
   * This change is backwards compatible and will fallback to `port` whenever `direct_port` is not specified in the database configuration file.
 * Update ogr2ogr version to 2.1, configurable in `app_config.yml`. To install it in the system, run:
   * `sudo apt-get install gdal2.1-static-bin`
+* Added config option `avatars.gravatar_enabled` to disabled gravatar loading (i.e: in offline installations)
 * Ghost table linking is now concurrent per user (avoids race conditions)
+* Experimental support for [visualization metadata export](https://github.com/CartoDB/cartodb/pull/7114).
+* Full visualization export (metadata + data). Example: `bundle exec rake cartodb:vizs:export_full_visualization['5478433b-b791-419c-91d9-d934c56f2053']` (replace the id with the visualization that you want to export).
+  * New configuration parameter: `exporter.exporter_temporal_folder`. Default value: `/tmp/exporter`. See `app_config.yml.sample`.
+  * Geopackage internal format.
+* Full visualization export API. Needed configuration changes:
+  * New Resque queue: `exports`.
+  * `exporter.uploads_path`. Set it to `public/uploads` to use Rails standard upload directory or an absolute path (such as `/tmp/export/downloads`) to make cleanup easier.
+  * `s3` (see `exporter.s3` at `app_config.yml.sample`).
+  * Enabled `config.action_dispatch.x_sendfile_header = 'X-Accel-Redirect'` for nginx direct download if you''re not using S3. Needs [ngnix configuration](https://www.nginx.com/resources/wiki/start/topics/examples/x-accel). `uploads_path` configuration path is used.
+* Update CartoDB PostgreSQL extension to 0.15.1 to support overviews.
+* Disables data library when it is not configured (e.g: offline installations).
+* Disables external file services when not configured (e.g: offline installations).
+* Update dataservices-api client to version 0.3.0 (routing functions).
+* Migration from wizard properties to style properties.
 
 ## Bug Fixes
+* Sharing tables with groups fix for name collision.
 * Updating CartoDB.js submodule with last changes sanitizing attribution.
 * Fixes a problem with select2 arrow icon.
 * Disable `PROMOTE_TO_MULTI` ogr2ogr option for CSV imports with guessing enabled to avoid MultiPoint imports. (https://github.com/CartoDB/cartodb/pull/6793)
 * Source and attributions copied to visualizations when you import a dataset from the Data Library (https://github.com/CartoDB/cartodb/issues/5970).
 * Improved performance of the check for multiple users editing the same visualization
 * Fixes a memory leak when connecting to user databases
+* Drops unused `url_options` field from visualizations table.
 * Fixed error when accessing an SQL API renamed table through the editor.
 * Refactored and fixed error handling for visualization overlays.
 * Ignore non-downloadable GDrive files that made file listing fail (https://github.com/CartoDB/cartodb/pull/6871)
 * Update CartoDB PostgreSQL extension to 0.14.3 to support `cartodb_id` text columns in the CartoDBfy process.
   * See instructions to upgrade to the latest extension version [here](https://github.com/CartoDB/cartodb-postgresql#update-cartodb-extension)
 * Fix slow search of visualizations by name
+* Fixed a bug where visualization with two layers using the same dataset could not be deleted
 * Update and improve logging system
+* Fix automatic reconnection to DB with error `result has been cleared`
 * Fix broken syncs after setting sync options to "Never"
 * Fix broken visualizations due to invalid permissions
-* Make `layers.kind` not null. Run `bundle exec rake db:migrate` to update your database.
+* Check layer limits server-side
+* Fixed error duplicating datasets from the dashboard if the owner had hyphens in the name
+* Fix URL generations in some views, to correctly include the subdomain
+* Make `layers.kind` not null. Run `bundle exec rake db:migrate` to update your database
+* Remove unused and broken tool for migration of the visualization table
 * Fix error when deleting organizational users that had created objects via SQL-API
 * Change deprecated PostGIS function `ST_Force_2D` for the new `ST_Force2D`
+* Fix bug in import mail notifier that prevented to obtain the name of tables created by queries or duplications
+* Fix some import failures due to failling in finding suitable table names.
+* Exported map files now have comprehensive names.
 
 ## Security fixes
 

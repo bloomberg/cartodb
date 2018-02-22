@@ -5,7 +5,7 @@ module Carto
 
     validates :name, presence: true
 
-    has_many :profiles_users, :dependent => :destroy
+    has_many :profiles_users, dependent: :destroy
 
     def attrs_hash
       attrs ? JSON.parse(attrs) : nil

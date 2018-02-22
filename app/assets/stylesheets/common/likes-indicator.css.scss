@@ -16,8 +16,10 @@ $cLiked: #D93F56;
   vertical-align: top; 
 }
 .LikesIndicator-icon {
-  width: 13px;
-  height: 13px;
+  position: relative;
+  top: 2px;
+  width: 15px;
+  height: 15px;
   background-image: url('../images/favorite_disabled.svg');
   background-repeat: no-repeat;
 }

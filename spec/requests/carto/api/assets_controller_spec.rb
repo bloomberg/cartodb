@@ -4,26 +4,24 @@ require_relative '../../../spec_helper'
 require_relative '../../../../app/controllers/carto/api/assets_controller'
 
 describe Carto::Api::AssetsController do
-
-describe '#show legacy tests' do
-
+  describe '#show legacy tests' do
     before(:all) do
-      @user = create_user(:username => 'test', :email => "client@example.com", :password => "clientex")
+      @user = create_user
       AWS.stub!
     end
 
     before(:each) do
-      stub_named_maps_calls
+      bypass_named_maps
       delete_user_data @user
-      host! 'test.localhost.lan'
+      host! "#{@user.username}.localhost.lan"
     end
 
     after(:all) do
-      stub_named_maps_calls
+      bypass_named_maps
       @user.destroy
     end
 
-    let(:params) { { :api_key => @user.api_key } }
+    let(:params) { { api_key: @user.api_key } }
 
     it "gets all assets" do
       get_json(api_v1_users_assets_index_url(user_id: @user), params) do |response|
@@ -38,7 +36,5 @@ describe '#show legacy tests' do
         response.body[:assets].size.should == 3
       end
     end
-
   end
-
 end

@@ -13,4 +13,10 @@ FactoryGirl.define do
     size 1
   end
 
+  factory :external_source_with_existing_visualization, class: Carto::ExternalSource do
+    import_url 'http://www.wadus.com'
+    rows_counted 1
+    size 1
+  end
+
 end

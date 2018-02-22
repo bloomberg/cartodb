@@ -44,13 +44,12 @@ $shadow-color: rgba(black, 0.1);
 }
 
 .Sessions-title {
-  font-weight: 400;
-  font-size: 30px;
-  line-height: 48px;
-  text-shadow: 0px 1px $shadow-color, 1px 0px $shadow-color, 0 0 $shadow-color, 1px -1px $shadow-color, -1px 1px $shadow-color;
+  font-family: $title;
+  font-size: 36px;
+  line-height: 36px;
   color: #fff;
-  width: 360px;
-  margin-left: -20px;
+  text-align:center;
+  margin: 0;
 }
 
 .Sessions-title--organization {
@@ -103,6 +102,10 @@ $shadow-color: rgba(black, 0.1);
   &:last-child {
     margin-bottom: 0;
   }
+
+  .Btn {
+    border-radius: 4px;
+  }
 }
 
 .Sessions-input {
@@ -112,7 +115,7 @@ $shadow-color: rgba(black, 0.1);
   height: 40px;
   font-weight: 300;
   font-size: 14px;
-  font-family: 'Proxima Nova W01', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: 'Bloomberg_Prop_K';
   background: rgba(black, 0.5);
   color: #ccc;
   outline: none;

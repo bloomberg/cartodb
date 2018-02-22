@@ -7,7 +7,8 @@ module CartoDB
         @visualization = visualization
       end
 
-      def create_default_overlays(prof_attrs=nil)
+      def create_default_overlays
+        prof_attrs = @visualization.user && @visualization.user.profile_attributes
         create_share_overlay(@visualization, 2)
         if @visualization.user.has_feature_flag?('bbg_pro_ui')
           create_search_overlay(@visualization, 3)
@@ -20,10 +21,8 @@ module CartoDB
           create_logo_overlay(@visualization, 9)
         end
 
-        if prof_attrs != nil
-          if prof_attrs["defaultFixedTitleOn"]
-            create_title_overlay(@visualization, 1, prof_attrs)
-          end
+        if prof_attrs && prof_attrs["defaultFixedTitleOn"]
+          create_title_overlay(@visualization, 1, prof_attrs)
         end
       end
 

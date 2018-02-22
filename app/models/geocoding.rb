@@ -9,7 +9,10 @@ require_relative '../../app/helpers/bounding_box_helper'
 require_relative 'log'
 require_relative '../../lib/cartodb/stats/geocoding'
 
+require_dependency 'carto/configuration'
+
 class Geocoding < Sequel::Model
+  include Carto::Configuration
 
   ALLOWED_KINDS   = %w(admin0 admin1 namedplace postalcode high-resolution ipaddress)
 
@@ -33,10 +36,6 @@ class Geocoding < Sequel::Model
   attr_reader :table_geocoder
   attr_reader :started_at, :finished_at
   attr_reader :log
-
-  def self.get_geocoding_calls(dataset, date_from, date_to)
-    dataset.where(kind: 'high-resolution').where('geocodings.created_at >= ? and geocodings.created_at <= ?', date_from, date_to + 1.days).sum("processed_rows + cache_hits".lit).to_i
-  end
 
   def self.get_not_aggregated_user_geocoding_calls(db, user_id, date_from, date_to)
     geocoding_calls_sql = "SELECT date(created_at), sum(processed_rows) as processed_rows, " \
@@ -65,7 +64,7 @@ class Geocoding < Sequel::Model
   end
 
   def geocoding_logger
-    @@geocoding_logger ||= Logger.new("#{Rails.root}/log/geocodings.log")
+    @@geocoding_logger ||= Logger.new(log_file_path('geocodings.log'))
   end
 
   def error
@@ -224,10 +223,7 @@ class Geocoding < Sequel::Model
     if translated_formatter =~ SANITIZED_FORMATTER_REGEXP
       translated_formatter
     else
-      # TODO better remove this trace once everything is fine
-      Rollbar.report_message(%Q{Incorrect formatter string received: "#{formatter}"},
-                             'warning',
-                             {user_id: user.id})
+      CartoDB::Logger.warning(message: %{Incorrect formatter string received: "#{formatter}"}, user: user)
       ''
     end
   end

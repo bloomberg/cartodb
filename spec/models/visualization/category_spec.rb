@@ -23,7 +23,7 @@ describe Carto::Category do
     @db = Rails::Sequel.connection
     Visualization.repository  = DataRepository::Backend::Sequel.new(@db, :visualizations)
 
-    CartoDB::NamedMapsWrapper::NamedMaps.any_instance.stubs(:get => nil, :create => true, :update => true)
+    Carto::NamedMaps::Api.any_instance.stubs(:get => nil, :create => true, :update => true)
   end
 
   after(:all) do

@@ -6,14 +6,21 @@ require_relative './unp'
 require_relative './column'
 require_relative './exceptions'
 require_relative './result'
+require_relative './runner_helper'
 require_relative '../../../datasources/lib/datasources/datasources_factory'
 require_relative '../../../platform-limits/platform_limits'
-
 require_relative '../../../../lib/cartodb/stats/importer'
+require_relative '../../../../lib/carto/visualization_exporter'
+require_relative '../helpers/quota_check_helpers'
+
+require_relative '../../../../lib/carto/geopkg_carto_metadata_util'
 
 module CartoDB
   module Importer2
     class Runner
+      include CartoDB::Importer2::QuotaCheckHelpers
+      include CartoDB::Importer2::RunnerHelper
+
       # Legacy guessed average "final size" of an imported file
       # e.g. a Shapefile shrinks after import. This won't help in scenarios like CSVs (which tend to grow)
       QUOTA_MAGIC_NUMBER      = 0.3
@@ -63,6 +70,8 @@ module CartoDB
         @results             = []
         @stats               = []
         @warnings = {}
+        @visualizations = []
+        @collision_strategy = options[:collision_strategy]
       end
 
       def loader_options=(value)
@@ -140,13 +149,7 @@ module CartoDB
         @tracker || lambda { |state| state }
       end
 
-      def success?
-        # TODO: Change this, "runner" can be ok even if no data has changed, should expose "data_changed" attribute
-        return true unless remote_data_updated?
-        results.select(&:success?).length > 0
-      end
-
-      attr_reader :results, :log, :loader, :stats, :downloader, :warnings
+      attr_reader :results, :log, :loader, :stats, :downloader, :warnings, :visualizations
 
       private
 
@@ -166,7 +169,11 @@ module CartoDB
 
         @importer_stats.timing('resource') do
           @importer_stats.timing('quota_check') do
-            raise_if_over_storage_quota(source_file)
+            file_size = File.size(source_file.fullpath)
+            user_id = @user.id if @user
+            raise_if_over_storage_quota(requested_quota: QUOTA_MAGIC_NUMBER * file_size,
+                                        available_quota: available_quota,
+                                        user_id: user_id)
           end
 
           @importer_stats.timing('file_size_limit_check') do
@@ -175,7 +182,6 @@ module CartoDB
             end
           end
         end
-
         if !downloader.nil? && downloader.provides_stream? && loader.respond_to?(:streamed_run_init)
           streamed_loader_run(@job, loader, downloader)
         else
@@ -236,13 +242,77 @@ module CartoDB
         loader.run(@post_import_handler)
       end
 
+      def create_remote_visualization_if_necessary(table_name)
+        # Check if need to do remote load_common_datatable already exists
+        remote_vis = Carto::Visualization.where(type: 'remote', name: table_name, user_id: @user.id).first
+        unless remote_vis
+          # Hacky way to build url.  Resque does not have access to rails helper routines.
+          # The alternative is to do this check in rails, but it'll require inspecting the .carto.gpkg
+          #  in editor and then again in the resque
+          common_data_config = Cartodb.config[:common_data]
+          common_data_base_url = common_data_config['base_url'] if !common_data_config.nil?
+
+          if common_data_base_url.nil?
+            raise CartoDB::Importer2::GenericImportError.new("Common data base_url not configured for visualizations")
+          end
+
+          params = {type: 'table', privacy: 'public'}
+          if table_name.nil?
+            raise CartoDB::Importer2::GenericImportError.new("Dataset not provided for remote visualization")
+          end
+          params[:name] = table_name if !table_name.nil?
+
+          # We set user_domain to nil to avoid duplication in the url for subdomainfull urls. Ie. user.carto.com/u/cartodb/...
+          params[:user_domain] = nil
+          visualizations_api_url = common_data_base_url + "/api/v1/viz?#{params.to_query}"
+          @user.load_common_data(visualizations_api_url)
+
+          remote_vis = Carto::Visualization.where(type: 'remote', name: table_name, user_id: @user.id).first
+          unless remote_vis
+            raise CartoDB::Importer2::GenericImportError.new("Failed to create remote visualization")
+          end
+        end
+      end
+
+      def connect_shared_dataset(table_name)
+        if Carto::Synchronization.where(:name => table_name, :user_id => @user.id, :service_name => 'connector').size <= 0
+          # Import the dataset as if the user connected directly to it....
+          member_attributes = {
+            name:                   table_name,
+            user_id:                @user.id,
+            state:                  Synchronization::Member::STATE_QUEUED, # Go straight to queued state since we auto-kick it off
+            service_name:           'connector',
+            service_item_id:        "driver=postgres;channel=postgres_fdw;table=#{table_name}"
+          }
+          member = Synchronization::Member.new(member_attributes)
+          member.store
+          options = {
+            user_id:                @user.id,
+            table_name:             table_name,
+            service_name:           member_attributes[:service_name],
+            service_item_id:        member_attributes[:service_item_id],
+            synchronization_id:     member.id
+          }
+          data_import = DataImport.create(options)
+
+          # Create the external data import
+          # This needs to always happen to make sure visualization flags are copied
+          remote_vis = Carto::Visualization.where(type: 'remote', name: table_name, user_id: @user.id).first
+          external_source_id = CartoDB::Visualization::ExternalSource.where(visualization_id: remote_vis.id).first.id
+          ExternalDataImport.new(data_import.id, external_source_id, member.id).save
+
+          DataImport[data_import.id].run_import!
+        else
+          job.log "Table #{table_name} already synchronized.  Skipping...."
+        end
+      end
+
       def single_resource_import
         @importer_stats.timing('resource') do
           @importer_stats.timing('download') do
             @downloader.run(available_quota)
             return self unless remote_data_updated?
           end
-
           log.append "Starting import for #{@downloader.source_file.fullpath}"
           log.store   # Checkpoint-save
 
@@ -260,27 +330,78 @@ module CartoDB
           end
 
           @importer_stats.timing('import') do
-            if unpacker.source_files.length > MAX_TABLES_PER_IMPORT
+            source_files = unpacker.source_files
+
+            table_files = table_files(source_files)
+            if table_files.length > MAX_TABLES_PER_IMPORT
               add_warning(max_tables_per_import: MAX_TABLES_PER_IMPORT)
             end
 
-            unpacker.source_files.each_with_index do |source_file, index|
-              next if (index >= MAX_TABLES_PER_IMPORT)
+            table_files.each_with_index do |source_file, index|
+              next if (index >= MAX_TABLES_PER_IMPORT) || !should_import?(source_file.name)
               @job.new_table_name if (index > 0)
 
               log.store   # Checkpoint-save
               log.append "Filename: #{source_file.fullpath} Size (bytes): #{source_file.size}"
-              import_stats = execute_import(source_file, @downloader)
-              @stats << import_stats
+
+              # Hack for Samples 2.0 Save As - Tech debt to clean up with more elegant solution
+              if(source_file.extension == '.gpkg' && File.extname(source_file.name) == '.carto')
+                md = Carto::GpkgCartoMetadataUtil.new( geopkg_file: source_file.fullpath )
+
+                # Check if FDW
+                if(md.metadata.has_key?('data') &&
+                   md.metadata['data'].has_key?('source') &&
+                   md.metadata['data']['source'].has_key?('type') &&
+                   md.metadata['data']['source']['type'] == 'fdw')
+
+                  job.log "FDW gpkg detected.  Setting up foreign tables"
+                  table_name = md.metadata['data']['source']['configuration']['parent_table']
+
+                  create_remote_visualization_if_necessary(table_name)
+
+                  connect_shared_dataset(table_name)
+                else
+                  # assume if the file is .carto.gpkg then it must have the
+                  # metadata we are looking for.
+                  raise LoadError.new "ERROR Invalid metadata in #{source_file.fullpath}."
+                end
+              else
+                import_stats = execute_import(source_file, @downloader)
+                @stats << import_stats
+              end
+            end
+
+            visualization_files = visualization_files(source_files)
+            visualization_files.each do |visualization_source_file|
+              visualization = build_visualization_source_file(visualization_source_file)
+              log.append "Contains visualization #{visualization.id}: #{visualization.name}."
+              @visualizations.push(visualization)
+              log.store
             end
           end
-
-          @importer_stats.timing('cleanup') do
-            unpacker.clean_up
-            @downloader.clean_up
-          end
-
         end
+      ensure
+        @importer_stats.timing('resource.cleanup') do
+          unpacker.clean_up
+          @downloader.clean_up
+        end
+      end
+
+      def table_files(source_files)
+        source_files.select { |source_file| !has_visualization_extension?(source_file) }
+      end
+
+      def visualization_files(source_files)
+        source_files.select { |source_file| has_visualization_extension?(source_file) }
+      end
+
+      def has_visualization_extension?(source_file)
+        Carto::VisualizationExporter.has_visualization_extension?(source_file.path)
+      end
+
+      def build_visualization_source_file(source_file)
+        json_export = File.open(source_file.fullpath, "r") { |file| file.read }
+        Carto::VisualizationsExportService2.new.build_visualization_from_json_export(json_export)
       end
 
       def multi_resource_import
@@ -313,8 +434,13 @@ module CartoDB
 
             @importer_stats.timing('quota_check') do
               log.append "Starting import for #{subres_downloader.source_file.fullpath}"
-              log.store   # Checkpoint-save
-              raise_if_over_storage_quota(subres_downloader.source_file)
+              log.store
+
+              file_size = File.size(subres_downloader.source_file.fullpath)
+              user_id = @user.id if @user
+              raise_if_over_storage_quota(requested_quota: QUOTA_MAGIC_NUMBER * file_size,
+                                          available_quota: available_quota,
+                                          user_id: user_id)
             end
 
             @importer_stats.timing('import') do
@@ -408,13 +534,6 @@ module CartoDB
 
       def delete_job_table
         @job.delete_job_table
-      end
-
-      def raise_if_over_storage_quota(source_file)
-        file_size   = File.size(source_file.fullpath)
-        over_quota  = available_quota < QUOTA_MAGIC_NUMBER * file_size
-        raise StorageQuotaExceededError if over_quota
-        self
       end
     end
   end

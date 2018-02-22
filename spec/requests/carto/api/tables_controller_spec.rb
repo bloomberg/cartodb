@@ -11,13 +11,14 @@ describe Carto::Api::TablesController do
 
     before(:all) do
       @user = FactoryGirl.create(:valid_user, private_tables_enabled: true)
+      @carto_user = Carto::User.find(@user.id)
 
       CartoDB::Varnish.any_instance.stubs(:send_command).returns(true)
       host! "#{@user.username}.localhost.lan"
     end
 
     before(:each) do
-      stub_named_maps_calls
+      bypass_named_maps
       delete_user_data @user
     end
 
@@ -43,10 +44,27 @@ describe Carto::Api::TablesController do
       end
     end
 
+    it 'returns dependent visualizations' do
+      table = create_table(user_id: @user.id)
+      visualization = FactoryGirl.create(:carto_visualization, user: @carto_user)
+      visualization.map = FactoryGirl.create(:carto_map, user: @carto_user)
+      visualization.save!
+      layer = FactoryGirl.build(:carto_layer)
+      layer.options[:table_name] = table.name
+      layer.save
+      visualization.layers << layer
+
+      get_json api_v1_tables_show_url(params.merge(id: table.id)) do |response|
+        response.status.should == 200
+        expect(response.body[:dependent_visualizations]).not_to be_empty
+        expect(response.body[:dependent_visualizations][0]['id']).to eq visualization.id
+      end
+    end
+
     it "check imported table metadata" do
       data_import = DataImport.create(
                                       user_id: @user.id,
-                                      data_source: '/../spec/support/data/TM_WORLD_BORDERS_SIMPL-0.3.zip'
+                                      data_source: Rails.root.join('spec/support/data/TM_WORLD_BORDERS_SIMPL-0.3.zip').to_s
                                       ).run_import!
 
       get_json api_v1_tables_show_url(params.merge(id: data_import.table_id)) do |response|

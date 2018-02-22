@@ -20,9 +20,6 @@ describe Api::Json::SynchronizationsController do
   before(:all) do
 
     @user = create_user(
-      username: 'test',
-      email:    'client@example.com',
-      password: 'clientex',
       sync_tables_enabled: true
     )
     @api_key = @user.api_key
@@ -32,20 +29,22 @@ describe Api::Json::SynchronizationsController do
     @db = Rails::Sequel.connection
     Sequel.extension(:pagination)
 
-    CartoDB::Synchronization.repository  = DataRepository::Backend::Sequel.new(@db, :synchronizations)
+    CartoDB::Synchronization.repository = DataRepository::Backend::Sequel.new(@db, :synchronizations)
 
-    stub_named_maps_calls
+    bypass_named_maps
     delete_user_data @user
     @headers = {
-      'CONTENT_TYPE'  => 'application/json',
+      'CONTENT_TYPE' => 'application/json'
     }
-    host! 'test.localhost.lan'
+    host! CartoDB.base_url(@user.username).sub!(/^https?\:\/\//, '')
   end
 
   after(:all) do
-    stub_named_maps_calls
+    bypass_named_maps
     @user.destroy
   end
+
+  let(:params) { { :api_key => @api_key } }
 
   describe 'POST /api/v1/synchronizations' do
     it 'creates a synchronization' do
@@ -55,7 +54,7 @@ describe Api::Json::SynchronizationsController do
         url:        'http://www.foo.com'
       }
 
-      post "/api/v1/synchronizations?api_key=#{@api_key}", payload.to_json, @headers
+      post api_v1_synchronizations_index_url(params), payload.to_json, @headers
       last_response.status.should == 200
 
       response = JSON.parse(last_response.body)
@@ -70,7 +69,7 @@ describe Api::Json::SynchronizationsController do
         url: 'http://www.foo.com'
       }
 
-      post "/api/v1/synchronizations?api_key=#{@api_key}", payload.to_json, @headers
+      post api_v1_synchronizations_index_url(params), payload.to_json, @headers
       last_response.status.should eq 400
       last_response.body.to_str.should match /15 minutes/
     end
@@ -82,7 +81,7 @@ describe Api::Json::SynchronizationsController do
         url:        'http://www.foo.com'
       }
 
-      post "/api/v1/synchronizations?api_key=#{@api_key}", payload.to_json, @headers
+      post api_v1_synchronizations_index_url(params), payload.to_json, @headers
       last_response.status.should == 200
 
       response = JSON.parse(last_response.body)

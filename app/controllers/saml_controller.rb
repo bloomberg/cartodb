@@ -48,9 +48,6 @@ class SamlController < ApplicationController
 
 end #end of the controller class
 
-class UserInfo < Sequel::Model
-end
-
 class BBOrganization
   class BBOwner
     def email

@@ -6,17 +6,14 @@
   <%= javascript_include_tag 'cdb.js', 'sessions.js' %>
 <% end %>
 
-<div class="Sessions" style="<%= background %>">
-  <%= render partial: 'admin/shared/sessions_header', locals: { align: "" } %>
-
+<div class="Sessions">
   <div class="Sessions-content">
     <div class="Sessions-inner">
       <div class="Sessions-notloggedin">
         <div class="u-inner">
           <div class="Sessions-left">
             <div class="Sessions-form">
-              <h1 class="Sessions-title u-vspace-xs">Login to Bloomberg Maps</h1>
-              <p class="Sessions-description">Help other people understand the world we live in, with maps.</p>
+              <h1 class="Sessions-title u-vspace-m">Bloomberg Maps</h1>
 
               <% if @google_plus_config.present? && (@organization.nil? || @organization.auth_google_enabled) %>
                 <div class="Sessions-sep"></div>
@@ -33,10 +30,8 @@
 
                 <% if @organization.nil? || @organization.auth_username_password_enabled %>
 
-                  <div class="Sessions-sep"></div>
-
                   <div class="Sessions-field">
-                    <%= text_field_tag :email, CartoDB.extract_subdomain(request), :title => "Email or username", placeholder: "email or username", class: "Sessions-input" %>
+                    <%= text_field_tag :email, CartoDB.extract_subdomain(request), :title => "username", placeholder: "username", class: "Sessions-input" %>
 
                     <% if @login_error %>
                       <div class="Sessions-fieldError js-Sessions-fieldError" data-content="<%= @login_error %>">!</div>

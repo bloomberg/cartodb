@@ -60,5 +60,20 @@ namespace :user do
 
       puts "Changed the number of max layers for '#{user.username}' from #{old_max_layers} to #{max_layers}."
     end
+
+    desc 'Set auth_token if not set before'
+    task :init_auth_tokens => [:environment] do
+      count = 0
+
+      Carto::User.where("auth_token IS NULL").find_in_batches(batch_size: 100) do |batch|
+        sleep(5)
+        batch.each do |user|
+          user.get_auth_token
+          count += 1
+        end
+      end
+
+      puts "Set auth_token for #{count} users"
+    end
   end
 end

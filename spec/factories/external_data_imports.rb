@@ -10,4 +10,7 @@ FactoryGirl.define do
     end
   end
 
+  factory :external_data_import_with_existing_external_source, class: Carto::ExternalDataImport do
+  end
+
 end

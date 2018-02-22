@@ -24,9 +24,9 @@ module Carto
       before_filter :optional_api_authorization, only: [:index, :vizjson2, :vizjson3, :is_liked, :static_map]
 
       before_filter :id_and_schema_from_params
-      before_filter :load_by_name_or_id, only: [:vizjson2, :vizjson3]
       before_filter :load_visualization, only: [:likes_count, :likes_list, :is_liked, :show, :stats, :list_watching,
-                                                :static_map]
+                                                :static_map, :vizjson2, :vizjson3]
+
       before_filter :load_common_data, only: [:index, :list]
 
       rescue_from Carto::LoadError, with: :rescue_from_carto_error
@@ -156,11 +156,12 @@ module Carto
         render_jsonp({
           id: @visualization.id,
           likes: @visualization.likes.count,
-          liked: current_viewer ? @visualization.is_liked_by_user_id?(current_viewer.id) : false
+          liked: current_viewer ? @visualization.liked_by?(current_viewer.id) : false
         })
       end
 
       def vizjson2
+        @visualization.mark_as_vizjson2 unless carto_referer?
         render_vizjson(generate_vizjson2)
       end
 
@@ -268,6 +269,8 @@ module Carto
         render :json => '{"visualizations":' + layers.to_json + ' ,"total_entries":' + layers.size.to_s + '}'
       end
 
+      # NOTE: Only user auth_tokens are included for performance
+      # May not work with shared maps (missing organization token)
       def list
         user_id = current_user.id
         types = params.fetch(:types, Array.new).split(',')
@@ -287,6 +290,10 @@ module Carto
         likedCondition = only_liked ? 'WHERE likes > 0' : ''
         lockedCondition = only_locked ? 'AND v.locked=true' : ''
         categoryCondition = ''
+        if types == ["'derived'"] # is_maps
+          user_join = 'LEFT JOIN users AS u ON u.id=v.user_id'
+          auth_tokens_column = ', ARRAY[u.auth_token] AS auth_tokens'
+        end
         parent_category = params.fetch(:parent_category, nil)
         if parent_category != nil
           categoryCondition = "AND (v.category = ? OR v.category = ANY(get_viz_child_category_ids(?)))"
@@ -322,13 +329,14 @@ module Carto
         query = "
             SELECT * FROM (
               SELECT results.*, (SELECT COUNT(*) FROM likes WHERE actor=? AND subject=results.id) AS likes FROM (
-                SELECT v.id, v.type, false AS needs_cd_import, v.name, v.display_name, v.description, v.tags, v.category, v.source, v.updated_at, v.locked, upper(v.privacy) AS privacy, ut.id AS table_id, ut.name_alias, edis.id IS NOT NULL AS from_external_source
+                SELECT v.id, v.type, false AS needs_cd_import, v.name, v.display_name, v.description, v.tags, v.category, v.source, v.updated_at, v.locked, upper(v.privacy) AS privacy, ut.id AS table_id, ut.name_alias, edis.id IS NOT NULL AS from_external_source #{auth_tokens_column}
                   FROM visualizations AS v
                       LEFT JOIN external_sources AS es ON es.visualization_id = v.id
                       LEFT JOIN visualizations AS v2 ON v2.user_id=v.user_id AND v.type='remote' AND v2.type='table' AND v2.name=v.name
                       LEFT JOIN user_tables AS ut ON ut.map_id=v.map_id
                       LEFT JOIN synchronizations AS s ON s.visualization_id = v.id
                       LEFT JOIN external_data_imports AS edis ON edis.synchronization_id = s.id
+                      #{user_join}
                   WHERE v2.id IS NULL AND v.user_id=? AND v.type IN (#{typeList}) #{lockedCondition} #{sharedEmptyDatasetCondition} #{categoryCondition} #{tagCondition}
                 ) AS results
             ) AS results2
@@ -457,30 +465,9 @@ module Carto
         render_jsonp(vizjson)
       rescue KeyError => exception
         render(text: exception.message, status: 403)
-      rescue CartoDB::NamedMapsWrapper::HTTPResponseError => exception
-        CartoDB.notify_exception(exception, user: current_user, template_data: exception.template_data)
-        render_jsonp({ errors: { named_maps_api: "Communication error with tiler API. HTTP Code: #{exception.message}" } }, 400)
-      rescue CartoDB::NamedMapsWrapper::NamedMapDataError => exception
-        CartoDB.notify_exception(exception)
-        render_jsonp({ errors: { named_map: exception.message } }, 400)
-      rescue CartoDB::NamedMapsWrapper::NamedMapsDataError => exception
-        CartoDB.notify_exception(exception)
-        render_jsonp({ errors: { named_maps: exception.message } }, 400)
       rescue => exception
         CartoDB.notify_exception(exception)
         raise exception
-      end
-
-      def load_by_name_or_id
-        @table =  is_uuid?(@id) ? Carto::UserTable.where(id: @id).first  : nil
-
-        # INFO: id should _really_ contain either an id of a user_table or a visualization, but for legacy reasons...
-        if @table
-          @visualization = @table.visualization
-        else
-          load_visualization
-          @table = @visualization
-        end
       end
 
       def load_visualization
@@ -538,6 +525,12 @@ module Carto
         VisualizationPresenter.new(visualization, current_viewer, self).to_poro
       end
 
+      def carto_referer?
+        referer_host = URI.parse(request.referer).host
+        referer_host && (referer_host.ends_with?('carto.com') || referer_host.ends_with?('cartodb.com'))
+      rescue URI::InvalidURIError
+        false
+      end
     end
   end
 end
