@@ -31,52 +31,52 @@ module CartoDB
 
           log_params = "user_id: #{user}, table_name: #{table_name}"
 
-          message = "#{this.name}#delete_las_row {#{log_params}}"
+          message = "#{self.name}#delete_las_row {#{log_params}}"
           CartoDB::Logger.debug_time(message: message, user: user, table_name: table_name) do
             delete_last_row(user.database_schema, table_name, result.schema, result.table_name)
           end
-          message = "#{this.name}#copy_privileges {#{log_params}}"
+          message = "#{self.name}#copy_privileges {#{log_params}}"
           CartoDB::Logger.debug_time(message: message, user: user, table_name: table_name) do
             copy_privileges(user.database_schema, table_name, result.schema, result.table_name)
           end
 
-          message = "#{this.name}#generate_index_statements {#{log_params}}"
+          message = "#{self.name}#generate_index_statements {#{log_params}}"
           index_statements = CartoDB::Logger.debug_time(message: message, user: user, table_name: table_name) do
             generate_index_statements(user.database_schema, table_name)
           end
-          message = "#{this.name}#move_to_schema {#{log_params}}"
+          message = "#{self.name}#move_to_schema {#{log_params}}"
           CartoDB::Logger.debug_time(message: message, user: user, table_name: table_name) do
             move_to_schema(result)
           end
-          message = "#{this.name}#fix_the_geom_type! {#{log_params}}"
+          message = "#{self.name}#fix_the_geom_type! {#{log_params}}"
           geo_type = CartoDB::Logger.debug_time(message: message, user: user, table_name: table_name) do
             fix_the_geom_type!(user.database_schema, result.table_name)
           end
-          message = "#{this.name}#import_cleanup {#{log_params}}"
+          message = "#{self.name}#import_cleanup {#{log_params}}"
           CartoDB::Logger.debug_time(message: message, user: user, table_name: table_name) do
             import_cleanup(user.database_schema, result.table_name)
           end
-          message = "#{this.name}#cartodbfy {#{log_params}}"
+          message = "#{self.name}#cartodbfy {#{log_params}}"
           CartoDB::Logger.debug_time(message: message, user: user, table_name: table_name) do
             cartodbfy(result.table_name)
           end
-          message = "#{this.name}#copy_privileges {#{log_params}}"
+          message = "#{self.name}#copy_privileges {#{log_params}}"
           CartoDB::Logger.debug_time(message: message, user: user, table_name: table_name) do
             copy_privileges(user.database_schema, table_name, user.database_schema, result.table_name)
           end
-          message = "#{this.name}#sanitize_table_columns {#{log_params}}"
+          message = "#{self.name}#sanitize_table_columns {#{log_params}}"
           CartoDB::Logger.debug_time(message: message, user: user, table_name: table_name) do
             sanitize_table_columns(result.table_name, user.database_schema)
           end
-          message = "#{this.name}#overwrite {#{log_params}}"
+          message = "#{self.name}#overwrite {#{log_params}}"
           CartoDB::Logger.debug_time(message: message, user: user, table_name: table_name) do
             overwrite(table_name, result)
           end
-          message = "#{this.name}#setup_table {#{log_params}}"
+          message = "#{self.name}#setup_table {#{log_params}}"
           CartoDB::Logger.debug_time(message: message, user: user, table_name: table_name) do
             setup_table(table_name, geo_type)
           end
-          message = "#{this.name}#run_index_statements {#{log_params}}"
+          message = "#{self.name}#run_index_statements {#{log_params}}"
           CartoDB::Logger.debug_time(message: message, user: user, table_name: table_name) do
             run_index_statements(index_statements)
           end
