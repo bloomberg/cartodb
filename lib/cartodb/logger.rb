@@ -43,8 +43,8 @@ module CartoDB
     end
 
     def self.debug_time(exception: nil, message: nil, user: nil, **additional_data)
-      # This method will execute the code block given, and add metrics about its execution time
-      # to the logger. It should be used as a benchmark for research purposes.
+      # This method will run the provided block and add metrics about its execution time to the
+      # output log. It should be used as a benchmark tool for research/debugging purposes.
       raise 'debug_time expects a code block to be given.' unless block_given?
 
       start_time = Time.now
