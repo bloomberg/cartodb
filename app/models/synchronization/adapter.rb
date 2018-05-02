@@ -29,7 +29,7 @@ module CartoDB
             raise data_for_exception
           end
 
-          log_params = "user_id: #{user}, table_name: #{table_name}"
+          log_params = "user_id: #{user.id}, table_name: #{table_name}"
 
           message = "#{self.class.name}#delete_las_row {#{log_params}}"
           CartoDB::Logger.debug_time(message: message, user: user, table_name: table_name) do
