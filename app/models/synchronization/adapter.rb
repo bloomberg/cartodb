@@ -29,19 +29,45 @@ module CartoDB
             raise data_for_exception
           end
 
-          delete_last_row(user.database_schema, table_name, result.schema, result.table_name)
-          copy_privileges(user.database_schema, table_name, result.schema, result.table_name)
+          logger = CartoDB::Logger
 
-          index_statements = generate_index_statements(user.database_schema, table_name)
-          move_to_schema(result)
-          geo_type = fix_the_geom_type!(user.database_schema, result.table_name)
-          import_cleanup(user.database_schema, result.table_name)
-          cartodbfy(result.table_name)
-          copy_privileges(user.database_schema, table_name, user.database_schema, result.table_name)
-          sanitize_table_columns(result.table_name, user.database_schema)
-          overwrite(table_name, result)
-          setup_table(table_name, geo_type)
-          run_index_statements(index_statements)
+          logger.debug_time(message: 'Synchronization::Adapter#delete_las_row', user: user, table_name: table_name) do
+            delete_last_row(user.database_schema, table_name, result.schema, result.table_name)
+          end
+          logger.debug_time(message: 'Synchronization::Adapter#copy_privileges', user: user, table_name: table_name) do
+            copy_privileges(user.database_schema, table_name, result.schema, result.table_name)
+          end
+
+          index_statements = logger.debug_time(message: 'Synchronization::Adapter#generate_index_statements', user: user, table_name: table_name) do
+            generate_index_statements(user.database_schema, table_name)
+          end
+          logger.debug_time(message: 'Synchronization::Adapter#move_to_schema', user: user, table_name: table_name) do
+            move_to_schema(result)
+          end
+          geo_type = logger.debug_time(message: 'Synchronization::Adapter#fix_the_geom_type!', user: user, table_name: table_name) do
+            fix_the_geom_type!(user.database_schema, result.table_name)
+          end
+          logger.debug_time(message: 'Synchronization::Adapter#import_cleanup', user: user, table_name: table_name) do
+            import_cleanup(user.database_schema, result.table_name)
+          end
+          logger.debug_time(message: 'Synchronization::Adapter#cartodbfy', user: user, table_name: table_name) do
+            cartodbfy(result.table_name)
+          end
+          logger.debug_time(message: 'Synchronization::Adapter#copy_privileges', user: user, table_name: table_name) do
+            copy_privileges(user.database_schema, table_name, user.database_schema, result.table_name)
+          end
+          logger.debug_time(message: 'Synchronization::Adapter#sanitize_table_columns', user: user, table_name: table_name) do
+            sanitize_table_columns(result.table_name, user.database_schema)
+          end
+          logger.debug_time(message: 'Synchronization::Adapter#overwrite', user: user, table_name: table_name) do
+            overwrite(table_name, result)
+          end
+          logger.debug_time(message: 'Synchronization::Adapter#setup_table', user: user, table_name: table_name) do
+            setup_table(table_name, geo_type)
+          end
+          logger.debug_time(message: 'Synchronization::Adapter#run_index_statements', user: user, table_name: table_name) do
+            run_index_statements(index_statements)
+          end
         end
         self
       rescue => exception
