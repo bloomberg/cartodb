@@ -43,10 +43,12 @@ module CartoDB
     end
 
     def self.debug_time(exception: nil, message: nil, user: nil, **additional_data)
-      raise 'no code block given' unless block_given?
+      # This method will execute the code block given, and add metrics about its execution time
+      # to the logger. It should be used as a benchmark for research purposes.
+      raise 'debug_time expects a code block to be given.' unless block_given?
 
       start_time = Time.now
-      yield
+      result = yield
       finish_time = Time.now
 
       elapsed_time = finish_time - start_time
@@ -54,13 +56,15 @@ module CartoDB
       additional_data[:execution_statistics] = {
         start_time: start_time,
         finish_time: finish_time,
+        elapsed_time: elapsed_time,
         start_time_timestamp: start_time.to_i,
         finish_time_timestamp: finish_time.to_i,
-        elapsed_time: elapsed_time,
         elapsed_time_seconds: elapsed_time.to_i
       }
 
       self.debug(exception: exception, message: message, user: user, **additional_data)
+
+      result
     end
 
     # Private
