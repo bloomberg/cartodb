@@ -101,8 +101,8 @@ module CartoDB
         # `result.table_name`.  This may be optimized as a DROP
         # and RENAME if the table can be dropped, otherwise a
         # TRUNCATE/INSERT is performed.
-        log_params = "table_name: #{table_name}"
-        message = "#{self.class.name}#overwrite#replace_table_contents {#{log_params}}"
+        log_params = "user_id: #{user.id}, table_name: #{table_name}"
+        message = "#{self.class.name}#overwrite#replace_table_contents (#{log_params})"
         CartoDB::Logger.debug_time(message: message, user: user, table_name: table_name) do
           database.execute(%Q{
             BEGIN TRANSACTION;
@@ -115,11 +115,11 @@ module CartoDB
             COMMIT;
           })
         end
-        message = "#{self.class.name}#overwrite#fix_oid {#{log_params}}"
+        message = "#{self.class.name}#overwrite#fix_oid (#{log_params})"
         CartoDB::Logger.debug_time(message: message, user: user, table_name: table_name) do
           fix_oid(table_name)
         end
-        message = "#{self.class.name}#overwrite#update_cdb_tablemetadata {#{log_params}}"
+        message = "#{self.class.name}#overwrite#update_cdb_tablemetadata (#{log_params})"
         CartoDB::Logger.debug_time(message: message, user: user, table_name: table_name) do
           update_cdb_tablemetadata(table_name)
         end
