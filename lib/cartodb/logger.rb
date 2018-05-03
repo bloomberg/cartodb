@@ -42,6 +42,31 @@ module CartoDB
       log('debug', exception: exception, message: message, user: user, **additional_data)
     end
 
+    def self.debug_time(exception: nil, message: nil, user: nil, **additional_data)
+      # This method will run the provided block and add metrics about its execution time to the
+      # output log. It should be used as a benchmark tool for research/debugging purposes.
+      raise 'debug_time expects a code block to be given.' unless block_given?
+
+      start_time = Time.now
+      result = yield
+      finish_time = Time.now
+
+      elapsed_time = finish_time - start_time
+
+      additional_data[:execution_statistics] = {
+        start_time: start_time,
+        finish_time: finish_time,
+        elapsed_time: elapsed_time,
+        start_time_timestamp: start_time.to_i,
+        finish_time_timestamp: finish_time.to_i,
+        elapsed_time_seconds: elapsed_time.to_i
+      }
+
+      self.debug(exception: exception, message: message, user: user, **additional_data)
+
+      result
+    end
+
     # Private
 
     # Creates a Rollbar scope that replaces the auto-detected person with the user passed as parameter
