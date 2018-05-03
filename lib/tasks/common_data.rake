@@ -70,14 +70,9 @@ namespace :cartodb do
       layer_names = File.read(args[:layer_name_file]).split("\n")
       common_data_user = Cartodb.config[:common_data]['username']
 
-      def gen_bind_id(binds, value)
-        binds << [nil, value]
-        "$#{binds.length}"
-      end
-
-      def gen_bind_id_list_clause(binds, values)
-        bind_ids = values.map { |v| gen_bind_id(binds, v) }
-        bind_ids.join(',')
+      def add_bind(binds, value)
+        binds << value
+        "?"
       end
 
       binds = []
@@ -88,10 +83,10 @@ namespace :cartodb do
           from visualizations v
           join users u
             on u.id = v.user_id
-          where u.username = #{gen_bind_id(binds, common_data_user)}
+          where u.username = #{add_bind(binds, common_data_user)}
             and v.type = 'table'
             and v.privacy = 'public'
-            and v.name in (#{gen_bind_id_list_clause(binds, layer_names)})
+            and v.name in #{add_bind(binds, layer_names)}
         )
         ,canonical_layers as (
           select
@@ -112,32 +107,31 @@ namespace :cartodb do
             on l.id = lm.layer_id
           where v.name <> 'shared_empty_dataset'
             and l.kind = 'carto'
-            and u.username = #{gen_bind_id(binds, common_data_user)}
+            and u.username = #{add_bind(binds, common_data_user)}
         )
         select *
         from canonical_layers;
       EOQ
 
-      layer_styles = ActiveRecord::Base.connection.exec_query(
+      layer_styles = Sequel::Model.db.fetch(
         style_query,
-        "layer_style_query",
-        binds
-      ).to_hash
+        *binds
+      ).all
 
       def json(str)
         str ? JSON.parse(str) : {}
       end
 
       layer_digest = layer_styles.map do |layer|
-        options = json(layer["options"])
+        options = json(layer[:options])
         query = options["query"]
         {
-          layer_name: layer["layer_name"],
-          infowindow: json(layer["infowindow"]),
-          tooltip:    json(layer["tooltip"]),
+          layer_name: layer[:layer_name],
+          infowindow: json(layer[:infowindow]),
+          tooltip:    json(layer[:tooltip]),
           legend:     options["legend"] || {},
           css:        options["tile_style"] || "",
-          query:      query == "" ?  "select * from #{layer["layer_name"]}" : query
+          query:      query == "" ?  "select * from #{layer[:layer_name]}" : query
         }
       end
 
