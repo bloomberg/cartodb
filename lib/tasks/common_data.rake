@@ -122,13 +122,29 @@ namespace :cartodb do
         str ? JSON.parse(str) : {}
       end
 
+      def map_infowindow(infowindow)
+        infowindow = json(infowindow)
+        infowindow["fields"] && infowindow["fields"].each do |field|
+          field.delete("position")
+        end
+        infowindow
+      end
+
+      def map_tooltip(tooltip)
+        tooltip = json(tooltip)
+        tooltip["fields"] && tooltip["fields"].each do |field|
+          field.delete("position")
+        end
+        tooltip
+      end
+
       layer_digest = layer_styles.map do |layer|
         options = json(layer[:options])
         query = options["query"]
         {
           layer_name: layer[:layer_name],
-          infowindow: json(layer[:infowindow]),
-          tooltip:    json(layer[:tooltip]),
+          infowindow: map_infowindow(layer[:infowindow]),
+          tooltip:    map_tooltip(layer[:tooltip]),
           legend:     options["legend"] || {},
           css:        options["tile_style"] || "",
           query:      query == "" ?  "select * from #{layer[:layer_name]}" : query
