@@ -13,7 +13,7 @@ module CartoDB
         # In seconds
         KEY_TTL = 2*60*60
 
-        MAX_SYNCS_PER_USER = 15
+        MAX_SYNCS_PER_USER = 30
 
         # Sync load necessary to generate warning logs
         SYNC_LOAD_WARNING_THRESHOLD = 0.80
