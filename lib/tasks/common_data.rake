@@ -68,7 +68,8 @@ namespace :cartodb do
       raise "layer output file required" if !args[:layer_output_file]
 
       layer_names = File.read(args[:layer_name_file]).split("\n")
-      common_data_user = Cartodb.config[:common_data]['username']
+      common_data_username = Cartodb.config[:common_data]['username']
+      common_data_user = Carto::User.where(username: common_data_username).first
 
       def add_bind(binds, value)
         binds << value
@@ -83,7 +84,7 @@ namespace :cartodb do
           from visualizations v
           join users u
             on u.id = v.user_id
-          where u.username = #{add_bind(binds, common_data_user)}
+          where u.username = #{add_bind(binds, common_data_username)}
             and v.type = 'table'
             and v.privacy = 'public'
             and v.name in #{add_bind(binds, layer_names)}
@@ -107,7 +108,7 @@ namespace :cartodb do
             on l.id = lm.layer_id
           where v.name <> 'shared_empty_dataset'
             and l.kind = 'carto'
-            and u.username = #{add_bind(binds, common_data_user)}
+            and u.username = #{add_bind(binds, common_data_username)}
         )
         select *
         from canonical_layers;
@@ -138,16 +139,38 @@ namespace :cartodb do
         tooltip
       end
 
+      def lookup_table(layer_name, user)
+        user_table = Carto::Helpers::TableLocator.new.get_by_id_or_name(layer_name, user)
+        table = user_table.service
+        schema = table.schema(reload: true)
+        sys_columns = [:the_geom, :the_geom_webmercator, :cartodb_id]
+        column_names = schema.map { |col_info| col_info[0] } - sys_columns
+
+        {
+          uniqueKeys: ['cartodb_id'],
+          columns: column_names.map { |col_name|
+            {
+              columnName: col_name,
+              columnLabel: col_name,
+              sorttype: "",
+              filtertype: ""
+            }
+          }
+        }
+      end
+
       layer_digest = layer_styles.map do |layer|
         options = json(layer[:options])
         query = options["query"]
+
         {
           layer_name: layer[:layer_name],
           infowindow: map_infowindow(layer[:infowindow]),
           tooltip:    map_tooltip(layer[:tooltip]),
           legend:     options["legend"] || {},
           css:        options["tile_style"] || "",
-          query:      query == "" ?  "select * from #{layer[:layer_name]}" : query
+          query:      query == "" ?  "SELECT * FROM #{layer[:layer_name]}" : query,
+          table:      lookup_table(layer[:layer_name], common_data_user)
         }
       end
 
