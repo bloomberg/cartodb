@@ -101,6 +101,8 @@ module CartoDB
         # `result.table_name`.  This may be optimized as a DROP
         # and RENAME if the table can be dropped, otherwise a
         # TRUNCATE/INSERT is performed.
+
+        disable_test_quota_per_row = user.has_feature_flag? 'disable_test_quota_per_row_for_syncs'
         log_params = "table_name: #{table_name}"
         message = "#{self.class.name}#overwrite#replace_table_contents {#{log_params}}"
         CartoDB::Logger.debug_time(message: message, user: user, table_name: table_name) do
@@ -110,7 +112,8 @@ module CartoDB
                 '#{user.database_schema}',
                 '#{table_name}',
                 '#{result.table_name}',
-                '#{temporary_name}'
+                '#{temporary_name}',
+                #{disable_test_quota_per_row ? 'true' : 'false'}
               );
             COMMIT;
           })
