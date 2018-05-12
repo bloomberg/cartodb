@@ -20,6 +20,7 @@ require_relative '../../lib/cartodb/stats/user_tables'
 require_relative '../../lib/cartodb/stats/importer'
 require_dependency 'carto/table_utils'
 require_dependency 'carto/valid_table_name_proposer'
+require_dependency 'carto/configuration'
 
 class Table
   extend Forwardable
@@ -450,7 +451,23 @@ class Table
     manage_tags
     update_name_changes
 
-    CartoDB::TablePrivacyManager.new(@user_table).apply_privacy_change(self, previous_privacy, privacy_changed?)
+    # Determine if it is a sync
+    sync = nil
+    di = Carto::DataImport.where(table_id: @user_table.id).first
+    if di
+      sync = Carto::Synchronization.where(id: di.synchronization_id).first
+    end
+
+    # Determine if the sync is mapsdata
+    CartoDB::Logger.info(message: "Looking up if user_table id #{@user_table.id} is a sync with id #{sync.inspect} previous_privacy: #{previous_privacy}")
+
+    unless sync && previous_privacy.nil?
+      message = "#{self.class.name}#after_save#apply_privacy_change (#{privacy_changed?})"
+      CartoDB::Logger.debug_time(message: message) do
+        CartoDB::TablePrivacyManager.new(@user_table).apply_privacy_change(self, previous_privacy, privacy_changed?)
+      end
+    end
+
     update_cdb_tablemetadata if privacy_changed? || !@name_changed_from.nil?
   end
 
