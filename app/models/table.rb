@@ -460,8 +460,7 @@ class Table
 
     # Determine if the sync is mapsdata
     CartoDB::Logger.info(message: "Looking up if user_table id #{@user_table.id} is a sync with id #{sync.inspect} previous_privacy: #{previous_privacy}")
-
-    unless sync && previous_privacy.nil?
+    if sync || !previous_privacy.nil?
       message = "#{self.class.name}#after_save#apply_privacy_change (#{privacy_changed?})"
       CartoDB::Logger.debug_time(message: message) do
         CartoDB::TablePrivacyManager.new(@user_table).apply_privacy_change(self, previous_privacy, privacy_changed?)
