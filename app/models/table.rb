@@ -451,16 +451,10 @@ class Table
     manage_tags
     update_name_changes
 
-    # Determine if it is a sync
-    sync = nil
-    di = Carto::DataImport.where(table_id: @user_table.id).first
-    if di
-      sync = Carto::Synchronization.where(id: di.synchronization_id).first
-    end
-
     # Determine if the sync is mapsdata
-    CartoDB::Logger.info(message: "Looking up if user_table id #{@user_table.id} is a sync with id #{sync.inspect} previous_privacy: #{previous_privacy}")
-    if !sync || (sync && !previous_privacy.nil?)
+    CartoDB::Logger.info(message: "previous_privacy: #{previous_privacy}, privacy_changed? #{privacy_changed?}")
+    # If the privacy is not private on a new table it needs to propagate regardless of whether privacy_changed.  Otherwise the privacy will be out of sync
+    if privacy_changed? || (self.new_table && @user_table.privacy != UserTable::PRIVACY_PRIVATE)
       message = "#{self.class.name}#after_save#apply_privacy_change (#{privacy_changed?})"
       CartoDB::Logger.debug_time(message: message) do
         CartoDB::TablePrivacyManager.new(@user_table).apply_privacy_change(self, previous_privacy, privacy_changed?)
