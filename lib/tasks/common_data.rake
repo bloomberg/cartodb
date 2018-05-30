@@ -172,6 +172,14 @@ namespace :cartodb do
         }
       end
 
+      def map_legend(legend)
+        legend = legend || {}
+        if legend["type"] == "none"
+          legend.delete("items")
+        end
+        legend
+      end
+
       layer_digest = layer_styles.map do |layer|
         options = json(layer[:options])
         query = options["query"]
@@ -181,7 +189,7 @@ namespace :cartodb do
           attributions: map_attributions(layer[:attributions]),
           infowindow:   map_infowindow(layer[:infowindow]),
           tooltip:      map_tooltip(layer[:tooltip]),
-          legend:       options["legend"] || {},
+          legend:       map_legend(options["legend"]),
           css:          options["tile_style"] || "",
           query:        query == "" ?  "SELECT * FROM #{layer[:layer_name]}" : query,
           table:        lookup_table(layer[:layer_name], common_data_user)
