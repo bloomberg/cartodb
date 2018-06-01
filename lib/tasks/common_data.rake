@@ -80,7 +80,8 @@ namespace :cartodb do
       style_query = <<-EOQ
         with mapsdata_tables as (
           select
-            v.name
+            v.name,
+            v.attributions
           from visualizations v
           join users u
             on u.id = v.user_id
@@ -92,6 +93,7 @@ namespace :cartodb do
         ,canonical_layers as (
           select
             v.name as layer_name,
+            v.attributions,
             l.infowindow::jsonb as infowindow,
             l.tooltip::jsonb as tooltip,
             l.options::jsonb as options
@@ -143,15 +145,20 @@ namespace :cartodb do
         user_table = Carto::Helpers::TableLocator.new.get_by_id_or_name(layer_name, user)
         table = user_table.service
         schema = table.schema(reload: true)
-        sys_columns = [:the_geom, :the_geom_webmercator, :cartodb_id]
-        column_names = schema.map { |col_info| col_info[0] } - sys_columns
+        sys_columns = Set[:the_geom, :the_geom_webmercator, :cartodb_id]
+        columns = schema.select {
+          |c| !sys_columns.include? c[0]
+        }.map {
+          |col_info| {name: col_info[0], type: col_info[1]}
+        }
 
         {
           uniqueKeys: ['cartodb_id'],
-          columns: column_names.map { |col_name|
+          columns: columns.map { |col|
             {
-              columnName: col_name,
-              columnLabel: col_name,
+              columnName: col[:name],
+              columnLabel: col[:name],
+              type: col[:type],
               sorttype: "",
               filtertype: ""
             }
@@ -159,18 +166,33 @@ namespace :cartodb do
         }
       end
 
+      def map_attributions(attributions)
+        (attributions || '').split(',').map { |a|
+          { text: a.strip }
+        }
+      end
+
+      def map_legend(legend)
+        legend = legend || {}
+        if legend["type"] == "none"
+          legend.delete("items")
+        end
+        legend
+      end
+
       layer_digest = layer_styles.map do |layer|
         options = json(layer[:options])
         query = options["query"]
 
         {
-          layer_name: layer[:layer_name],
-          infowindow: map_infowindow(layer[:infowindow]),
-          tooltip:    map_tooltip(layer[:tooltip]),
-          legend:     options["legend"] || {},
-          css:        options["tile_style"] || "",
-          query:      query == "" ?  "SELECT * FROM #{layer[:layer_name]}" : query,
-          table:      lookup_table(layer[:layer_name], common_data_user)
+          layer_name:   layer[:layer_name],
+          attributions: map_attributions(layer[:attributions]),
+          infowindow:   map_infowindow(layer[:infowindow]),
+          tooltip:      map_tooltip(layer[:tooltip]),
+          legend:       map_legend(options["legend"]),
+          css:          options["tile_style"] || "",
+          query:        query == "" ?  "SELECT * FROM #{layer[:layer_name]}" : query,
+          table:        lookup_table(layer[:layer_name], common_data_user)
         }
       end
 
