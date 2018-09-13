@@ -185,14 +185,17 @@ namespace :cartodb do
         query = options["query"]
 
         {
-          layer_name:   layer[:layer_name],
-          attributions: map_attributions(layer[:attributions]),
-          infowindow:   map_infowindow(layer[:infowindow]),
-          tooltip:      map_tooltip(layer[:tooltip]),
-          legend:       map_legend(options["legend"]),
-          css:          options["tile_style"] || "",
-          query:        query == "" ?  "SELECT * FROM #{layer[:layer_name]}" : query,
-          table:        lookup_table(layer[:layer_name], common_data_user)
+          layer_name: layer[:layer_name],
+          layer_details: {
+            layer_name:   layer[:layer_name],
+            attributions: map_attributions(layer[:attributions]),
+            infowindow:   map_infowindow(layer[:infowindow]),
+            tooltip:      map_tooltip(layer[:tooltip]),
+            legend:       map_legend(options["legend"]),
+            css:          options["tile_style"] || "",
+            query:        query == "" ?  "SELECT * FROM #{layer[:layer_name]}" : query,
+            table:        lookup_table(layer[:layer_name], common_data_user)
+          }
         }
       end
 
