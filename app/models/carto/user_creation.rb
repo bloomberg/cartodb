@@ -184,6 +184,8 @@ class Carto::UserCreation < ActiveRecord::Base
   end
 
   def initialize_user
+    puts "user-auto-creation : inside initialize_use"
+
     @cartodb_user = ::User.new
     @cartodb_user.username = username
     @cartodb_user.email = email
@@ -207,6 +209,7 @@ class Carto::UserCreation < ActiveRecord::Base
 
     # Bloomberg specific information from user_infos
     blp_user = ::UserInfo.where(username: username).first
+    puts  "user-auto-creation : initialize_user with #{blp_user.firstname} #{blp_user.lastname}"
     @cartodb_user.name = "#{blp_user.firstname} #{blp_user.lastname}"
 
     @cartodb_user
@@ -256,7 +259,7 @@ class Carto::UserCreation < ActiveRecord::Base
   end
 
   def load_common_data
-    @cartodb_user.load_common_data(@common_data_url) unless @common_data_url.nil?
+    @cartodb_user.load_common_data(@common_data_url, true) unless @common_data_url.nil?
   rescue => e
     handle_failure(e, mark_as_failure = false)
   end

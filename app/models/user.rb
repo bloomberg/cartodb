@@ -233,8 +233,8 @@ class User < Sequel::Model
     last_common_data_update_date.nil? || last_common_data_update_date < Time.now - COMMON_DATA_ACTIVE_DAYS.day
   end
 
-  def load_common_data(visualizations_api_url)
-    CartoDB::Visualization::CommonDataService.new.load_common_data_for_user(self, visualizations_api_url)
+  def load_common_data(visualizations_api_url, update_only = false)
+    CartoDB::Visualization::CommonDataService.new.load_common_data_for_user(self, visualizations_api_url, update_only)
   rescue => e
     CartoDB.notify_error(
       "Error loading common data for user",
@@ -696,7 +696,7 @@ class User < Sequel::Model
   end
 
   def avatar
-    self.avatar_url.nil? ? "//#{self.default_avatar}" : self.avatar_url
+    self.avatar_url.nil? ? "//#{self.default_avatar}" : "http://" + self.avatar_url
   end
 
   def default_avatar
@@ -1365,7 +1365,7 @@ class User < Sequel::Model
   end
 
   def importing_jobs
-    imports = DataImport.where(state: ['complete', 'failure']).invert
+    imports = DataImport.where(state: ['complete', 'failure', 'cancelled']).invert
       .where(user_id: self.id)
       .where { created_at > Time.now - 24.hours }.all
     running_import_ids = Resque::Worker.all.map { |worker| worker.job["payload"]["args"].first["job_id"] rescue nil }.compact

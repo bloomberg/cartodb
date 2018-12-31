@@ -62,9 +62,13 @@ class CommonData
         "source" => row["source"],
         "license" => row["license"],
         "tags" => row["tags"],
+        "exportable" => row["exportable"],
+        "export_geom" => row["export_geom"],
+        "category" => row["category"],
         "geometry_types" => %Q[{#{row["table"]["geometry_types"].join(',')}}],
         "rows" => row["table"]["row_count"],
         "size" => row["table"]["size"],
+        "name_alias" => row["table"]["name_alias"],
         "url" => export_url(row["name"]),
         "created_at" => row["created_at"],
         "updated_at" => row["updated_at"]
@@ -82,13 +86,13 @@ class CommonData
         timeout: DEFAULT_TIMEOUT,
         params: {per_page: NO_PAGE_LIMIT}
       )
-      is_https_request = (request.url =~ /^https:\/\//)
-      cached_data = redis_cache.get(is_https_request)
+      cache_key = request.url
+      cached_data = redis_cache.get(cache_key)
       return cached_data[:body] unless cached_data.nil?
       response = request.run
       if response.code == 200
         body = response.response_body
-        redis_cache.set(is_https_request, response.headers, response.response_body)
+        redis_cache.set(cache_key, response.headers, response.response_body)
         body
       end
     rescue Exception => e

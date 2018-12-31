@@ -13,7 +13,10 @@ module CartoDB
         # In seconds
         KEY_TTL = 2*60*60
 
-        MAX_SYNCS_PER_USER = 3
+        MAX_SYNCS_PER_USER = 15
+
+        # Sync load necessary to generate warning logs
+        SYNC_LOAD_WARNING_THRESHOLD = 0.80
 
         # This limit needs additional fields present at options Hash:
         # :redis Hash {
@@ -47,7 +50,22 @@ module CartoDB
         # @param context mixed
         # @return bool
         def is_over_limit(context)
-          get(context) >= max_value
+          current_value = get(context)
+
+          load = current_value * 1.0 / max_value
+          msg = "UserConcurrentSyncsAmount#is_over_limit: " \
+                "current_value=#{current_value}, max_value=#{max_value}, " \
+                "fraction_of_capacity: #{load}"
+
+          if current_value >= max_value
+            CartoDB::Logger.error(message: msg)
+          elsif load >= SYNC_LOAD_WARNING_THRESHOLD
+            CartoDB::Logger.warning(message: msg)
+          else
+            CartoDB::Logger.info(message: msg)
+          end
+
+          current_value >= max_value
         end
 
         # Gets current value of the limit

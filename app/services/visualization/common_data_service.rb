@@ -45,7 +45,7 @@ module CartoDB
         end
       end
 
-      def load_common_data_for_user(user, visualizations_api_url)
+      def load_common_data_for_user(user, visualizations_api_url, update_only = false)
         update_user_date_flag(user)
 
         added = 0
@@ -59,6 +59,11 @@ module CartoDB
         user_remotes.each { |r|
           remotes_by_name[r.name] = r
         }
+
+        if update_only && remotes_by_name.empty?
+          return added, updated, not_modified, deleted, failed
+        end
+
         get_datasets(visualizations_api_url).each do |dataset|
           begin
             visualization = remotes_by_name.delete(dataset['name'])
@@ -66,25 +71,29 @@ module CartoDB
               if visualization.update_remote_data(
                   Member::PRIVACY_PUBLIC,
                   dataset['description'], dataset['tags'], dataset['license'],
-                  dataset['source'], dataset['attributions'], dataset['display_name'])
+                  dataset['source'], dataset['attributions'], dataset['name_alias'] || dataset['display_name'],
+                  dataset['exportable'], dataset['export_geom'], dataset['category'])
                 visualization.store
                 updated += 1
               else
                 not_modified += 1
               end
-            else
+            elsif !update_only
               visualization = Member.remote_member(
                 dataset['name'], user.id, Member::PRIVACY_PUBLIC,
                 dataset['description'], dataset['tags'], dataset['license'],
-                dataset['source'], dataset['attributions'], dataset['display_name']).store
+                dataset['source'], dataset['attributions'], dataset['name_alias'] || dataset['display_name'],
+                dataset['exportable'], dataset['export_geom'], dataset['category']).store
               added += 1
             end
 
-            external_source = ExternalSource.where(visualization_id: visualization.id).first
-            if external_source
-              external_source.save if !(external_source.update_data(dataset['url'], dataset['geometry_types'], dataset['rows'], dataset['size'], 'common-data').changed_columns.empty?)
-            else
-              ExternalSource.new(visualization.id, dataset['url'], dataset['geometry_types'], dataset['rows'], dataset['size'], 'common-data').save
+            if visualization
+              external_source = ExternalSource.where(visualization_id: visualization.id).first
+              if external_source
+                external_source.save if !(external_source.update_data(dataset['url'], dataset['geometry_types'], dataset['rows'], dataset['size'], 'common-data').changed_columns.empty?)
+              else
+                ExternalSource.new(visualization.id, dataset['url'], dataset['geometry_types'], dataset['rows'], dataset['size'], 'common-data').save
+              end
             end
           rescue => e
             CartoDB.notify_exception(e, {
