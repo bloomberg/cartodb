@@ -19,7 +19,7 @@ describe CartoDB::TableRelator do
     end
 
     before do
-      CartoDB::NamedMapsWrapper::NamedMaps.any_instance.stubs(:get => nil, :create => true, :update => true)
+      bypass_named_maps
     end
 
     it 'checks row_count_and_size relator method' do
@@ -39,11 +39,11 @@ describe CartoDB::TableRelator do
     end
   end
 
-  describe '.serialize_dependent_visualizations' do
+  describe '.serialize_fully_dependent_visualizations' do
     before :each do
-      CartoDB::NamedMapsWrapper::NamedMaps.any_instance.stubs(:get => nil, :create => true, :update => true)
+      bypass_named_maps
 
-      table = mock('Table')
+      table = Table.new
       table.stubs(:id).returns(2)
       @affected_vis_records = [
         { id: 1, name: '1st', updated_at: Time.now },
@@ -56,11 +56,12 @@ describe CartoDB::TableRelator do
       vis_mock.stubs(:with_sql).returns(records)
       db = { visualizations: vis_mock }
       @table_relator = CartoDB::TableRelator.new(db, table)
+      table.instance_variable_get(:@user_table).stubs(:relator).returns(@table_relator)
     end
 
     describe 'given there are no dependent visualizations' do
       before :each do
-        @dependents = @table_relator.serialize_dependent_visualizations
+        @dependents = @table_relator.serialize_fully_dependent_visualizations
       end
 
       it 'should return an empty list' do
@@ -70,10 +71,12 @@ describe CartoDB::TableRelator do
 
     describe 'given there are at least one dependent visualization' do
       before :each do
-        CartoDB::NamedMapsWrapper::NamedMaps.any_instance.stubs(:get => nil, :create => true, :update => true)
+        bypass_named_maps
 
-        CartoDB::Visualization::Member.any_instance.stubs(:dependent?).returns(true, false, true)
-        @dependents = @table_relator.serialize_dependent_visualizations
+        CartoDB::Visualization::Member.any_instance
+                                      .stubs(:fully_dependent_on?)
+                                      .returns(true, false, true)
+        @dependents = @table_relator.serialize_fully_dependent_visualizations
       end
 
       it 'should return a list with dependent visualizations' do
@@ -92,11 +95,11 @@ describe CartoDB::TableRelator do
     end
   end
 
-  describe '.serialize_non_dependent_visualizations' do
+  describe '.serialize_partially_dependent_visualizations' do
     before :each do
-      CartoDB::NamedMapsWrapper::NamedMaps.any_instance.stubs(:get => nil, :create => true, :update => true)
+      bypass_named_maps
 
-      table = mock('Table')
+      table = Table.new
       table.stubs(:id).returns(2)
       @affected_vis_records = [
         { id: 1, name: '1st', updated_at: Time.now },
@@ -110,13 +113,14 @@ describe CartoDB::TableRelator do
       vis_mock.stubs(:with_sql).returns(records)
       db = { visualizations: vis_mock }
       @table_relator = CartoDB::TableRelator.new(db, table)
+      table.instance_variable_get(:@user_table).stubs(:relator).returns(@table_relator)
     end
 
     describe 'given there are no dependent visualizations' do
       before :each do
-        CartoDB::NamedMapsWrapper::NamedMaps.any_instance.stubs(:get => nil, :create => true, :update => true)
+        bypass_named_maps
 
-        @non_dependents = @table_relator.serialize_non_dependent_visualizations
+        @non_dependents = @table_relator.serialize_partially_dependent_visualizations
       end
 
       it 'should return an empty list' do
@@ -126,10 +130,12 @@ describe CartoDB::TableRelator do
 
     describe 'given there are at least one non_dependent visualization' do
       before :each do
-        CartoDB::NamedMapsWrapper::NamedMaps.any_instance.stubs(:get => nil, :create => true, :update => true)
+        bypass_named_maps
 
-        CartoDB::Visualization::Member.any_instance.stubs(:non_dependent?).returns(true, false, false)
-        @non_dependents = @table_relator.serialize_non_dependent_visualizations
+        CartoDB::Visualization::Member.any_instance
+                                      .stubs(:partially_dependent_on?)
+                                      .returns(true, false, false)
+        @non_dependents = @table_relator.serialize_partially_dependent_visualizations
       end
 
       it 'should return a list with dependent visualizations' do

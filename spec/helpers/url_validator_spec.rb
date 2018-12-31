@@ -1,3 +1,4 @@
+require 'spec_helper_min'
 require_relative '../simplecov_helper'
 require_relative '../rspec_configuration'
 require_relative '../../lib/carto/url_validator'
@@ -16,13 +17,8 @@ describe 'UUIDHelper' do
       .to raise_error(Carto::UrlValidator::InvalidUrlError)
   end
 
-  it 'raises an error if it is not of type http or https' do
-    expect { @url_validator.validate_url!("ftp://example.com") }
-      .to raise_error(Carto::UrlValidator::InvalidUrlError)
-  end
-
   it 'raises an error if it points to a non-standard port' do
-    expect { @url_validator.validate_url!("http://example.com:8080") }
+    expect { @url_validator.validate_url!("http://example.com:38080") }
       .to raise_error(Carto::UrlValidator::InvalidUrlError)
   end
 
@@ -45,5 +41,9 @@ describe 'UUIDHelper' do
     @url_validator.validate_url!("https://example.com/bar.kml")
     @url_validator.validate_url!("http://example.com/foo.csv:80")
     @url_validator.validate_url!("https://example.com/bar.kml:443")
+  end
+
+  it 'allows ftp' do
+    expect { @url_validator.validate_url!("ftp://example.com") }.to_not raise_error
   end
 end

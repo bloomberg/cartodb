@@ -25,6 +25,10 @@ Version: 3.1 Timestamp: Tue Aug 14 09:05:17 PDT 2012
     width:130px;
 }
 
+.select2-container.size {
+  width: 155px;
+  }
+
 .select2-container,
 .select2-drop,
 .select2-search,
@@ -43,7 +47,7 @@ Version: 3.1 Timestamp: Tue Aug 14 09:05:17 PDT 2012
 }
 // fonts combobox
 .select2-container .select2-choice {
-    background-color: $Amber1;
+    background-color: $nAmber5;
     -moz-background-clip: padding;
     -webkit-background-clip: padding-box;
     background-clip: padding-box;
@@ -71,6 +75,7 @@ Version: 3.1 Timestamp: Tue Aug 14 09:05:17 PDT 2012
     -o-text-overflow: ellipsis;
     -ms-text-overflow: ellipsis;
     text-overflow: ellipsis;
+    line-height: 17px;
 }
 
 .select2-container .select2-choice abbr {
@@ -100,8 +105,8 @@ Version: 3.1 Timestamp: Tue Aug 14 09:05:17 PDT 2012
     z-index: 9999;
     width:100%;
     margin-top:5px;
-    background: $DarkGrey7;
-    color: $Amber1;
+    background: $nGrey16;
+    color: $nAmber5;
     border: 1px solid $White;
 }
 
@@ -147,7 +152,7 @@ Version: 3.1 Timestamp: Tue Aug 14 09:05:17 PDT 2012
 
     &:after {
       bottom:7px;
-      border-top:4px solid $Grey2;
+      border-top:4px solid $nGrey4;
     }
 }
 
@@ -258,10 +263,9 @@ Version: 3.1 Timestamp: Tue Aug 14 09:05:17 PDT 2012
 .select2-results li {
   list-style: none;
   display: list-item;
-  line-height: 19px;
-  color:$Amber1;
-  border-top: 1px solid transparent;
-  border-bottom: 1px solid transparent;
+  height: 19px; 
+  line-height: 17px;
+  color:$nAmber5;
   padding: 0px 12px;
 }
 
@@ -281,9 +285,7 @@ Version: 3.1 Timestamp: Tue Aug 14 09:05:17 PDT 2012
 }
 
 .select2-results .select2-highlighted {
-  background: $SelectionBlue4;
-  border-bottom:1px solid $Black;
-  border-top: 1px solid $Black;
+  background: $nGrey13;
 }
 .select2-results li em {
   background: #feffde;
@@ -331,9 +333,8 @@ disabled look for already selected choices in the results dropdown
 /* disabled styles */
 
 .select2-container.select2-container-disabled .select2-choice {
-    background-color: #f4f4f4;
+    background-color: #A69785;
     background-image: none;
-    border: 1px solid #ddd;
     cursor: default;
 }
 
@@ -516,10 +517,6 @@ disabled look for already selected choices in the results dropdown
       padding:0!important;
       border:1px solid transparent!important;
       display: table-cell!important;
-
-      &:first-child {
-        @include border-left-radius(4px);
-      }
       &:last-child {
         border-bottom: 1px solid rgba(229, 229, 229, 0.2)!important;
       }
@@ -558,7 +555,6 @@ disabled look for already selected choices in the results dropdown
 .column-type .select2-result-label {
   position:relative;
   overflow:visible;
-  padding:3px 7px 1px;
 
   span.type {
     position:absolute;
@@ -579,7 +575,7 @@ disabled look for already selected choices in the results dropdown
     @include inline-block();
     width:85%;
     @include text-overflow();
-    line-height:22px;
+    height: 19px;
   }
 }
 

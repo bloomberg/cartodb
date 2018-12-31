@@ -108,7 +108,7 @@ module CartoDB
       end
 
       def normalize
-        stdout, stderr, status  = Open3.capture3(normalizer_command)
+        stdout, stderr, status  = Open3.capture3(*normalizer_command)
         output                  = stdout.strip.split(/, */, 4)
         self.normalizer_output  = {
           projection:   output[0],
@@ -130,7 +130,7 @@ module CartoDB
                     :job
 
       def python_bin_path
-        `which python`.strip
+        CartoDB.python_bin_path
       end
 
       def normalizer_path
@@ -138,8 +138,7 @@ module CartoDB
       end
 
       def normalizer_command
-        %Q(#{python_bin_path} -Wignore #{normalizer_path} ) +
-        %Q("#{filepath}" #{job.table_name})
+        [python_bin_path, '-Wignore', normalizer_path, filepath, job.table_name]
       end
 
       def codepage_for(encoding)
@@ -154,4 +153,3 @@ module CartoDB
     end
   end
 end
-

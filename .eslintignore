@@ -72,7 +72,6 @@
 **/lib/assets/javascripts/cartodb/common/dialogs/create/create_listing.js
 **/lib/assets/javascripts/cartodb/common/dialogs/create/create_loading.js
 **/lib/assets/javascripts/cartodb/common/dialogs/create/create_map_model.js
-**/lib/assets/javascripts/cartodb/common/dialogs/create/create_onboarding.js
 **/lib/assets/javascripts/cartodb/common/dialogs/create/create_view.js
 **/lib/assets/javascripts/cartodb/common/dialogs/create/footer/guessing_toggler_view.js
 **/lib/assets/javascripts/cartodb/common/dialogs/create/footer/privacy_toggler_view.js
@@ -278,7 +277,7 @@
 **/lib/assets/javascripts/cartodb/dashboard/datasets/fake_datasets_item.js
 **/lib/assets/javascripts/cartodb/dashboard/datasets/loading_library_view.js
 **/lib/assets/javascripts/cartodb/dashboard/datasets/remote_datasets_item.js
-**/lib/assets/javascripts/cartodb/dashboard/editable_fields/editable_description.js
+**/lib/assets/javascripts/cartodb/dashboard/editable_fields/editable_text.js
 **/lib/assets/javascripts/cartodb/dashboard/editable_fields/editable_tags.js
 **/lib/assets/javascripts/cartodb/dashboard/entry.js
 **/lib/assets/javascripts/cartodb/dashboard/filters_view.js
@@ -311,7 +310,6 @@
 **/lib/assets/javascripts/cartodb/explore/feed_collection.js
 **/lib/assets/javascripts/cartodb/explore/model.js
 **/lib/assets/javascripts/cartodb/explore/view.js
-**/lib/assets/javascripts/cartodb/fonts/lato_loader.js
 **/lib/assets/javascripts/cartodb/keys/entry.js
 **/lib/assets/javascripts/cartodb/keys/header_view_model.js
 **/lib/assets/javascripts/cartodb/keys/regenerate_keys_dialog_view.js
@@ -682,7 +680,7 @@
 **/lib/assets/test/spec/cartodb/dashboard/dialogs/create/footer/privacy_toggler_view.spec.js
 **/lib/assets/test/spec/cartodb/dashboard/dialogs/create/listing/navigation_view.spec.js
 **/lib/assets/test/spec/cartodb/dashboard/dialogs/video_tutorial.spec.js
-**/lib/assets/test/spec/cartodb/dashboard/editable_fields/editable_description.spec.js
+**/lib/assets/test/spec/cartodb/dashboard/editable_fields/editable_text.spec.js
 **/lib/assets/test/spec/cartodb/dashboard/editable_fields/editable_tags.spec.js
 **/lib/assets/test/spec/cartodb/dashboard/filters_view.spec.js
 **/lib/assets/test/spec/cartodb/dashboard/header_view_model.spec.js
@@ -797,3 +795,4 @@
 **/lib/assets/test/spec/cartodb/table_public/tableview_public.spec.js
 **/lib/assets/test/spec/SpecHelper.js
 **/lib/assets/test/spec/SpecHelper3.js
+**/lib/assets/node_modules/jquery-ui.js

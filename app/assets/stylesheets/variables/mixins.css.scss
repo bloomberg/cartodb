@@ -1,5 +1,7 @@
 @import "compass/css3/images";
-
+@import "compass/css3";
+@import "colors";
+@import '../bloomberg/mixins';
 // Mixins
 // - Necessary SCSS functions
 // - Browser support:
@@ -207,58 +209,5 @@
   -webkit-line-clamp: $lines;
   overflow: hidden;
   text-overflow: ellipsis;
-  &:after {
-    content: ' ';
-    display: block;
-    position: absolute;
-    bottom: 0;
-    right: 0;
-    height: $sLineHeight-normal;
-    width: 2 * $sLineHeight-normal;
-    @include background-horizontal(rgba(255,255,255,0), $DarkGrey6);
-  }
 }
 
-//Buttons 
-@mixin actionButton {
-    background-color: $Teal5;
-    border: 1px solid $Black;
-    box-shadow: $button_shadow;
-    border-radius: 2px;
-    color: $Grey1;
-    &:hover {
-	background-color: $Teal3;
-	box-shadow: $button_shadow_hover;
-	}
-    &:active {
-	background-color: $Teal7;
-	
-	}
-}
-
-//bloomberg theme
-//button 
- @mixin bb_button_style {
-    background-color: $btn_background_normal;
-    border-radius: 2px;
-    color: $Grey1; 
-    padding: 0px 6px;
-
-      &:hover {
-        background-color: $btn_background_hover;
-      }
-      &:active {
-        background-color: $btn_background_press;
-      }
-      &.disabled, &:disabled:hover {
-        background-color: $btn_background_disabled;
-      }
- }
-//Entry style
- @mixin bb_entry_style {
-    background-color: $Amber1;
-    border: 1px solid $Black;
-    border-radius: 2px;
-    line-height: 19px;
-    padding: 0px 6px;
- }

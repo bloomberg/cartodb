@@ -7,21 +7,15 @@ include CartoDB::TwitterSearch
 describe JSONToCSVConverter do
   describe '#conversion' do
     it 'checks conversion of fields' do
-      pending 'Need to extract new sample datasets'
       conversor = JSONToCSVConverter.new
-
       results = conversor.process(json_data_from_file('sample_tweets.json'))
-      results.should == data_from_file('sample_tweets_expected.csv')
+      results.should == data_from_file('sample_tweets.csv')
     end
 
     it 'checks additional fields are added' do
-      pending 'Need to extract new sample datasets'
       conversor = JSONToCSVConverter.new
 
-      additional_fields = {
-          category_name: 'sample category',
-          category_terms: 'term1 term2'
-      }
+      additional_fields = terms_fixture
 
       # without data
       results = conversor.process([], true, additional_fields)
@@ -29,7 +23,7 @@ describe JSONToCSVConverter do
 
       # And with data
       results = conversor.process(json_data_from_file('sample_tweets.json'), true, additional_fields)
-      results.should eq data_from_file('sample_tweets_additional_fields_expected.csv')
+      results.should eq data_from_file('sample_tweets_additional_fields.csv')
     end
 
     it 'check headers can be skiped' do
@@ -49,5 +43,9 @@ describe JSONToCSVConverter do
 
   def data_from_file(filename)
     File.read(File.join(File.dirname(__FILE__), "../fixtures/#{filename}"))
+  end
+
+  def terms_fixture
+    { category_name: 'sample category', category_terms: 'term1 term2' }
   end
 end

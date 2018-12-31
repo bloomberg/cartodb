@@ -6,6 +6,7 @@ class Admin::OrganizationsController < Admin::AdminController
 
   ssl_required :show, :settings, :settings_update, :regenerate_all_api_keys, :groups, :auth, :auth_update
   before_filter :login_required, :load_organization_and_members, :load_ldap_configuration
+  before_filter :enforce_engine_enabled, only: :regenerate_all_api_keys
   helper_method :show_billing
 
   layout 'application'
@@ -87,6 +88,7 @@ class Admin::OrganizationsController < Admin::AdminController
     @organization.whitelisted_email_domains = attributes[:whitelisted_email_domains].split(",")
     @organization.auth_username_password_enabled = attributes[:auth_username_password_enabled]
     @organization.auth_google_enabled = attributes[:auth_google_enabled]
+    @organization.auth_github_enabled = attributes[:auth_github_enabled]
     @organization.strong_passwords_enabled = attributes[:strong_passwords_enabled]
     @organization.update_in_central
     @organization.save(raise_on_failure: true)
@@ -95,10 +97,10 @@ class Admin::OrganizationsController < Admin::AdminController
   rescue CartoDB::CentralCommunicationFailure => e
     @organization.reload
     flash.now[:error] = "There was a problem while updating your organization. Please, try again and contact us if the problem persists. #{e.user_message}"
-    render action: 'settings'
+    render action: 'auth'
   rescue Sequel::ValidationFailed => e
     flash.now[:error] = "There's been a validation error, check your values"
-    render action: 'settings'
+    render action: 'auth'
   end
 
   private
@@ -107,9 +109,21 @@ class Admin::OrganizationsController < Admin::AdminController
     @organization = current_user.organization
     raise RecordNotFound unless @organization.present? && current_user.organization_owner?
 
+    display_signup_warnings if @organization.signup_page_enabled
+
     # INFO: Special scenario of handcrafted URL to go to organization-based signup page
     @organization_signup_url =
       "#{CartoDB.protocol}://#{@organization.name}.#{CartoDB.account_host}#{CartoDB.path(self, 'signup_organization_user')}"
+  end
+
+  def display_signup_warnings
+    warning = []
+    warning << "Your organization has run out of quota" unless @organization.valid_disk_quota?
+    warning << "Your organization has run out of seats" unless @organization.valid_builder_seats?
+    unless warning.empty?
+      flash.now[:warning] = "#{warning.join('. ')}."
+      flash.now[:warning_detail] = "Users won't be able to sign up to your organization. <a href='mailto:contact@carto.com'>Contact us</a> to increase your quota."
+    end
   end
 
   def show_billing
@@ -118,6 +132,12 @@ class Admin::OrganizationsController < Admin::AdminController
 
   def load_ldap_configuration
     @ldap_configuration = Carto::Ldap::Configuration.where(organization_id: @organization.id).first
+  end
+
+  def enforce_engine_enabled
+    unless @organization.engine_enabled?
+      render_403
+    end
   end
 
 end

@@ -20,6 +20,7 @@ module Carto
 
         only_liked = params[:only_liked] == 'true'
         only_shared = params[:only_shared] == 'true'
+        samples = params[:samples] == 'true'
         exclude_shared = params[:exclude_shared] == 'true'
         exclude_raster = params[:exclude_raster] == 'true'
         locked = params[:locked]
@@ -29,14 +30,16 @@ module Carto
         bbox_parameter = params.fetch(:bbox,nil)
         privacy = params.fetch(:privacy,nil)
         only_with_display_name = params[:only_with_display_name] == 'true'
+        name = params[:name]
 
         vqb = VisualizationQueryBuilder.new
-            .with_prefetch_user
-            .with_prefetch_table
-            .with_prefetch_permission
-            .with_prefetch_external_source
-            .with_types(types)
-            .with_tags(tags)
+                                       .with_prefetch_user
+                                       .with_prefetch_table
+                                       .with_prefetch_permission
+                                       .with_prefetch_synchronization
+                                       .with_prefetch_external_source
+                                       .with_types(types)
+                                       .with_tags(tags)
 
         if !bbox_parameter.blank?
           vqb.with_bounding_box(BoundingBoxHelper.parse_bbox_parameters(bbox_parameter))
@@ -48,15 +51,25 @@ module Carto
         end
 
         if current_user
+          samples_user_id = sample_maps_user.id if samples && sample_maps_user
+
           if only_liked
-            vqb.with_liked_by_user_id(current_user.id)
+            vqb.with_liked_by_user_id(samples_user_id || current_user.id)
           end
 
           case shared
           when FILTER_SHARED_YES
             vqb.with_owned_by_or_shared_with_user_id(current_user.id)
           when FILTER_SHARED_NO
-            vqb.with_user_id(current_user.id) if !only_liked
+            if samples
+              if samples_user_id
+                vqb.with_user_id(samples_user_id)
+              else
+                raise "The sample user is not setup in app_config"
+              end
+            else
+              vqb.with_user_id(current_user.id) if !only_liked
+            end
           when FILTER_SHARED_ONLY
             vqb.with_shared_with_user_id(current_user.id)
                 .with_user_id_not(current_user.id)
@@ -66,7 +79,7 @@ module Carto
             vqb.without_raster
           end
 
-          if locked == 'true'
+          if locked == 'true' || samples
             vqb.with_locked(true)
           elsif locked == 'false'
             vqb.with_locked(false)
@@ -92,6 +105,10 @@ module Carto
           vqb.with_partial_match(pattern)
         end
 
+        if name.present?
+          vqb.with_name(name)
+        end
+
         vqb
       end
 
@@ -108,7 +125,9 @@ module Carto
         # TODO: add this assumption to a test or remove it (this is coupled to the UI)
         total_types = [(type == Carto::Visualization::TYPE_REMOTE ? Carto::Visualization::TYPE_CANONICAL : type)].compact
 
+        is_common_data_user = current_user && common_data_user && current_user.id == common_data_user.id
         types = [type].compact if types.empty?
+        types.delete_if {|e| e == Carto::Visualization::TYPE_REMOTE } if is_common_data_user
         types = [Carto::Visualization::TYPE_DERIVED] if types.empty?
 
         return types, total_types

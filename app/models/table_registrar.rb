@@ -24,13 +24,6 @@ module CartoDB
       !table_klass.where(user_id: user.id, name: table_name).empty?
     end
 
-    def get_valid_table_name(table_name)
-      table_klass.get_valid_table_name(table_name, {
-          connection: user.in_database,
-          database_schema: user.database_schema
-        })
-    end
-
     attr_reader :user, :table
 
     private
@@ -39,14 +32,16 @@ module CartoDB
     attr_writer :table
 
     def set_metadata_from_data_import_id(table, data_import_id)
-      external_data_import = ExternalDataImport.where(data_import_id: data_import_id).first
-      if external_data_import
+      ExternalDataImport.where(data_import_id: data_import_id).all do |external_data_import|
         external_source = CartoDB::Visualization::ExternalSource.where(id: external_data_import.external_source_id).first
         if external_source
+          # Only process the record if it pertains to the table
           visualization = external_source.visualization
           if visualization
-            table.description = visualization.description
-            table.set_tag_array(visualization.tags)
+            if visualization.name == table.name
+              table.description = visualization.description
+              table.set_tag_array(visualization.tags)
+            end
           end
         end
       end

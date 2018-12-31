@@ -1,35 +1,37 @@
 <header class="vis">
-  <div class="inner">
-    
+  <div class="inner map_toolbar">
+
     <div class="header_content">
-
-      <div class="vis_navigation">
-        <nav>
-          <%= link_to "Data view", "#/table", :class => "smaller strong tab selected" %>
-          <%= link_to "Map view",  "#/map",   :class => "smaller strong tab" %>
-        </nav>
-      </div>
-
-      <div class="left">
+      <div class="left header_block">
         <ul class="actions">
-          <li><%= link_to "Back", CartoDB.path(self, 'root'), :class => "back" %></li>
-          <li><h1><%= link_to @visualization.name, "#/change-title", :class => "title" %></h1></li>
+          <% if @visualization.visualization.type != 'table' %>
+          <li class="button search-bar-container" style="margin-right:0;">
+            <input id="search-bar-input" type="text" class="Form-input search-bar-input" placeholder="&lt;Search for Dataset&gt;" />
+          </li>
+          <li style="margin-left:0"><a class="Button add_new_layer" href="#/add-new-layer" title="Click to browse available datasets">Browse</a></li>
+          <li><a class="dropdown add_overlay button" href="#" title="Click to view annotation options">Annotate</a></li>
+          <% end %>
+          <li><div class="vis_navigation">
+            <nav>
+              <%= link_to "Map",  "#/map",   :class => "smaller strong tab hidden button", :title => "Click to view data in map" %>
+              <%= link_to "Table", "#/table", :class => "smaller strong tab button", :title => "Click to view map data in table" %>
+            </nav>
+          </div></li>
+          <% if @visualization.visualization.type == 'table' %>
+          <li><div style="color:#FBB257;font-size:19px">Editing Mode</div></li>
+          <% end %>
+          <li><div class="sync_status"></div></li>
         </ul>
-        <div class="metadata">
-          <p><a href="#/edit-metadata">Edit metadata…</a></p>
-        </div>
       </div>
-      
-      <div class="right">
-        <ul class="options">
-          <li><%= link_to "Actions", "#/options", :class => "dropdown options" %></li>
-          <li><a class="rounded share" href="#/visualize"><span>VISUALIZE</span></a></li>
-        </ul>
-      </div>
-    </div>
 
-    <div class="sync_status"></div>
-    <div class="globalerror"></div>
+      <div class="right header_block">
+        <ul class="options">
+          <li><%= link_to "Actions", "#/options", :class => "rounded btn dropdown options", :title => "Click to view map actions to perform" %></li>
+          <li><a class="rounded btn share" href="#/visualize" title="Click to export map image"><span>Export Image</span></a></li>
+        </ul>
+      </div>
+
+      <div class="globalerror"></div>
+    </div>
   </div>
 </header>
-

@@ -1,23 +1,29 @@
 # encoding: utf-8
 
 require_relative '../../../spec_helper'
-require_relative '../../../factories/users_helper'
+require_dependency 'carto/uuidhelper'
+
+include Carto::UUIDHelper
 
 shared_context 'layer hierarchy' do
-  before(:each) do
-    @map = FactoryGirl.create(:carto_map_with_layers)
+  before(:all) do
+    @user1 = FactoryGirl.create(:valid_user, private_tables_enabled: true, private_maps_enabled: true)
+    @user2 = FactoryGirl.create(:valid_user, private_tables_enabled: true)
+    @map = FactoryGirl.create(:carto_map_with_layers, user_id: @user1.id)
     @layer = @map.layers.first
-    @widget = FactoryGirl.create(:widget, layer: @layer)
     @visualization = FactoryGirl.create(:carto_visualization, map: @map, privacy: Carto::Visualization::PRIVACY_PRIVATE, user_id: @user1.id)
+  end
+
+  before(:each) do
+    @widget = FactoryGirl.create(:widget, layer: @layer)
   end
 
   after(:each) do
     Carto::Widget.destroy_all
-    @visualization.destroy if @visualization
   end
 
-  def random_uuid
-    UUIDTools::UUID.random_create.to_s
+  after(:all) do
+    @visualization.destroy if @visualization
   end
 
   def response_widget_should_match_widget(response_widget, widget)
@@ -26,46 +32,64 @@ shared_context 'layer hierarchy' do
     response_widget[:type].should == widget.type
     response_widget[:title].should == widget.title
     response_widget[:layer_id].should == widget.layer.id
-    response_widget[:options].symbolize_keys.should == widget.options_json
+    response_widget[:options].should == widget.options.symbolize_keys
+    response_widget[:style].should == widget.style.symbolize_keys
+    if widget.source_id.present?
+      response_widget[:source][:id].should eq widget.source_id
+    else
+      response_widget[:source].should be_nil
+    end
   end
 
   def response_widget_should_match_payload(response_widget, payload)
     response_widget[:layer_id].should == payload[:layer_id]
     response_widget[:type].should == payload[:type]
     response_widget[:title].should == payload[:title]
-    response_widget[:options].symbolize_keys.should == payload[:options].symbolize_keys
+    response_widget[:options].should == payload[:options].symbolize_keys
+    if payload[:style].present?
+      response_widget[:style].should == payload[:style].symbolize_keys
+    else
+      response_widget[:style].blank?.should be_true
+    end
+    if payload[:source].present?
+      response_widget[:source][:id].should == payload[:source][:id]
+    else
+      response_widget[:source].should be_nil
+    end
+    if payload[:order].present?
+      response_widget[:order].should == payload[:order]
+    else
+      @visualization.reload
+      response_widget[:order].should == @visualization.widgets.count - 1
+    end
   end
 
-  def widget_payload(layer_id: @layer.id, type: 'formula', title: 'the title', options: { 'a field' => 'first', 'another field' => 'second' }, order: nil)
+  def widget_payload(
+    layer_id: @layer.id,
+    type: 'formula',
+    title: 'the title',
+    options: { 'a field' => 'first', 'another field' => 'second' },
+    order: nil,
+    source: { id: 'a0' },
+    style: { 'widget_style': { 'fill': 'wadus' } })
+
     payload = {
       layer_id: layer_id,
       type: type,
       title: title,
-      options: options
+      options: options,
+      style: style
     }
 
     payload[:order] = order if order
+    payload[:source] = source if source
 
     payload
   end
 end
 
 describe Carto::Api::WidgetsController do
-  include_context 'users helper'
   include_context 'layer hierarchy'
-
-  before(:each) do
-    @public_map = FactoryGirl.create(:carto_map_with_layers)
-    @public_layer = @public_map.layers.first
-    @public_widget = FactoryGirl.create(:widget, layer: @public_layer)
-
-    @public_visualization = FactoryGirl.create(:carto_visualization, map: @public_map, privacy: Carto::Visualization::PRIVACY_PUBLIC, user_id: @user1.id)
-  end
-
-  after(:each) do
-    @public_widget.destroy if @public_widget
-    @public_visualization.destroy if @public_visualization
-  end
 
   let(:random_map_id) { UUIDTools::UUID.timestamp_create.to_s }
   let(:random_layer_id) { UUIDTools::UUID.timestamp_create.to_s }
@@ -114,15 +138,14 @@ describe Carto::Api::WidgetsController do
     end
 
     it 'returns 403 if visualization is public and current user is not the owner' do
-      get_json widget_url(user_domain: @user2.username, map_id: @public_map.id, map_layer_id: @public_widget.layer_id, id: @public_widget.id, api_key: @user2.api_key), {}, http_json_headers do |response|
+      Carto::Visualization.stubs(:privacy).returns('public')
+      get_json widget_url(user_domain: @user2.username, map_id: @map.id, map_layer_id: @widget.layer_id, id: @widget.id, api_key: @user2.api_key), {}, http_json_headers do |response|
         response.status.should == 403
       end
     end
   end
 
   describe '#create' do
-    include_context 'layer hierarchy'
-
     it 'creates a new widget' do
       payload = widget_payload
       post_json widgets_url(user_domain: @user1.username, map_id: @map.id, map_layer_id: @widget.layer_id, api_key: @user1.api_key), payload, http_json_headers do |response|
@@ -133,6 +156,49 @@ describe Carto::Api::WidgetsController do
         response_widget_should_match_widget(response_widget, widget)
         widget.destroy
       end
+    end
+
+    it 'creates a new widget with order' do
+      payload = widget_payload(order: 7)
+      post_json widgets_url(user_domain: @user1.username, map_id: @map.id, map_layer_id: @widget.layer_id, api_key: @user1.api_key), payload, http_json_headers do |response|
+        response.status.should == 201
+        response_widget = response.body
+        response_widget_should_match_payload(response_widget, payload)
+        widget = Carto::Widget.find(response_widget[:id])
+        response_widget_should_match_widget(response_widget, widget)
+        widget.destroy
+      end
+    end
+
+    it 'creates a new widget without style' do
+      payload = widget_payload.reject { |p| p == :style }
+      post_json widgets_url(user_domain: @user1.username, map_id: @map.id, map_layer_id: @widget.layer_id, api_key: @user1.api_key), payload, http_json_headers do |response|
+        response.status.should == 201
+        response_widget = response.body
+        response_widget_should_match_payload(response_widget, payload)
+        widget = Carto::Widget.find(response_widget[:id])
+        response_widget_should_match_widget(response_widget, widget)
+        widget.destroy
+      end
+    end
+
+    it 'creates a new widget with source_id' do
+      analysis = FactoryGirl.create(:analysis, visualization: @visualization, user_id: @user1.id)
+      payload = widget_payload.merge(source: { id: analysis.natural_id })
+      url = widgets_url(
+        user_domain: @user1.username,
+        map_id: @map.id,
+        map_layer_id: @widget.layer_id,
+        api_key: @user1.api_key)
+      post_json url, payload, http_json_headers do |response|
+        response.status.should eq 201
+        response_widget = response.body
+        response_widget[:source][:id].should eq analysis.natural_id
+        widget = Carto::Widget.find(response_widget[:id])
+        widget.source_id.should eq analysis.natural_id
+        widget.destroy
+      end
+      analysis.destroy
     end
 
     it 'returns 404 for unknown map id' do
@@ -154,7 +220,7 @@ describe Carto::Api::WidgetsController do
     end
 
     it 'returns 422 if layer id do not match map' do
-      other_map = FactoryGirl.create(:carto_map_with_layers)
+      other_map = FactoryGirl.create(:carto_map_with_layers, user_id: @user1.id)
       other_layer = other_map.data_layers.first
       other_layer.should_not be_nil
 
@@ -165,33 +231,37 @@ describe Carto::Api::WidgetsController do
       other_map.destroy
     end
 
+    it 'returns 422 if missing source' do
+      post_json widgets_url(user_domain: @user1.username, map_id: @map.id, map_layer_id: @widget.layer_id, api_key: @user1.api_key), widget_payload(source: nil), http_json_headers do |response|
+        response.status.should == 422
+      end
+    end
+
     it 'returns 403 if visualization is private and current user is not the owner' do
       post_json widgets_url(user_domain: @user2.username, map_id: @map.id, map_layer_id: @widget.layer_id, api_key: @user2.api_key), widget_payload, http_json_headers do |response|
         response.status.should == 403
       end
     end
 
-    it 'assigns consecutive orders for widgets for the same layer' do
-      layer = FactoryGirl.create(:carto_layer, maps: [@map])
+    it 'assigns consecutive orders for widgets for the same visualization' do
+      # Note: First widget is already created in the layer hierarchy context
+      @layer.widgets.reload.each(&:destroy)
 
-      payload = widget_payload(layer_id: layer.id)
-      post_json widgets_url(user_domain: @user1.username, map_id: @map.id, map_layer_id: layer.id, api_key: @user1.api_key), payload, http_json_headers do |response|
+      payload = widget_payload(layer_id: @layer.id)
+      post_json widgets_url(user_domain: @user1.username, map_id: @map.id, map_layer_id: @layer.id, api_key: @user1.api_key), payload, http_json_headers do |response|
+        response.status.should == 201
+        response.body[:order].should == 0
+      end
+      post_json widgets_url(user_domain: @user1.username, map_id: @map.id, map_layer_id: @layer.id, api_key: @user1.api_key), payload, http_json_headers do |response|
         response.status.should == 201
         response.body[:order].should == 1
       end
-      post_json widgets_url(user_domain: @user1.username, map_id: @map.id, map_layer_id: layer.id, api_key: @user1.api_key), payload, http_json_headers do |response|
-        response.status.should == 201
-        response.body[:order].should == 2
-      end
 
-      Carto::Widget.where(layer_id: layer.id).destroy_all
-      layer.destroy
+      Carto::Widget.where(layer_id: @layer.id).destroy_all
     end
   end
 
   describe '#update' do
-    include_context 'layer hierarchy'
-
     it 'returns 422 if layer id does not match in url and payload' do
       put_json widget_url(user_domain: @user1.username, map_id: @map.id, map_layer_id: @widget.layer_id, id: @widget.id, api_key: @user1.api_key), widget_payload(layer_id: random_uuid), http_json_headers do |response|
         response.status.should == 422
@@ -205,75 +275,44 @@ describe Carto::Api::WidgetsController do
     end
 
     it 'returns 200 and updates the model' do
+      analysis = FactoryGirl.create(:analysis, visualization: @visualization, user_id: @user1.id)
       new_order = @widget.order + 1
       new_type = "new #{@widget.type}"
       new_title = "new #{@widget.title}"
-      new_options = @widget.options_json.merge(new: 'whatever')
+      new_options = @widget.options.merge(new: 'whatever')
 
-      payload = widget_payload(order: new_order, type: new_type, title: new_title, options: new_options)
+      payload = widget_payload(
+        order: new_order,
+        type: new_type,
+        title: new_title,
+        options: new_options,
+        source: { id: analysis.natural_id }
+      )
 
-      put_json widget_url(user_domain: @user1.username, map_id: @map.id, map_layer_id: @widget.layer_id, id: @widget.id, api_key: @user1.api_key), payload, http_json_headers do |response|
-        response.status.should == 200
+      url = widget_url(
+        user_domain: @user1.username,
+        map_id: @map.id,
+        map_layer_id: @widget.layer_id,
+        id: @widget.id,
+        api_key: @user1.api_key)
+
+      put_json url, payload, http_json_headers do |response|
+        response.status.should eq 200
         response_widget_should_match_payload(response.body, payload)
 
         loaded_widget = Carto::Widget.find(response.body[:id])
         response_widget_should_match_widget(response.body, Carto::Widget.find(response.body[:id]))
       end
+      analysis.destroy
     end
   end
 
   describe '#delete' do
-    include_context 'layer hierarchy'
-
     it 'returns 200 and deletes the widget' do
       delete_json widget_url(user_domain: @user1.username, map_id: @map.id, map_layer_id: @widget.layer_id, id: @widget.id, api_key: @user1.api_key), {}, http_json_headers do |response|
         response.status.should == 200
         Carto::Widget.where(id: @widget.id).first.should be_nil
       end
-    end
-  end
-
-  describe 'named maps' do
-    describe '#options_for_layer' do
-      include_context 'users helper'
-      include_context 'visualization creation helpers'
-
-      before(:each) do
-        @visualization = create_visualization(@user1)
-        @layer = create_layer('table_1', @user1.username, 1).save
-        @visualization.map.add_layer(@layer)
-        @widget = FactoryGirl.create(:widget, layer: Carto::Layer.find(@layer.id))
-      end
-
-      after(:each) do
-        @widget.destroy
-        @layer.delete
-        @visualization.delete
-        @visualization = nil
-      end
-
-      it 'contains widget data' do
-        vizjson3 = get_vizjson3(Carto::Visualization.find(@visualization.id))
-        layer = vizjson3[:layers][0][:options][:layer_definition][:layers][0]
-        options = CartoDB::NamedMapsWrapper::NamedMap.options_for_layer(layer, 1, { placeholders: {} })
-        widget_options = options[:layer_options][:widgets]
-        widget_options.should_not be_nil
-        widget_options.length.should == 1
-        widget_options.each do |k, v|
-          k.should == @widget.id
-          v[:type].should == @widget.type
-
-          # aggregation_column is renamed aggregationColumn for the tiler
-          aggregation_column = v[:options].delete(:aggregationColumn)
-          aggregation_column.should == @widget.options_json[:aggregation_column]
-
-          v[:options].should == @widget.options_json
-        end
-      end
-    end
-
-    def get_vizjson3(carto_visualization)
-      Carto::Api::VizJSON3Presenter.new(carto_visualization).to_vizjson
     end
   end
 end

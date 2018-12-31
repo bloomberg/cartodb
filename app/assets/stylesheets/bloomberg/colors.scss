@@ -1,0 +1,242 @@
+//color palette
+$White: #fff;           // Strong Emphasis
+$Black: #000;
+
+$nGrey1: #f0f0f0;                                         // nLightGrey1
+$nGrey2: #ebebeb;                                         // nLightGrey2
+$nGrey3: #e1e1e1;                                         // nLightGrey3
+$nGrey4: #d7d7d7;  // Slight Emphasis                     // nLightGrey4
+$nGrey5: #cdcdcd;                                          //nLightGrey5
+$nGrey6: #bebebe;                                          //nLightGrey6
+$nGrey7: #a5a5a5;  // DeEmphasized Subheads                //nLightGrey7
+$nGrey8: #8c8c8c;                                               //nGrey1
+$nGrey9: #787878;       // DeEmphasized                         //nGrey2
+$nGrey10: #646464;       // BG Level 1                           //nGrey3
+$nGrey11: #505050;                                               //nGrey4
+$nGrey12: #414141;   // BG Level 2                           //nDarkGrey2
+$nGrey13: #373737;   // Grid BG Hover State, BG Level 3      //nDarkGrey2
+$nGrey14: #282828;   // Grid BG Strong Highlight             //nDarkGrey2
+$nGrey15: #232323;                                           //nDarkGrey2
+$nGrey16: #1e1e1e;   // Grid BG Highlight, Navigator BG      //nDarkGrey2
+$nGrey17: #191919;                                           //nDarkGrey2
+$nGrey18: #141414;   // BG Grid                              //nDarkGrey2
+
+
+// New Reds
+$LightRed0: #ff5972;    // **to do** used as hex in constants.js
+$nRed1: #ffa7af;        // has not been used yet
+$nRed2: #ff7486;        // has not been used yet
+$nRed3: #ff415c;
+$nRed4: #ff2c4a;
+$nRed5: #e61e3c;
+$nRed6: #c31834;
+$nRed7: #a1122c;
+$nRed8: #7e0c24;
+$nRed9: #5c061c;
+$nRed10: #390014;
+$SaturatedRed: #ff001e;
+
+//new orange
+$nOrange1: #fdc8b7;
+$nOrange2: #fdac93;
+$nOrange3: #fc9170;
+$nOrange4: #fb754c;
+$nOrange5: #fa5a28;
+$nOrange6: #d64d22;
+$nOrange7: #b3401d;
+$nOrange8: #8f3317;
+$nOrange9: #6b2711;
+$nOrange10: #471a0b;
+$SaturatedOrange: #ff5b00;
+
+
+//new amber
+$nAmber1: #ffdfb7;
+$nAmber2: #ffd093;
+$nAmber3: #ffc070;
+$nAmber4: #ffb04c;
+$nAmber5: #ffa028;
+$nAmber6: #db8922;
+$nAmber7: #b6721d;
+$nAmber8: #925b17;
+$nAmber9: #6d4511;
+$nAmber10: #492e0b;
+$SaturatedAmber: $nAmber5;
+
+
+//new yellow
+$nYellow1: #fff9cc;
+$nYellow2: #fff399;
+$nYellow3: #ffed66;
+$nYellow4: #ffe733;
+$nYellow5: #ffe100;
+$nYellow6: #d7be00;
+$nYellow7: #b09b00;
+$nYellow8: #887800;
+$nYellow9: #615500;
+$nYellow10: #383200;
+$SaturatedYellow: #ffff00;
+
+// New Greens
+$nGreen1: #c5facf;
+$nGreen2: #8af59e;
+$nGreen3: #50f06e;
+$nGreen4: #35d655;
+$nGreen5: #1bbc3c;
+$nGreen6: #00a223;
+$nGreen7: #00851c;
+$nGreen8: #006716;
+$nGreen9: #004a0f;
+$nGreen10: #002c09;
+$SaturatedGreen: #00ff3c;
+
+// new teal
+$nTeal1: #dffcff;
+$nTeal2: #bff9ff;
+$nTeal3: #80f3ff;
+$nTeal4: #40ecff;
+$nTeal5: #00e6ff;
+$nTeal6: #00c2d7;
+$nTeal7: #009eb0;
+$nTeal8: #007b88;
+$nTeal9: #005761;
+$nTeal10: #003339;
+$SaturatedTeal: #00ffff;
+
+
+// new blues
+$nBlue1: #cce3ff;
+$nBlue2: #99c7ff;
+$nBlue3: #66abff;
+$nBlue4: #2b8eff;
+$nBlue5: #0073ff;
+$nBlue6: #0062dd;
+$nBlue7: #0051ba;
+$nBlue8: #004098;
+$nBlue9: #003075;
+$nBlue10: #001f53;
+$nBlue11: #001232;
+$SaturatedBlue: #0032f5;
+
+$SelectionBlue1: #63b2ff; // FG Selected Object, Security
+$SelectionBlue2: #3c9fff; // BG Selection Level 1
+$SelectionBlue3: #1e6ab4; // BG Selection Level 2
+$SelectionBlue4: #113c66; // BG Selection Level 3
+$SelectionBlue5: #14518c;
+
+
+//new magenta
+$nMagenta1: #fbb7e8;
+$nMagenta2: #f993dd;
+$nMagenta3: #f770d2;
+$nMagenta4: #f54cc6;
+$nMagenta5: #f328bb;
+$nMagenta6: #d022a0;
+$nMagenta7: #ae1d86;
+$nMagenta8: #8b176b;
+$nMagenta9: #681150;
+$nMagenta10: #450b35;
+$SaturatedMagenta: #ff00f3;
+
+
+//new purple
+$nPurple1: #edd0ff;
+$nPurple2: #e4b9ff;
+$nPurple3: #daa2ff;
+$nPurple4: #d18aff;
+$nPurple5: #c873ff;
+$nPurple6: #ab63db;
+$nPurple7: #8f52b6;
+$nPurple8: #724292;
+$nPurple9: #56316d;
+$nPurple10: #392149;
+$SaturatedPurple: #8b17f9;
+
+//text 
+$strong-emphasis: $White;
+$deemphasize: $nGrey7;
+
+//shadow
+$text_shadow: 0px 1px 0px rgba(0, 0, 0, 0.3);
+
+$button_shadow: inset 0px 1px 0px rgba(255, 255, 255, 0.12);
+$button_shadow_hover: inset 0px 1px 0px rgba(255, 255, 255, 0.18);
+$button_shadow_press: inset 0px 1px 0px rgba(0, 0, 0, 0.15);
+$button_shadow_disabled: inset 0px 1px 0px rgba(255, 255, 255, 0.04);
+$button_shadow_press_disabled: inset 0px 1px 0px rgba(0, 0, 0, 0.04);
+$toggle_button_shadow: inset 0px 1px 0px rgba(255, 255, 255, 0.07);
+$button_shadow_transparent_bg: inset 0px 1px 0px rgba(255, 255, 255, 0.05);
+$button_shadow_transparent_bg_press: inset 0px 1px 0px rgba(0, 0, 0, 0.05);
+// text
+$color_disabled_text : $nGrey9;
+
+// buttons
+$btn_background_normal: #404040;
+$btn_background_hover: #575757;
+$btn_background_press: #2a2a2a;
+$btn_background_disabled: rgba(66, 66, 66, 0.80);
+$btn_background_selected: $nBlue7;
+$btn_background_selected_hover: $SelectionBlue3;
+$btn_background_selected_press: #144779;
+$btn_background_selected_disabled: #3f4e5d;
+$btn_transparent_background_normal: transparent;
+$btn_transparent_background_hover: rgba(255, 255, 255, 0.05);
+$btn_transparent_background_press: rgba(0, 0, 0, 0.1);
+
+$btn_border: 1px solid $Black;
+$btn_border_color_disabled: $Black;
+
+// checkbox / radio button
+$checkbox_bg_normal: $btn_background_normal;
+$checkbox_bg_hover: $btn_background_hover;
+$checkbox_bg_press: $btn_background_press;
+$checkbox_bg_active_normal: #1f8fff;
+$checkbox_bg_active_hover: $SelectionBlue1;
+$checkbox_bg_active_press: #0671ae;
+$checkbox_dirty_bg: #ebddbd;
+$checkbox_shadow: inset 0px 1px 0px rgba(255, 255, 255, 0.1),
+                  inset 0px 8px 4px 0px rgba(255, 255, 255, 0.1);
+
+//tabs
+$tab_bg_normal: $nGrey14;
+$tab_bg_hover: #434343;
+$tab_bg_selected: $nGrey14;
+$tab_bg_pressed: -webkit-linear-gradient(top, #101111, #1b1b1b);
+
+//focus visual style
+$focus_visual_color: #0090ff;
+$focus_visual_style: 0px 0px 0px 1px $focus_visual_color;
+
+//Grid
+$gridRowBackgroundHover: $nGrey13;
+$gridRowBackgroundSelected: $SelectionBlue4;
+$gridRowBackgroundSelectedHover: $SelectionBlue5;
+
+$gridRowBackgroundSelectedDefocused: #0a293f;
+$gridRowBackgroundSelectedHoverDefocused: #023a64;
+
+//tab
+$tabBgSelected: #0b3968;
+$tabBgHover:  rgba(134, 134, 134, 0.65);
+
+//dropdown 
+$dropdownBorder: 1px solid $nGrey4;
+
+//side panel 
+$layer_header_background: $nGrey15;
+$layer_header_background_hover: $nGrey14;
+$layer_header_background_active: $nGrey13;
+$layer_header_background_active_hover: $nGrey11;
+$sidebar_panel_background: $nGrey14; 
+
+//toolbar
+$tool_bar_background: $nGrey17; 
+
+//panels 
+$group_panel_backgroud: $nGrey17;
+
+//infobox 
+$popup_background: #292929;
+
+
+//end terminal color

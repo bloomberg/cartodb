@@ -14,19 +14,8 @@ module Carto
 
     NO_SOFT_GEOCODING_PLANS_REGEXP = /(#{NO_SOFT_GEOCODING_PLANS})/i
 
-    NO_DEDICATED_SUPPORT_PLANS_REGEXP = /(FREE|MAGELLAN|JOHN SNOW|ACADEMY|ACADEMIC|ON HOLD)/i
-    NO_REMOVE_LOGO_PLANS_REGEXP = /(FREE|MAGELLAN|JOHN SNOW|ACADEMY|ACADEMIC|ON HOLD)/i
-
     def pay_users
       ::User.where("upper(account_type) != '#{FREE}'").count
-    end
-
-    def dedicated_support?(user)
-      NO_DEDICATED_SUPPORT_PLANS_REGEXP.match(user.account_type) ? false : true
-    end
-
-    def remove_logo?(user)
-      NO_REMOVE_LOGO_PLANS_REGEXP.match(user.account_type) ? false : true
     end
 
     def soft_geocoding_limit?(user)
@@ -39,6 +28,23 @@ module Carto
 
     def soft_here_isolines_limit?(user)
       !!user[:soft_here_isolines_limit]
+    end
+
+    def soft_obs_snapshot_limit?(user)
+      !!user[:soft_obs_snapshot_limit]
+    end
+
+    def soft_obs_general_limit?(user)
+      !!user[:soft_obs_general_limit]
+    end
+
+    def soft_mapzen_routing_limit?(user)
+      !!user[:soft_mapzen_routing_limit]
+    end
+
+    def mailchimp?(_user)
+      # Mailchimp is currently not supported
+      false
     end
   end
 end

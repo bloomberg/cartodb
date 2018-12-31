@@ -9,41 +9,99 @@
 @import "../variables/colors";
 @import "../variables/sizes";
 @import "../variables/mixins";
+@import "../bloomberg/bloomberg_style";
 
 * {
-  margin: 0;
-  padding: 0;
   text-rendering: optimizeLegibility;
+  box-sizing: border-box;
+  -webkit-user-drag: none;
+}
+
+html {
+    height: 100%;
 }
 
 body {
-  background: $DarkGrey6;
-  font: normal #{$sFontSize-normal}/#{$sLineHeight-normal} Bloomberg Prop Unicode K, Lato;
-  color: $Grey2;
+  background: $Black;
+  color: $nGrey4;
+  font-family: "Bloomberg_Prop_K";
+  font-size: 13px;
+  height: 100%;
+  line-height: 19px;
+  user-select: none;
+  cursor: default;
 }
-
-ul { list-style: none }
 
 a {
   text-decoration: none;
-  color: $Teal2;
+  color: $nTeal6;
   &:hover {
-    color: $Teal1;
+    color: $nTeal4;
     text-decoration: none;
   }
 }
-
-i { font-style: normal }
 
 button {
   border: 0;
   background: transparent;
 }
+
 button:focus {
   outline: none;
 }
 
+i { font-style: normal }
+
+p {
+  margin: 0px;
+}
+
+ul { 
+    list-style: none;
+    margin: 0px;
+    padding: 0px;
+
+ }
+
+textarea, input {
+  @include bb_entry_style;
+  position: relative;
+  &:focus {
+    outline: none;
+  }
+}
 
 ::-webkit-input-placeholder {
   color: rgba(0,0,0,0.35);
+}
+
+input[type=number]::-webkit-inner-spin-button { 
+     -webkit-appearance: none;
+    background-color: $btn_background_normal;
+    border-left: 1px solid $Black;
+    border-radius: 0px 1px 1px 0px;
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 14px;
+}
+
+input[type=number]::-webkit-inner-spin-button:before,
+input[type=number]::-webkit-inner-spin-button:after {
+    content:' ';
+    position:absolute;
+    left:4px;
+    width:0;
+    height:0;
+}
+
+input[type=number]::-webkit-inner-spin-button:before {
+    top: 2px;
+    border-bottom:4px solid $nGrey4;
+}
+
+input[type=number]::-webkit-inner-spin-button:after {
+    top: 3px;
+    border-top:4px solid $nGrey4;
 }

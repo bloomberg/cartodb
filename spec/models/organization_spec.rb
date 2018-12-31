@@ -1,12 +1,11 @@
 require_relative '../spec_helper'
-
 require_relative '../../app/models/visualization/collection'
 require_relative '../../app/models/organization.rb'
 require_relative 'organization_shared_examples'
 require 'helpers/unique_names_helper'
+require 'helpers/storage_helper'
 
-include UniqueNamesHelper
-include CartoDB
+include CartoDB, StorageHelper, UniqueNamesHelper
 
 describe 'refactored behaviour' do
   it_behaves_like 'organization models' do
@@ -37,7 +36,7 @@ describe Organization do
   end
 
   after(:all) do
-    stub_named_maps_calls
+    bypass_named_maps
     begin
       @user.destroy
     rescue
@@ -46,13 +45,15 @@ describe Organization do
   end
 
   describe '#destroy_cascade' do
+    before(:each) do
+      @organization = FactoryGirl.create(:organization)
+    end
 
     after(:each) do
-      @organization.delete if @organization
+      @organization.delete if @organization.try(:persisted?)
     end
 
     it 'Destroys users and owner as well' do
-
       ::User.any_instance.stubs(:create_in_central).returns(true)
       ::User.any_instance.stubs(:update_in_central).returns(true)
 
@@ -79,15 +80,20 @@ describe Organization do
 
     it 'destroys its groups through the extension' do
       Carto::Group.any_instance.expects(:destroy_group_with_extension).once
-      @organization = FactoryGirl.create(:organization)
-      group = FactoryGirl.create(:carto_group, organization: Carto::Organization.find(@organization.id))
+
+      FactoryGirl.create(:carto_group, organization: Carto::Organization.find(@organization.id))
       @organization.destroy
-      @organization = nil
     end
 
+    it 'destroys assets' do
+      bypass_storage
+      asset = FactoryGirl.create(:organization_asset,
+                                 organization_id: @organization.id)
+
+      @organization.destroy
+      Carto::Asset.exists?(asset.id).should be_false
+    end
   end
-
-
 
   describe '#add_user_to_org' do
     it 'Tests adding a user to an organization (but no owner)' do
@@ -123,6 +129,70 @@ describe Organization do
       @user.organization = nil
       @user.save
       organization.destroy
+    end
+
+    it 'validates viewer and builder quotas' do
+      quota = 1234567890
+      name = unique_name('org')
+      seats = 1
+      viewer_seats = 1
+
+      organization = Organization.new(name: name, quota_in_bytes: quota, seats: seats, viewer_seats: viewer_seats).save
+
+      user = create_validated_user
+      CartoDB::UserOrganization.new(organization.id, user.id).promote_user_to_admin
+      organization.reload
+      user.reload
+
+      organization.remaining_seats.should eq 0
+      organization.remaining_viewer_seats.should eq 1
+      organization.users.should include(user)
+
+      viewer = create_validated_user(organization: organization, viewer: true)
+
+      viewer.valid? should be_true
+      viewer.reload
+      organization.reload
+
+      organization.remaining_seats.should eq 0
+      organization.remaining_viewer_seats.should eq 0
+      organization.users.should include(viewer)
+
+      builder = create_validated_user(organization: organization, viewer: false)
+      organization.reload
+
+      organization.remaining_seats.should eq 0
+      organization.remaining_viewer_seats.should eq 0
+      organization.users.should_not include(builder)
+
+      viewer2 = create_validated_user(organization: organization, viewer: true)
+      organization.reload
+
+      organization.remaining_seats.should eq 0
+      organization.remaining_viewer_seats.should eq 0
+      organization.users.should_not include(viewer2)
+
+      organization.destroy_cascade
+    end
+
+    it 'allows saving user if organization has no seats left' do
+      organization = FactoryGirl.create(:organization, seats: 2, viewer_seats: 0, quota_in_bytes: 10)
+
+      user = create_validated_user(quota_in_bytes: 1)
+      CartoDB::UserOrganization.new(organization.id, user.id).promote_user_to_admin
+      organization.reload
+      user.reload
+
+      builder = create_validated_user(organization: organization, viewer: false, quota_in_bytes: 2)
+      builder.organization.reload
+
+      builder.set_fields({ quota_in_bytes: 1 }, [:quota_in_bytes])
+      builder.save(raise_on_failure: true)
+      builder.reload
+
+      builder.quota_in_bytes.should eq 1
+
+      organization.destroy_cascade
     end
 
     it 'Tests setting a user as the organization owner' do
@@ -179,7 +249,7 @@ describe Organization do
       organization.users.count.should eq 3
 
       results = member1.in_database(as: :public_user).fetch(%Q{
-        SELECT has_function_privilege('#{member1.database_public_username}', 'cdb_querytables(text)', 'execute')
+        SELECT has_function_privilege('#{member1.database_public_username}', 'CDB_QueryTablesText(text)', 'execute')
       }).first
       results.nil?.should eq false
       results[:has_function_privilege].should eq true
@@ -190,7 +260,7 @@ describe Organization do
       organization.users.count.should eq 2
 
       results = member2.in_database(as: :public_user).fetch(%Q{
-        SELECT has_function_privilege('#{member2.database_public_username}', 'cdb_querytables(text)', 'execute')
+        SELECT has_function_privilege('#{member2.database_public_username}', 'CDB_QueryTablesText(text)', 'execute')
       }).first
       results.nil?.should eq false
       results[:has_function_privilege].should eq true
@@ -206,7 +276,7 @@ describe Organization do
       organization.users.count.should eq 1
 
       results = owner.in_database(as: :public_user).fetch(%Q{
-        SELECT has_function_privilege('#{owner.database_public_username}', 'cdb_querytables(text)', 'execute')
+        SELECT has_function_privilege('#{owner.database_public_username}', 'CDB_QueryTablesText(text)', 'execute')
       }).first
       results.nil?.should eq false
       results[:has_function_privilege].should eq true
@@ -276,7 +346,7 @@ describe Organization do
 
   describe '#org_shared_vis' do
     it "checks fetching all shared visualizations of an organization's members " do
-      CartoDB::NamedMapsWrapper::NamedMaps.any_instance.stubs(:get => nil, :create => true, :update => true)
+      bypass_named_maps
 
       # Don't check/handle DB permissions
       Permission.any_instance.stubs(:revoke_previous_permissions).returns(nil)
@@ -418,6 +488,34 @@ describe Organization do
       Organization.overquota.size.should == Organization.count
     end
 
+    it "should return organizations over their data observatory snapshot quota" do
+      Organization.any_instance.stubs(:owner).returns(@owner)
+      Organization.overquota.should be_empty
+      Organization.any_instance.stubs(:get_api_calls).returns(0)
+      Organization.any_instance.stubs(:map_view_quota).returns(10)
+      Organization.any_instance.stubs(:get_geocoding_calls).returns 0
+      Organization.any_instance.stubs(:geocoding_quota).returns 10
+      Organization.any_instance.stubs(:get_obs_snapshot_calls).returns 30
+      Organization.any_instance.stubs(:obs_snapshot_quota).returns 10
+      Organization.overquota.map(&:id).should include(@organization.id)
+      Organization.overquota.size.should == Organization.count
+    end
+
+    it "should return organizations over their data observatory general quota" do
+      Organization.any_instance.stubs(:owner).returns(@owner)
+      Organization.overquota.should be_empty
+      Organization.any_instance.stubs(:get_api_calls).returns(0)
+      Organization.any_instance.stubs(:map_view_quota).returns(10)
+      Organization.any_instance.stubs(:get_geocoding_calls).returns 0
+      Organization.any_instance.stubs(:geocoding_quota).returns 10
+      Organization.any_instance.stubs(:get_obs_snapshot_calls).returns 0
+      Organization.any_instance.stubs(:obs_snapshot_quota).returns 10
+      Organization.any_instance.stubs(:get_obs_general_calls).returns 30
+      Organization.any_instance.stubs(:obs_general_quota).returns 10
+      Organization.overquota.map(&:id).should include(@organization.id)
+      Organization.overquota.size.should == Organization.count
+    end
+
     it "should return organizations near their geocoding quota" do
       Organization.any_instance.stubs(:owner).returns(@owner)
       Organization.any_instance.stubs(:get_api_calls).returns(0)
@@ -438,10 +536,71 @@ describe Organization do
       Organization.any_instance.stubs(:geocoding_quota).returns(100)
       Organization.any_instance.stubs(:get_here_isolines_calls).returns(81)
       Organization.any_instance.stubs(:here_isolines_quota).returns(100)
+      Organization.any_instance.stubs(:get_obs_snapshot_calls).returns(0)
+      Organization.any_instance.stubs(:obs_snapshot_quota).returns(100)
+      Organization.any_instance.stubs(:get_obs_general_calls).returns(0)
+      Organization.any_instance.stubs(:obs_general_quota).returns(100)
+      Organization.any_instance.stubs(:get_mapzen_routing_calls).returns(81)
+      Organization.any_instance.stubs(:mapzen_routing_quota).returns(100)
       Organization.overquota.should be_empty
       Organization.overquota(0.20).map(&:id).should include(@organization.id)
       Organization.overquota(0.20).size.should == Organization.count
       Organization.overquota(0.10).should be_empty
+    end
+
+    it "should return organizations near their data observatory snapshot quota" do
+      Organization.any_instance.stubs(:owner).returns(@owner)
+      Organization.any_instance.stubs(:get_api_calls).returns(0)
+      Organization.any_instance.stubs(:map_view_quota).returns(120)
+      Organization.any_instance.stubs(:get_geocoding_calls).returns(0)
+      Organization.any_instance.stubs(:geocoding_quota).returns(100)
+      Organization.any_instance.stubs(:get_here_isolines_calls).returns(0)
+      Organization.any_instance.stubs(:here_isolines_quota).returns(100)
+      Organization.any_instance.stubs(:get_obs_general_calls).returns(0)
+      Organization.any_instance.stubs(:obs_general_quota).returns(100)
+      Organization.any_instance.stubs(:get_obs_snapshot_calls).returns(81)
+      Organization.any_instance.stubs(:obs_snapshot_quota).returns(100)
+      Organization.any_instance.stubs(:get_mapzen_routing_calls).returns(0)
+      Organization.any_instance.stubs(:mapzen_routing_quota).returns(100)
+      Organization.overquota.should be_empty
+      Organization.overquota(0.20).map(&:id).should include(@organization.id)
+      Organization.overquota(0.20).size.should == Organization.count
+      Organization.overquota(0.10).should be_empty
+    end
+
+    it "should return organizations near their data observatory general quota" do
+      Organization.any_instance.stubs(:owner).returns(@owner)
+      Organization.any_instance.stubs(:get_api_calls).returns(0)
+      Organization.any_instance.stubs(:map_view_quota).returns(120)
+      Organization.any_instance.stubs(:get_geocoding_calls).returns(0)
+      Organization.any_instance.stubs(:geocoding_quota).returns(100)
+      Organization.any_instance.stubs(:get_here_isolines_calls).returns(0)
+      Organization.any_instance.stubs(:here_isolines_quota).returns(100)
+      Organization.any_instance.stubs(:get_obs_snapshot_calls).returns(0)
+      Organization.any_instance.stubs(:obs_snapshot_quota).returns(100)
+      Organization.any_instance.stubs(:get_obs_general_calls).returns(81)
+      Organization.any_instance.stubs(:obs_general_quota).returns(100)
+      Organization.any_instance.stubs(:get_mapzen_routing_calls).returns(0)
+      Organization.any_instance.stubs(:mapzen_routing_quota).returns(100)
+      Organization.overquota.should be_empty
+      Organization.overquota(0.20).map(&:id).should include(@organization.id)
+      Organization.overquota(0.20).size.should == Organization.count
+      Organization.overquota(0.10).should be_empty
+    end
+
+    it "should return organizations over their mapzen routing quota" do
+      Organization.any_instance.stubs(:owner).returns(@owner)
+      Organization.overquota.should be_empty
+      Organization.any_instance.stubs(:get_api_calls).returns(0)
+      Organization.any_instance.stubs(:map_view_quota).returns(10)
+      Organization.any_instance.stubs(:get_geocoding_calls).returns 0
+      Organization.any_instance.stubs(:geocoding_quota).returns 10
+      Organization.any_instance.stubs(:get_here_isolines_calls).returns(0)
+      Organization.any_instance.stubs(:here_isolines_quota).returns(100)
+      Organization.any_instance.stubs(:get_mapzen_routing_calls).returns 30
+      Organization.any_instance.stubs(:mapzen_routing_quota).returns 10
+      Organization.overquota.map(&:id).should include(@organization.id)
+      Organization.overquota.size.should == Organization.count
     end
   end
 

@@ -1,14 +1,20 @@
 require 'active_record'
+require_dependency 'carto/configuration'
 
+# Make Sequel messages (SQL stastements) to have debug level.
+# They'll' appear in the logs only if the Logger's level is 0 (debug).
+# Note that Rails.logger will be used.
 ::Sequel::DATABASES.each{|d| d.sql_log_level = :debug }
 
-if ENV['RAILS_DATABASE_FILE']
-  @dbconfig = YAML.load(File.read(File.join(Rails.root, 'config/' + ENV['RAILS_DATABASE_FILE'])))
-else
-  @dbconfig = YAML.load(File.read(File.join(Rails.root, 'config/database.yml')))
-end
+@dbconfig = Carto::Conf.new.db_config
+
 # INFO: our current database.yml sets Sequel PostgreSQL adapter, which is called 'postgres'. Rails' is 'postgresql'
-@dbconfig[Rails.env]['adapter'] = 'postgresql'
-ActiveRecord::Base.establish_connection @dbconfig[Rails.env].merge({:prepared_statements => false})
-# INFO: console debugging purposes
-ActiveRecord::Base.logger = Logger.new(STDOUT) if Rails.env == 'development'
+active_record_custom_conf = { :prepared_statements => false, 'adapter' => 'postgresql' }
+ActiveRecord::Base.establish_connection @dbconfig[Rails.env].merge(active_record_custom_conf)
+
+# For consistency, in devevelopment environment,  we'll make SQL statements originated in ActiveRecord appear
+# in the same log (STDOUT) as the messages from Sequel (note that for development Rails.logger is configured as STDOUT)
+if Rails.env == 'development'
+  ActiveRecord::Base.logger = Logger.new(STDOUT)
+  ActiveRecord::Base.logger.level = Logger::DEBUG
+end

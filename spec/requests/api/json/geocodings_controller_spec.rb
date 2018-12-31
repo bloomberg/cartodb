@@ -15,18 +15,18 @@ describe Api::Json::GeocodingsController do
   describe 'POST api/v1/geocodings' do
 
     before(:all) do
-      @user = create_user(username: 'test')
+      @user = create_user
     end
 
     after(:all) do
-      stub_named_maps_calls
+      bypass_named_maps
       @user.destroy
     end
 
     let(:params) { { api_key: @user.api_key, kind: 'ipaddress', formatter: '{some_column}' } }
 
     before(:each) do
-      stub_named_maps_calls
+      bypass_named_maps
       delete_user_data @user
       host! "#{@user.username}.localhost.lan"
       login_as(@user, scope: @user.username)

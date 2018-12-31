@@ -18,6 +18,7 @@ describe CartoDB::TableRegistrar do
     let(:attributions) { "Table registrar test attributions" }
 
     before(:each) do
+      bypass_named_maps
       @data_import = FactoryGirl.create(:data_import, user_id: @user.id)
 
       @external_data_import = FactoryGirl.create(:external_data_import_with_external_source,
@@ -42,7 +43,7 @@ describe CartoDB::TableRegistrar do
       CartoDB::Visualization::Member.any_instance.stubs(:save_named_map).returns(true)
 
       tr = CartoDB::TableRegistrar.new(@user, TableFactory)
-      tr.register('xxx', @external_data_import.data_import_id)
+      tr.register('factory visualization', @external_data_import.data_import_id)
 
       tr.table.description.should eq description
 
@@ -54,10 +55,28 @@ describe CartoDB::TableRegistrar do
       CartoDB::Visualization::Member.any_instance.stubs(:save_named_map).returns(true)
 
       tr = CartoDB::TableRegistrar.new(@user, TableFactory)
-      tr.register('xxx', @external_data_import.data_import_id)
+      tr.register('factory visualization', @external_data_import.data_import_id)
 
       visualization = tr.table.table_visualization
       visualization.description.should eq @external_data_import.external_source.visualization.description
+      visualization.source.should eq @external_data_import.external_source.visualization.source
+      visualization.attributions.should eq @external_data_import.external_source.visualization.attributions
+
+      visualization.delete
+    end
+    
+    it 'does not register description or visualization description if names do not match' do
+      TableFactory.stubs(:new).returns(table_mock)
+      CartoDB::Visualization::Member.any_instance.stubs(:save_named_map).returns(true)
+
+      tr = CartoDB::TableRegistrar.new(@user, TableFactory)
+      # data import name is 'factory visualization'
+      tr.register('xxx', @external_data_import.data_import_id)
+
+      tr.table.description.should eq nil
+
+      visualization = tr.table.table_visualization
+      visualization.description.should eq nil
       visualization.source.should eq @external_data_import.external_source.visualization.source
       visualization.attributions.should eq @external_data_import.external_source.visualization.attributions
 

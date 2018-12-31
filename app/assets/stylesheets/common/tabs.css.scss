@@ -22,11 +22,11 @@
   width: 118px;
   height: 38px;
   padding: 0 10px;
-  background-color: $DarkGrey1;
+  background-color: $nGrey12;
   border: 1px solid $Black;
   box-shadow: $button_shadow;
   line-height: 38px;
-  color: $Grey2;
+  color: $nGrey4;
   font-size: 14px;
   cursor: pointer;
 	&:first-child {
@@ -46,7 +46,7 @@
 .TabLink.selected:hover {
   background: $tabBgSelected;
   box-shadow: $button_shadow_press;
-  color: $Grey1;
+  color: $nGrey1;
   cursor: default;
 }
 .TabLink.selected,

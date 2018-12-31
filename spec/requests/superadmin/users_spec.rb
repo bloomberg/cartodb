@@ -2,8 +2,12 @@
 
 require 'ostruct'
 require_relative '../../acceptance_helper'
+require_relative '../../factories/organizations_contexts'
+require 'carto/user_authenticator'
 
 feature "Superadmin's users API" do
+  include Carto::UserAuthenticator
+
   background do
     Capybara.current_driver = :rack_test
     @new_user = new_user(password: "this_is_a_password")
@@ -21,8 +25,8 @@ feature "Superadmin's users API" do
 
     post_json superadmin_users_path, { user: @user_atts }, superadmin_headers do |response|
       response.status.should == 422
-      response.body[:errors]['email'].should be_present
-      response.body[:errors]['email'].should include("is not present")
+      response.body[:errors][:email].should be_present
+      response.body[:errors][:email].should include("is not present")
     end
   end
 
@@ -31,6 +35,7 @@ feature "Superadmin's users API" do
     @user_atts.delete(:salt)
     @user_atts.merge!(password: "this_is_a_password")
 
+    CartoDB::UserModule::DBService.any_instance.stubs(:enable_remote_db_user).returns(true)
     post_json superadmin_users_path, { user: @user_atts }, superadmin_headers do |response|
       response.status.should == 201
       response.body[:email].should == @user_atts[:email]
@@ -42,12 +47,13 @@ feature "Superadmin's users API" do
       user = ::User.filter(email: @user_atts[:email]).first
       user.should be_present
       user.id.should == response.body[:id]
-      ::User.authenticate(user.username, "this_is_a_password").should == user
+      authenticate(user.username, "this_is_a_password").should == user
     end
     ::User.where(username: @user_atts[:username]).first.destroy
   end
 
   scenario "user create with crypted_password and salt success" do
+    CartoDB::UserModule::DBService.any_instance.stubs(:enable_remote_db_user).returns(true)
     post_json superadmin_users_path, { user: @user_atts }, superadmin_headers do |response|
       response.status.should == 201
       response.body[:email].should == @user_atts[:email]
@@ -59,7 +65,7 @@ feature "Superadmin's users API" do
       user = ::User.filter(email: @user_atts[:email]).first
       user.should be_present
       user.id.should == response.body[:id]
-      ::User.authenticate(user.username, "this_is_a_password").should == user
+      authenticate(user.username, "this_is_a_password").should == user
     end
     ::User.where(username: @user_atts[:username]).first.destroy
   end
@@ -70,9 +76,12 @@ feature "Superadmin's users API" do
     @user_atts[:map_view_quota] = 80
     t = Time.now
     @user_atts[:upgraded_at] = t
+
+    CartoDB::UserModule::DBService.any_instance.stubs(:enable_remote_db_user).returns(true)
     post_json superadmin_users_path, { user: @user_atts }, superadmin_headers do |response|
       response.status.should == 201
-      response.body[:quota_in_bytes].should == 104857600
+      # Bloomberg - quota is different in Bloomberg's system compared to carto
+      response.body[:quota_in_bytes].should == 262144000
       response.body[:table_quota].should == 5
       response.body[:account_type].should == 'FREE'
       response.body[:private_tables_enabled].should == false
@@ -81,7 +90,8 @@ feature "Superadmin's users API" do
 
       # Double check that the user has been created properly
       user = ::User.filter(email: @user_atts[:email]).first
-      user.quota_in_bytes.should == 104857600
+      # Bloomberg - quota is different in Bloomberg's system compared to carto
+      user.quota_in_bytes.should == 262144000
       user.table_quota.should == 5
       user.account_type.should == 'FREE'
       user.private_tables_enabled.should == false
@@ -101,8 +111,13 @@ feature "Superadmin's users API" do
     @user_atts[:geocoding_block_price] = 2
     @user_atts[:here_isolines_quota] = 100
     @user_atts[:here_isolines_block_price] = 5
+    @user_atts[:obs_snapshot_quota] = 100
+    @user_atts[:obs_snapshot_block_price] = 5
+    @user_atts[:obs_general_quota] = 100
+    @user_atts[:obs_general_block_price] = 5
     @user_atts[:notification] = 'Test'
 
+    CartoDB::UserModule::DBService.any_instance.stubs(:enable_remote_db_user).returns(true)
     post_json superadmin_users_path, { user: @user_atts }, superadmin_headers do |response|
       response.status.should == 201
       response.body[:quota_in_bytes].should == 2000
@@ -116,6 +131,10 @@ feature "Superadmin's users API" do
       response.body[:geocoding_block_price].should == 2
       response.body[:here_isolines_quota].should == 100
       response.body[:here_isolines_block_price].should == 5
+      response.body[:obs_snapshot_quota].should == 100
+      response.body[:obs_snapshot_block_price].should == 5
+      response.body[:obs_general_quota].should == 100
+      response.body[:obs_general_block_price].should == 5
       response.body[:notification].should == 'Test'
 
       # Double check that the user has been created properly
@@ -130,6 +149,10 @@ feature "Superadmin's users API" do
       user.geocoding_block_price.should == 2
       user.here_isolines_quota.should == 100
       user.here_isolines_block_price.should == 5
+      user.obs_snapshot_quota.should == 100
+      user.obs_snapshot_block_price.should == 5
+      user.obs_general_quota.should == 100
+      user.obs_general_block_price.should == 5
       user.notification.should == 'Test'
     end
     ::User.where(username: @user_atts[:username]).first.destroy
@@ -152,9 +175,14 @@ feature "Superadmin's users API" do
                      geocoding_block_price: 5,
                      here_isolines_quota: 250,
                      here_isolines_block_price: 10,
+                     obs_snapshot_quota: 250,
+                     obs_snapshot_block_price: 10,
+                     obs_general_quota: 250,
+                     obs_general_block_price: 10,
                      notification: 'Test',
                      available_for_hire: true,
-                     disqus_shortname: 'abc' }
+                     disqus_shortname: 'abc',
+                     builder_enabled: true }
 
     # test to true
     put_json superadmin_user_path(user), { user: @update_atts }, superadmin_headers do |response|
@@ -175,12 +203,20 @@ feature "Superadmin's users API" do
     user.geocoding_block_price.should == 5
     user.here_isolines_quota.should == 250
     user.here_isolines_block_price.should == 10
+    user.obs_snapshot_quota.should == 250
+    user.obs_snapshot_block_price.should == 10
+    user.obs_general_quota.should == 250
+    user.obs_general_block_price.should == 10
     user.notification.should == 'Test'
     user.disqus_shortname.should == 'abc'
     user.available_for_hire.should == true
+    user.builder_enabled.should == true
 
     # then test back to false
-    put_json superadmin_user_path(user), { user: { private_tables_enabled: false } }, superadmin_headers do |response|
+    put_json superadmin_user_path(user), { user: {
+      private_tables_enabled: false,
+      builder_enabled: false }
+    }, superadmin_headers do |response|
       response.status.should == 204
     end
     user = ::User[user.id]
@@ -190,7 +226,12 @@ feature "Superadmin's users API" do
     user.geocoding_block_price.should == 5
     user.here_isolines_quota.should == 250
     user.here_isolines_block_price.should == 10
+    user.obs_snapshot_quota.should == 250
+    user.obs_snapshot_block_price.should == 10
+    user.obs_general_quota.should == 250
+    user.obs_general_block_price.should == 10
     user.notification.should == 'Test'
+    user.builder_enabled.should == false
 
     user.destroy
   end
@@ -253,14 +294,11 @@ feature "Superadmin's users API" do
   end
 
   scenario "user delete success" do
-    pending "This scenario is failing and needs to be fixed, but the destroy action is actually working"
     user = create_user
-    delete_json superadmin_user_path(user), superadmin_headers do |response|
+    delete_json superadmin_user_path(user), {}, superadmin_headers do |response|
       response.status.should == 204
     end
     ::User[user.id].should be_nil
-
-    user.destroy
   end
 
   scenario "user dump success" do
@@ -374,7 +412,7 @@ feature "Superadmin's users API" do
 
     it "gets overquota users" do
       ::User.stubs(:overquota).returns [@user]
-      ::User.stubs(:get_stored_overquota_users).returns [@user.data]
+      Carto::OverquotaUsersService.any_instance.stubs(:get_stored_overquota_users).returns [@user.data]
       get_json superadmin_users_path, { overquota: true }, superadmin_headers do |response|
         response.status.should == 200
         response.body[0]["username"].should == @user.username
@@ -460,6 +498,49 @@ feature "Superadmin's users API" do
       expect do
         delete superadmin_user_url(user.id), { user: user }.to_json, superadmin_headers
       end.to change(FeatureFlagsUser, :count).by(-1)
+    end
+  end
+
+  describe 'with organization' do
+    include_context 'organization with users helper'
+
+    def update_and_verify(update_attrs)
+      put_json superadmin_user_path(@org_user_1), { user: update_attrs }, superadmin_headers do |response|
+        response.status.should eq 204
+      end
+      @org_user_1.reload
+      update_attrs.keys.each do |att|
+        @org_user_1.send(att).should eq update_attrs[att]
+      end
+    end
+
+    it 'should update users' do
+      update_attrs = {
+        quota_in_bytes: 2000,
+        table_quota: 20,
+        max_layers: 10,
+        user_timeout: 100000,
+        database_timeout: 200000,
+        private_tables_enabled: true,
+        sync_tables_enabled: true,
+        map_view_block_price: 200,
+        geocoding_quota: 230,
+        geocoding_block_price: 5,
+        here_isolines_quota: 250,
+        here_isolines_block_price: 10,
+        obs_snapshot_quota: 250,
+        obs_snapshot_block_price: 10,
+        obs_general_quota: 250,
+        obs_general_block_price: 10,
+        notification: 'Test',
+        available_for_hire: true,
+        disqus_shortname: 'abc',
+        builder_enabled: true
+      }
+
+      update_and_verify(update_attrs)
+      update_and_verify(builder_enabled: false)
+      update_and_verify(builder_enabled: nil)
     end
   end
 

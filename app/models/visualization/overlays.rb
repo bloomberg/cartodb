@@ -8,14 +8,21 @@ module CartoDB
       end
 
       def create_default_overlays
+        prof_attrs = @visualization.user && @visualization.user.profile_attributes
         create_share_overlay(@visualization, 2)
-        create_search_overlay(@visualization, 3)
+        if @visualization.user.has_feature_flag?('bbg_pro_ui')
+          create_search_overlay(@visualization, 3)
+        end
         create_zoom_overlay(@visualization, 6)
         create_loader_overlay(@visualization, 8)
 
         # nil check added to support feature flag check (see #6108) without breaking backguards compatibility
         if @visualization.user.nil? || !@visualization.user.has_feature_flag?('disabled_cartodb_logo')
           create_logo_overlay(@visualization, 9)
+        end
+
+        if prof_attrs && prof_attrs["defaultFixedTitleOn"]
+          create_title_overlay(@visualization, 1, prof_attrs)
         end
       end
 
@@ -78,6 +85,32 @@ module CartoDB
 
         generate_overlay(member.id, options, "search", order).save
       end
+
+      def create_title_overlay(member, order, prof_attrs = {})
+        options = {
+          "x": 0,
+          "y": 0,
+          "display": true,
+          "style": {
+            "z-index": 4,
+            "color": "#ffffff",
+            "text-align": "left",
+            "font-size": prof_attrs["defaultFixedTitleFontSize"] || 20,
+            "font-family-name": prof_attrs["defaultFontFamilyName"] || "Helvetica",
+            "box-padding": 10,
+            "box-color": "#000000",
+            "box-opacity": prof_attrs["defaultFixedTitleOpacity"] || 0.7
+          },
+          "extra": {
+            "headerType": "title",
+            "text": member.name,
+            "rendered_text": member.name
+          }
+        }
+
+        generate_overlay(member.id, options, "header", order).save
+      end
+
     end
   end
 end

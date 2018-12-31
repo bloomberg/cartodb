@@ -1,5 +1,6 @@
 # encoding: utf-8
 require_relative '../spec_helper'
+require_relative '../spec_helper'
 require_relative '../../app/connectors/importer'
 require_relative '../doubles/result'
 require 'csv'
@@ -7,17 +8,32 @@ require 'csv'
 describe CartoDB::Connector::Importer do
 
   before(:all) do
-    @user = create_user(:quota_in_bytes => 1000.megabyte, :table_quota => 400)
+    @user = create_user(quota_in_bytes: 1000.megabyte, table_quota: 400, max_layers: 4)
+    @common_data_user = FactoryGirl.create(:carto_user, { username: Cartodb.config[:common_data]['username'] } )
   end
 
   before(:each) do
-    stub_named_maps_calls
+    bypass_named_maps
+  end
+
+  after(:each) do
+    if @data_import
+      @data_import.table.destroy if @data_import.table.id.present?
+      @data_import.external_data_imports.each do |edi|
+        edi.destroy
+      end
+      @data_import.destroy
+    end
+    @visualization.destroy if @visualization
+    ::UserTable[@existing_table.id].destroy if @existing_table
   end
 
   after(:all) do
+    bypass_named_maps
     @user.destroy
   end
 
+  let(:skip) { DataImport::COLLISION_STRATEGY_SKIP }
 
   it 'should not fail to return a new_name when ALTERing the INDEX fails' do
 
@@ -42,7 +58,7 @@ describe CartoDB::Connector::Importer do
     }.returns(nil)
 
     table_registrar = mock
-    table_registrar.stubs(:get_valid_table_name).returns('european_countries')
+    table_registrar.stubs(:user).returns(@user)
 
     importer_table_name = "table_#{UUIDTools::UUID.timestamp_create.to_s}"
     desired_table_name = 'european_countries'
@@ -57,7 +73,7 @@ describe CartoDB::Connector::Importer do
   # This test checks that the importer detects files with names that are
   # psql reserved words and knows how to rename them (appending '_t')
   it 'should allow importing tables with reserved names' do
-    reserved_word = CartoDB::POSTGRESQL_RESERVED_WORDS.sample
+    reserved_word = Carto::DB::Sanitize::RESERVED_WORDS.sample
 
     filepath        = "/tmp/#{reserved_word.downcase}.csv"
     expected_rename = reserved_word.downcase + '_t'
@@ -66,7 +82,7 @@ describe CartoDB::Connector::Importer do
       csv << ['nombre', 'apellido', 'profesion']
       csv << ['Manolo', 'Escobar', 'Artista']
     end
-  
+
     data_import = DataImport.create(
       :user_id       => @user.id,
       :data_source   => filepath,
@@ -89,18 +105,66 @@ describe CartoDB::Connector::Importer do
 
     filepath = "#{Rails.root}/spec/support/data/elecciones2008.csv"
 
-    data_import = DataImport.create(
+    @data_import = DataImport.create(
       :user_id       => @user.id,
       :data_source   => filepath,
       :updated_at    => Time.now,
       :append        => false,
       :privacy       => (::UserTable::PRIVACY_VALUES_TO_TEXTS.invert)['public']
     )
-    data_import.values[:data_source] = filepath
+    @data_import.values[:data_source] = filepath
 
-    data_import.run_import!
+    @data_import.run_import!
 
-    UserTable[id: data_import.table.id].privacy.should eq (::UserTable::PRIVACY_VALUES_TO_TEXTS.invert)['public']
+    UserTable[id: @data_import.table.id].privacy.should eq ::UserTable::PRIVACY_VALUES_TO_TEXTS.invert['public']
+  end
+
+  it 'importing the same file twice should import the table twice renaming the second import' do
+    name = 'elecciones2008'
+    filepath = "#{Rails.root}/spec/support/data/#{name}.csv"
+
+    @data_import = DataImport.create(user_id: @user.id, data_source: filepath)
+    @data_import.values[:data_source] = filepath
+    @data_import.run_import!
+
+    @data_import.success.should eq true
+    UserTable[id: @data_import.table.id].name.should eq name
+
+    data_import2 = DataImport.create(user_id: @user.id, data_source: filepath)
+    data_import2.values[:data_source] = filepath
+    data_import2.run_import!
+
+    data_import2.success.should eq true
+    UserTable[id: data_import2.table.id].name.should eq "#{name}_1"
+
+    data_import2.table.destroy if data_import2 && data_import2.table.id.present?
+    data_import2.destroy
+  end
+
+  it 'importing the same file twice with collision strategy skip should import the table once' do
+    name = 'elecciones2008'
+    filepath = "#{Rails.root}/spec/support/data/#{name}.csv"
+
+    @data_import = DataImport.create(user_id: @user.id, data_source: filepath, collision_strategy: skip)
+    @data_import.values[:data_source] = filepath
+    @data_import.run_import!
+
+    UserTable[id: @data_import.table.id].name.should eq name
+    @data_import.success.should eq true
+
+    data_import2 = DataImport.create(user_id: @user.id, data_source: filepath, collision_strategy: skip)
+    data_import2.values[:data_source] = filepath
+    data_import2.run_import!
+
+    data_import2.error_code = 1022
+    data_import2.success.should eq true
+
+    data_import2.tables_created_count.should eq 0
+    data_import2.table_names.should eq ''
+    data_import2.table_name.should be_nil
+
+    data_import2.table.destroy if data_import2 && data_import2.table.id.present?
+    data_import2.destroy
   end
 
   it 'should import tables as private if privacy param is set to private' do
@@ -125,6 +189,7 @@ describe CartoDB::Connector::Importer do
 
   it 'should import table and vis as private if privacy param is set to private' do
     @user.private_tables_enabled = true
+    @user.private_maps_enabled = true
     @user.save
 
     filepath = "#{Rails.root}/spec/support/data/elecciones2008.csv"
@@ -149,6 +214,35 @@ describe CartoDB::Connector::Importer do
     data_import.run_import!
 
     UserTable[id: data_import.table.id].privacy.should eq (::UserTable::PRIVACY_VALUES_TO_TEXTS.invert)['private']
+  end
+
+  it 'should import vis as public if privacy param is set to private and user doesn\' have private maps' do
+    @user.private_tables_enabled = true
+    @user.private_maps_enabled = false
+    @user.save
+
+    filepath = "#{Rails.root}/spec/support/data/elecciones2008.csv"
+
+    data_import = DataImport.create(
+      user_id: @user.id,
+      data_source: filepath,
+      updated_at: Time.now.utc,
+      append: false,
+      privacy: ::UserTable::PRIVACY_VALUES_TO_TEXTS.invert['private'],
+      create_visualization: true
+    )
+    data_import.values[:data_source] = filepath
+
+    data_import.run_import!
+
+    data_import.success.should eq true
+    Carto::Visualization.find_by_id(data_import.visualization_id).privacy.should eq 'public'
+
+    data_import.values[:data_source] = filepath
+
+    data_import.run_import!
+
+    UserTable[id: data_import.table.id].privacy.should eq ::UserTable::PRIVACY_VALUES_TO_TEXTS.invert['private']
   end
 
   it 'should import tables as private by default if user has private tables enabled' do
@@ -229,6 +323,27 @@ describe CartoDB::Connector::Importer do
 
     data_import.success.should eq true
     Carto::Visualization.find_by_id(data_import.visualization_id).privacy.should eq 'public'
+  end
+
+  it 'imported visualization should have registered table dependencies' do
+    filepath = "#{Rails.root}/spec/support/data/elecciones2008.csv"
+
+    data_import = DataImport.create(
+      user_id: @user.id,
+      data_source: filepath,
+      updated_at: Time.now.utc,
+      append: false,
+      create_visualization: true
+    )
+    data_import.values[:data_source] = filepath
+
+    data_import.run_import!
+
+    data_import.success.should eq true
+    visualization = Carto::Visualization.find_by_id(data_import.visualization_id)
+    data_layer = visualization.data_layers.first
+    data_layer.user_tables.size.should eq 1
+    data_layer.user_tables.first.name.should include 'elecciones2008'
   end
 
   it 'should not import as private if private_tables_enabled is disabled' do
@@ -312,5 +427,490 @@ describe CartoDB::Connector::Importer do
     vis.map.data_layers.count.should eq @user.max_layers
 
     data_import.rejected_layers.split(',').count.should eq 3
+  end
+
+  describe 'visualization importing' do
+    it 'imports a visualization export' do
+      filepath = "#{Rails.root}/services/importer/spec/fixtures/visualization_export_with_csv_table.carto"
+
+      @data_import = DataImport.create(
+        user_id: @user.id,
+        data_source: filepath,
+        updated_at: Time.now.utc,
+        append: false,
+        create_visualization: true
+      )
+      @data_import.values[:data_source] = filepath
+
+      @data_import.run_import!
+      @data_import.success.should eq true
+
+      # Fixture file checks
+      @data_import.table_name.should eq 'twitter_t3chfest_reduced'
+      @visualization = Carto::Visualization.find(@data_import.visualization_id)
+      @visualization.name.should eq "exported map"
+      @visualization.description.should eq "A map that has been exported"
+      @visualization.tags.should include('exported')
+      map = @visualization.map
+      map.center.should eq "[39.75365697136308, -2.318115234375]"
+    end
+
+    it 'imports a visualization export when the table already exists' do
+      @existing_table = create_table(name: 'twitter_t3chfest_reduced', user_id: @user.id)
+      filepath = "#{Rails.root}/services/importer/spec/fixtures/visualization_export_with_csv_table.carto"
+
+      @data_import = DataImport.create(
+        user_id: @user.id,
+        data_source: filepath,
+        updated_at: Time.now.utc,
+        append: false,
+        create_visualization: true
+      )
+      @data_import.values[:data_source] = filepath
+
+      @data_import.run_import!
+      @data_import.success.should eq true
+
+      # Fixture file checks
+      renamed_table = 'twitter_t3chfest_reduced_1'
+      @data_import.table_name.should eq renamed_table
+      @visualization = Carto::Visualization.find(@data_import.visualization_id)
+      @visualization.data_layers.first.options['table_name'].should eq renamed_table
+    end
+
+    it 'imports a visualization export and table is not duplicated if collision strategy is skip' do
+      table_name = 'twitter_t3chfest_reduced'
+      @existing_table = create_table(name: table_name, user_id: @user.id)
+      filepath = "#{Rails.root}/services/importer/spec/fixtures/visualization_export_with_csv_table.carto"
+
+      @data_import = DataImport.create(
+        user_id: @user.id,
+        data_source: filepath,
+        updated_at: Time.now.utc,
+        append: false,
+        create_visualization: true,
+        collision_strategy: skip
+      )
+      @data_import.values[:data_source] = filepath
+
+      @data_import.run_import!
+      @data_import.success.should eq true
+
+      @data_import.tables_created_count.should eq 0
+      @data_import.table_names.should be_empty
+      @data_import.table_name.should be_nil
+
+      @visualization = Carto::Visualization.find(@data_import.visualization_id)
+      @visualization.data_layers.first.options['table_name'].should eq table_name
+
+      @visualization.data_layers.count.should eq 1
+      layer = @visualization.data_layers.first
+      layer.user_tables.count.should eq 1
+      user_table = layer.user_tables.first
+      user_table.name.should eq table_name
+    end
+
+    it 'imports a visualization export but not existing tables if collision strategy is skip' do
+      existing_table_name = 'guess_country'
+      not_existing_table_name = 'guess_ip'
+      @existing_table = create_table(name: existing_table_name, user_id: @user.id)
+      filepath = "#{Rails.root}/services/importer/spec/fixtures/guess_country_ip.carto"
+
+      @data_import = DataImport.create(
+        user_id: @user.id,
+        data_source: filepath,
+        updated_at: Time.now.utc,
+        append: false,
+        create_visualization: true,
+        collision_strategy: skip
+      )
+      @data_import.values[:data_source] = filepath
+
+      @data_import.run_import!
+      @data_import.success.should eq true
+
+      @data_import.tables_created_count.should eq 1
+      @data_import.table_names.should eq not_existing_table_name
+      @data_import.table_name.should eq not_existing_table_name
+
+      expected_table_names = [existing_table_name, not_existing_table_name]
+      @visualization = Carto::Visualization.find(@data_import.visualization_id)
+      layer_table_names = @visualization.data_layers.map { |l| l.options['table_name'] }.sort
+      layer_table_names.should eq expected_table_names
+
+      @visualization.data_layers.count.should eq 2
+
+      expected_table_names.each do |table_name|
+        layer = @visualization.data_layers.find { |l| l.user_tables.first.name == table_name }
+        layer.should_not be_nil
+        layer.user_tables.count.should eq 1
+      end
+      @data_import.tables.map(&:destroy)
+    end
+
+    it 'imports a visualization export with two data layers' do
+      filepath = "#{Rails.root}/services/importer/spec/fixtures/visualization_export_with_two_tables.carto"
+
+      @data_import = DataImport.create(
+        user_id: @user.id,
+        data_source: filepath,
+        updated_at: Time.now.utc,
+        append: false,
+        create_visualization: true
+      )
+      @data_import.values[:data_source] = filepath
+
+      @data_import.run_import!
+      @data_import.success.should eq true
+
+      # Fixture file checks
+      @data_import.table_names.should eq "guess_country twitter_t3chfest_reduced"
+      @visualization = Carto::Visualization.find(@data_import.visualization_id)
+      @visualization.name.should eq "map with two layers"
+      @visualization.layers.count.should eq 3 # basemap + 2 data layers
+      layers = @visualization.layers
+      layers[0].options['name'].should eq "CartoDB World Eco"
+      layer1 = @visualization.layers[1]
+      layer1.options['type'].should eq "CartoDB"
+      layer1.options['table_name'].should eq "guess_country"
+      layer1.user_tables.count.should eq 1
+      layer2 = @visualization.layers[2]
+      layer2.options['type'].should eq "CartoDB"
+      layer2.options['table_name'].should eq "twitter_t3chfest_reduced"
+      layer2.user_tables.count.should eq 1
+      @data_import.tables.map(&:destroy)
+    end
+
+    it 'imports a visualization export without data' do
+      filepath = "#{Rails.root}/services/importer/spec/fixtures/visualization_export_without_tables.carto"
+
+      @data_import = DataImport.create(
+        user_id: @user.id,
+        data_source: filepath,
+        updated_at: Time.now.utc,
+        append: false,
+        create_visualization: true
+      )
+      @data_import.values[:data_source] = filepath
+
+      @data_import.run_import!
+      @data_import.success.should eq true
+
+      # Fixture file checks
+      @visualization = Carto::Visualization.find(@data_import.visualization_id)
+      @visualization.name.should eq "map with two layers"
+      layers = @visualization.layers
+      @visualization.layers.count.should eq 3 # basemap + 2 data layers
+      layers[0].options['name'].should eq "CartoDB World Eco"
+      layer1 = @visualization.layers[1]
+      layer1.options['type'].should eq "CartoDB"
+      layer1.options['table_name'].should eq "guess_country"
+      layer2 = @visualization.layers[2]
+      layer2.options['type'].should eq "CartoDB"
+      layer2.options['table_name'].should eq "twitter_t3chfest_reduced"
+      @data_import.tables.map(&:destroy)
+    end
+
+    it 'registers table dependencies for .carto import' do
+      filepath = "#{Rails.root}/services/importer/spec/fixtures/visualization_export_with_csv_table.carto"
+
+      @data_import = DataImport.create(
+        user_id: @user.id,
+        data_source: filepath,
+        updated_at: Time.now.utc,
+        append: false,
+        create_visualization: true
+      )
+      @data_import.values[:data_source] = filepath
+
+      @data_import.run_import!
+      @data_import.success.should eq true
+
+      # Fixture file checks
+      @data_import.table_name.should eq 'twitter_t3chfest_reduced'
+      @visualization = Carto::Visualization.find(@data_import.visualization_id)
+      layer = @visualization.data_layers.first
+      layer.user_tables.count.should eq 1
+      user_table = layer.user_tables.first
+      user_table.name.should eq 'twitter_t3chfest_reduced'
+
+      canonical_layer = user_table.visualization.data_layers.first
+      canonical_layer.user_tables.count.should eq 1
+    end
+
+    it 'registers table dependencies for .carto.gpkg import on initial load' do
+      filepath = "#{Rails.root}/services/importer/spec/fixtures/fdw_us_states.carto"
+
+      # To follow the typical Sample 2.0 Save As process a synchronization record is typically created first.
+      #   If this isn't set the synchronization_id should still be nil (Same behavior)
+      synchronization = FactoryGirl.create(:remote_synchronization, user_id: @user.id)
+
+      @data_import = DataImport.create(
+        user_id: @user.id,
+        data_source: filepath,
+        updated_at: Time.now.utc,
+        append: false,
+        create_visualization: true,
+        synchronization_id: synchronization.id
+      )
+      @data_import.values[:data_source] = filepath
+
+      # Create the remote visualization of the shared dataset
+      shared_remote_vis = FactoryGirl.create(:table_visualization, user_id: @common_data_user.id)
+      expect(shared_remote_vis).not_to be_nil
+
+      # Will need to stub the common data return from visualization api
+      begin
+        CommonDataSingleton.instance.stubs(:datasets).returns (
+          [{
+            id: shared_remote_vis.id,
+            name: 'us_states',
+            description: 'This is my test description',
+            tags: [],
+            exportable: false,
+            export_geom: false,
+            size: 16384,
+            rows: 50,
+            url: 'test url'
+          }.with_indifferent_access])
+
+        @data_import.run_import!
+      ensure
+        CommonDataSingleton.instance.unstub(:datasets)
+      end
+
+      @data_import.success.should eq true
+
+      # Make sure the external data import was created
+      #  If this was not created then the visualization properties such as
+      #  exportable will not be set properly
+      edi = ExternalDataImport.where(data_import_id: @data_import.id)
+      expect(edi.any?).to be_true
+      expect(edi.first).not_to be_nil
+      expect(edi.first.synchronization_id).to be_nil
+
+      # Check the table visualizations were created (with proper export permissions and descriptions)
+
+      # Check the remote remote visualization was created
+      remote_vis = Carto::Visualization.where(type: 'remote', name: 'us_states', user_id: @user.id).first
+      expect(remote_vis).not_to be_nil
+      expect(remote_vis.exportable).to be_false
+      expect(remote_vis.export_geom).to be_false
+      expect(remote_vis.description).to eq('This is my test description')
+
+      # Check the table remote visualization was created
+      table_vis = Carto::Visualization.where(type: 'table', name: 'us_states', user_id: @user.id).first
+      expect(table_vis).not_to be_nil
+      expect(table_vis.exportable).to be_false
+      expect(table_vis.export_geom).to be_false
+      expect(table_vis.description).to eq('This is my test description')
+
+      # Check the user table was created
+      @data_import.table_name.should eq 'us_states'
+
+      # Check the map visualization
+      @visualization = Carto::Visualization.find(@data_import.visualization_id)
+
+      layer = @visualization.data_layers.first
+      layer.user_tables.count.should eq 1
+      user_table = layer.user_tables.first
+      user_table.name.should eq 'us_states'
+
+      canonical_layer = user_table.visualization.data_layers.first
+      canonical_layer.user_tables.count.should eq 1
+    end
+
+    it 'registers table dependencies for .carto.gpkg import on second load' do
+      filepath = "#{Rails.root}/services/importer/spec/fixtures/fdw_us_states.carto"
+
+      # To follow the typical Sample 2.0 Save As process a synchronization record is typically created first.
+      #   If this isn't set the synchronization_id should still be nil (Same behavior)
+      synchronization = FactoryGirl.create(:remote_synchronization, user_id: @user.id)
+
+      @data_import = DataImport.create(
+        user_id: @user.id,
+        data_source: filepath,
+        updated_at: Time.now.utc,
+        append: false,
+        create_visualization: true,
+        synchronization_id: synchronization.id
+      )
+      @data_import.values[:data_source] = filepath
+
+      # Create the remote visualization of the shared dataset and for current user
+      # (ie: user already connected to dataset)
+      shared_remote_vis = FactoryGirl.create(:table_visualization, user_id: @common_data_user.id, description: 'This is my test description', exportable: false, export_geom: false)
+      expect(shared_remote_vis).not_to be_nil
+      user_remote_vis = FactoryGirl.create(:remote_visualization, name: 'us_states', user_id: @user.id, description: 'This is my test description', exportable: false, export_geom: false)
+      expect(user_remote_vis).not_to be_nil
+      user_external_source = FactoryGirl.create(:external_source_with_existing_visualization, visualization_id: user_remote_vis.id)
+      expect(user_external_source).not_to be_nil
+      expect(user_external_source.visualization_id).to eq user_remote_vis.id
+
+      # TODO - Will need to verify load_common_data is not called
+      #expect(CommonDataSingleton.instance).to_not receive(:datasets)
+
+      @data_import.run_import!
+      @data_import.success.should eq true
+
+      # Make sure the external data import was created
+      #  If this was not created then the visualization properties such as
+      #  exportable will not be set properly
+      edi = ExternalDataImport.where(data_import_id: @data_import.id)
+      expect(edi.any?).to be_true
+      expect(edi.first).not_to be_nil
+      expect(edi.first.synchronization_id).to be_nil
+
+      # Check the table visualizations were created (with proper export permissions and descriptions)
+
+      # Check the remote remote visualization was created
+      remote_vis = Carto::Visualization.where(type: 'remote', name: 'us_states', user_id: @user.id).first
+      expect(remote_vis).not_to be_nil
+      expect(remote_vis.exportable).to be_false
+      expect(remote_vis.export_geom).to be_false
+      expect(remote_vis.description).to eq('This is my test description')
+
+      # Check the table remote visualization was created
+      table_vis = Carto::Visualization.where(type: 'table', name: 'us_states', user_id: @user.id).first
+      expect(table_vis).not_to be_nil
+      expect(table_vis.exportable).to be_false
+      expect(table_vis.export_geom).to be_false
+      expect(table_vis.description).to eq('This is my test description')
+
+      # Check the user table was created
+      @data_import.table_name.should eq 'us_states'
+
+      # Check the map visualization
+      @visualization = Carto::Visualization.find(@data_import.visualization_id)
+
+      layer = @visualization.data_layers.first
+      layer.user_tables.count.should eq 1
+      user_table = layer.user_tables.first
+      user_table.name.should eq 'us_states'
+
+      canonical_layer = user_table.visualization.data_layers.first
+      canonical_layer.user_tables.count.should eq 1
+    end
+
+    it 'registers correct dataset description and list endpoint output (autocomplete) for multiple .carto.gpkg import' do
+      filepath = "#{Rails.root}/services/importer/spec/fixtures/fdw_multiple_layers.carto"
+
+      # To follow the typical Sample 2.0 Save As process a synchronization record is typically created first.
+      #   If this isn't set the synchronization_id should still be nil (Same behavior)
+      synchronization = FactoryGirl.create(:remote_synchronization, user_id: @user.id)
+
+      @data_import = DataImport.create(
+        user_id: @user.id,
+        data_source: filepath,
+        updated_at: Time.now.utc,
+        append: false,
+        create_visualization: true,
+        synchronization_id: synchronization.id
+      )
+      @data_import.values[:data_source] = filepath
+
+      # Create the remote visualization of the shared dataset
+      shared_remote_vis = FactoryGirl.create(:table_visualization, user_id: @common_data_user.id)
+      expect(shared_remote_vis).not_to be_nil
+      shared_remote_vis2 = FactoryGirl.create(:table_visualization, user_id: @common_data_user.id)
+      expect(shared_remote_vis2).not_to be_nil
+
+      # Will need to stub the common data return from visualization api
+      begin
+        CommonDataSingleton.instance.stubs(:datasets).returns (
+          [{
+            id: shared_remote_vis.id,
+            name: 'major_airports',
+            description: 'The airports',
+            tags: [],
+            exportable: false,
+            export_geom: false,
+            size: 16384,
+            rows: 50,
+            url: 'test url'
+          }.with_indifferent_access,
+          {
+            id: shared_remote_vis2.id,
+            name: 'us_states_ehh',
+            description: 'My dataset description',
+            tags: [],
+            exportable: true,
+            export_geom: true,
+            size: 16384,
+            rows: 50,
+            url: 'test url'
+          }.with_indifferent_access
+         ])
+
+        @data_import.run_import!
+      ensure
+        CommonDataSingleton.instance.unstub(:datasets)
+      end
+
+      @data_import.success.should eq true
+
+      # Make sure the external data import was created
+      #  If this was not created then the visualization properties such as
+      #  exportable will not be set properly
+      edi = ExternalDataImport.where(data_import_id: @data_import.id)
+      expect(edi.any?).to be_true
+      expect(edi.count).to eq 2 # One import per layer
+      edi.each do |rec|
+        # synchroinization id must be null to make sure list end point doesn't return duplicates
+        expect(rec.synchronization_id).to be_nil
+      end
+
+      # Check the table visualizations were created (with proper export permissions and descriptions)
+
+      # Check the remote remote visualization was created
+      remote_vis = Carto::Visualization.where(type: 'remote', name: 'major_airports', user_id: @user.id).first
+      expect(remote_vis).not_to be_nil
+      expect(remote_vis.exportable).to be_false
+      expect(remote_vis.export_geom).to be_false
+      expect(remote_vis.description).to eq('The airports')
+
+      # Check the table remote visualization was created
+      table_vis = Carto::Visualization.where(type: 'table', name: 'major_airports', user_id: @user.id).first
+      expect(table_vis).not_to be_nil
+      expect(table_vis.exportable).to be_false
+      expect(table_vis.export_geom).to be_false
+      expect(table_vis.description).to eq('The airports')
+
+      # Check the remote remote visualization was created
+      remote_vis = Carto::Visualization.where(type: 'remote', name: 'us_states_ehh', user_id: @user.id).first
+      expect(remote_vis).not_to be_nil
+      expect(remote_vis.exportable).to be_true
+      expect(remote_vis.export_geom).to be_true
+      expect(remote_vis.description).to eq('My dataset description')
+
+      # Check the table remote visualization was created
+      table_vis = Carto::Visualization.where(type: 'table', name: 'us_states_ehh', user_id: @user.id).first
+      expect(table_vis).not_to be_nil
+      expect(table_vis.exportable).to be_true
+      expect(table_vis.export_geom).to be_true
+      expect(table_vis.description).to eq('My dataset description')
+
+      # Check the user table was created - This always returns the first table
+      @data_import.table_name.should eq 'major_airports'
+
+      # Check the map visualization
+      @visualization = Carto::Visualization.find(@data_import.visualization_id)
+
+      layer = @visualization.data_layers.first
+      layer.user_tables.count.should eq 1
+      user_table = layer.user_tables.first
+      user_table.name.should eq 'us_states_ehh'
+
+      canonical_layer = user_table.visualization.data_layers.first
+      canonical_layer.user_tables.count.should eq 1
+
+      layer = @visualization.data_layers.last
+      layer.user_tables.count.should eq 1
+      user_table = layer.user_tables.first
+      user_table.name.should eq 'major_airports'
+
+      canonical_layer = user_table.visualization.data_layers.first
+      canonical_layer.user_tables.count.should eq 1
+    end
   end
 end

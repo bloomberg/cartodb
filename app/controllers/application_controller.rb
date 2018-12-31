@@ -4,12 +4,14 @@ require_dependency 'carto/http_header_authentication'
 
 class ApplicationController < ActionController::Base
   include ::SslRequirement
+  include UrlHelper
   protect_from_forgery
 
   helper :all
 
   around_filter :wrap_in_profiler
 
+  before_filter :set_security_headers
   before_filter :http_header_authentication, if: :http_header_authentication?
   before_filter :store_request_host
   before_filter :ensure_user_organization_valid
@@ -67,6 +69,7 @@ class ApplicationController < ActionController::Base
   end
 
   def http_header_authentication
+    puts "header-auth : subdomain is - #{CartoDB.extract_subdomain(request)} -"
     authenticate(:http_header_authentication, scope: CartoDB.extract_subdomain(request))
     if current_user
       validate_session(current_user)
@@ -74,7 +77,7 @@ class ApplicationController < ActionController::Base
       authenticator = Carto::HttpHeaderAuthentication.new
       if authenticator.autocreation_enabled?
         if authenticator.creation_in_progress?(request)
-          render_http_code(409, 500, 'Creation already in progress')
+          redirect_to CartoDB.path(self, 'signup_http_authentication_in_progress')
         else
           redirect_to CartoDB.path(self, 'signup_http_authentication')
         end
@@ -319,6 +322,24 @@ class ApplicationController < ActionController::Base
     super(CartoDB.extract_subdomain(request))
   end
 
+  def common_data_user
+    return @common_data_user if @common_data_user
+
+    common_data_config = Cartodb.config[:common_data]
+    username = common_data_config && common_data_config['username']
+
+    @common_data_user = Carto::User.find_by_username(username)
+  end
+
+  def sample_maps_user
+    return @sample_maps_user if @sample_maps_user
+
+    map_samples_config = Cartodb.config[:map_samples]
+    username = map_samples_config && map_samples_config['username']
+
+    @sample_maps_user = Carto::User.find_by_username(username)
+  end
+
   # current_user relies on request subdomain ALWAYS, so current_viewer will always return:
   # - If subdomain is present in the sessions: subdomain-based session (aka current_user)
   # - Else: the first session found at request.session that comes from warden
@@ -363,4 +384,8 @@ class ApplicationController < ActionController::Base
     Carto::HttpHeaderAuthentication.new.valid?(request)
   end
 
+  def set_security_headers
+    headers['X-Frame-Options'] = 'DENY'
+    headers['X-XSS-Protection'] = '1; mode=block'
+  end
 end

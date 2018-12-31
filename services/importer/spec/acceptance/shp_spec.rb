@@ -18,6 +18,12 @@ describe 'SHP regression tests' do
   include_context 'cdb_importer schema'
   include_context "no stats"
 
+  let :ogr2ogr2_options do
+    {
+      ogr2ogr_binary: Cartodb.config[:ogr2ogr]['binary']
+    }
+  end
+
   before(:all) do
     @user = create_user
     @user.save
@@ -29,13 +35,14 @@ describe 'SHP regression tests' do
 
   it 'imports SHP files' do
     filepath    = path_to('TM_WORLD_BORDERS_SIMPL-0.3.zip')
-    downloader  = Downloader.new(filepath)
+    downloader  = Downloader.new(@user.id, filepath)
     runner      = Runner.new({
                                pg: @user.db_service.db_configuration_for,
                                downloader: downloader,
                                log: CartoDB::Importer2::Doubles::Log.new(@user),
                                user: @user
                              })
+    runner.loader_options = ogr2ogr2_options
     runner.run
 
     geometry_type_for(runner, @user).should eq "MULTIPOLYGON"
@@ -45,13 +52,14 @@ describe 'SHP regression tests' do
 
   it 'imports shp files without .prj' do
     filepath    = path_to('shp_no_prj.zip')
-    downloader  = Downloader.new(filepath)
+    downloader  = Downloader.new(@user.id, filepath)
     runner      = Runner.new({
                                pg: @user.db_service.db_configuration_for,
                                downloader: downloader,
                                log: CartoDB::Importer2::Doubles::Log.new(@user),
                                user: @user
                              })
+    runner.loader_options = ogr2ogr2_options
     runner.run
 
     geometry_type_for(runner, @user).should eq "MULTIPOLYGON"

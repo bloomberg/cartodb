@@ -6,21 +6,25 @@ require_relative '../visualization/collection'
 require_relative '../../../services/importer/lib/importer/datasource_downloader'
 require_relative '../../../services/datasources/lib/datasources'
 require_relative '../log'
+require_relative '../../../services/importer/lib/importer/connectors/cdb_data_library_connector'
 require_relative '../../../services/importer/lib/importer/unp'
 require_relative '../../../services/importer/lib/importer/post_import_handler'
 require_relative '../../../lib/cartodb/errors'
 require_relative '../../../lib/cartodb/import_error_codes'
 require_relative '../../../services/platform-limits/platform_limits'
+require_dependency 'carto/configuration'
 
 include CartoDB::Datasources
 
 module CartoDB
   module Synchronization
+
     class << self
       attr_accessor :repository
     end
 
     class Member
+      include Carto::Configuration
       include Virtus.model
 
       MAX_RETRIES     = 10
@@ -93,7 +97,7 @@ module CartoDB
       end
 
       def synchronizations_logger
-        @@synchronizations_logger ||= ::Logger.new("#{Rails.root}/log/synchronizations.log")
+        @@synchronizations_logger ||= ::Logger.new(log_file_path("synchronizations.log"))
       end
 
       def interval=(seconds=3600)
@@ -179,7 +183,112 @@ module CartoDB
           raise CartoDB::Datasources::AuthError.new('User is not authorized to sync tables')
         end
 
-        downloader    = get_downloader
+        runner = service_name == 'connector' ? get_connector : get_runner
+
+        database = user.in_database
+        importer = CartoDB::Synchronization::Adapter.new(name, runner, database, user)
+
+        importer.run
+        self.ran_at   = Time.now
+        self.run_at   = Time.now + interval
+
+        if importer.success?
+          set_success_state_from(importer)
+        else
+          set_failure_state_from(importer)
+        end
+
+        store
+
+        notify
+
+      rescue => exception
+        CartoDB::Logger.error(exception: exception, sync_id: id)
+        log.append_and_store exception.message, truncate = false
+        log.append exception.backtrace.join("\n"), truncate = false
+
+        if importer.nil?
+          if exception.is_a?(NotFoundDownloadError)
+            set_general_failure_state_from(exception, 1017, 'File not found, you must import it again')
+          elsif exception.is_a?(CartoDB::Importer2::FileTooBigError)
+            set_general_failure_state_from(exception, exception.error_code,
+                                           CartoDB::IMPORTER_ERROR_CODES[exception.error_code][:title])
+          elsif exception.is_a?(AuthError)
+            set_general_failure_state_from(exception, 1011, 'Unauthorized')
+          else
+            set_general_failure_state_from(exception)
+          end
+        else
+          set_failure_state_from(importer)
+        end
+
+        store
+
+        if exception.is_a?(TokenExpiredOrInvalidError)
+          begin
+            user.oauths.remove(exception.service_name)
+          rescue => ex
+            log.append "Exception removing OAuth: #{ex.message}"
+            log.append ex.backtrace
+          end
+        end
+        notify
+        self
+      ensure
+        CartoDB::PlatformLimits::Importer::UserConcurrentSyncsAmount.new(
+          user: user, redis: { db: $users_metadata }
+        ).decrement!
+      end
+
+      def get_runner
+        downloader = get_downloader
+
+        post_import_handler = CartoDB::Importer2::PostImportHandler.new
+        unless downloader.datasource.nil?
+          case downloader.datasource.class::DATASOURCE_NAME
+          when Url::ArcGIS::DATASOURCE_NAME
+            post_import_handler.add_fix_geometries_task
+          when Search::Twitter::DATASOURCE_NAME
+            post_import_handler.add_transform_geojson_geom_column
+          end
+        end
+
+        runner = CartoDB::Importer2::Runner.new(
+          pg: pg_options,
+          downloader: downloader,
+          log: log,
+          user: user,
+          unpacker: CartoDB::Importer2::Unp.new(Cartodb.config[:importer]),
+          post_import_handler: post_import_handler,
+          importer_config: Cartodb.config[:importer]
+        )
+        runner.loader_options = ogr2ogr_options.merge content_guessing_options
+
+        runner.include_additional_errors_mapping(
+          AuthError                   => 1011,
+          DataDownloadError           => 1011,
+          TokenExpiredOrInvalidError  => 1012,
+          DatasourceBaseError         => 1012,
+          InvalidServiceError         => 1012,
+          MissingConfigurationError   => 1012,
+          UninitializedError          => 1012
+        )
+
+        runner
+      end
+
+      def get_connector
+        CartoDB::Importer2::ConnectorRunner.check_availability!(user)
+        CartoDB::Importer2::ConnectorRunner.new(
+          service_item_id,
+          user: user,
+          pg: pg_options,
+          log: log
+        )
+      end
+
+      def get_runner
+        downloader = get_downloader
 
         post_import_handler = CartoDB::Importer2::PostImportHandler.new
         unless downloader.datasource.nil?
@@ -214,59 +323,11 @@ module CartoDB
           }
         )
 
-        database = user.in_database
-        importer = CartoDB::Synchronization::Adapter.new(name, runner, database, user)
+        runner
+      end
 
-        importer.run
-        self.ran_at   = Time.now
-        self.run_at   = Time.now + interval
-
-        if importer.success?
-          set_success_state_from(importer)
-        else
-          set_failure_state_from(importer)
-        end
-
-        store
-
-        notify
-
-      rescue => exception
-        CartoDB.notify_exception(exception)
-        log.append exception.message, truncate = false
-        log.append exception.backtrace.join('\n'), truncate = false
-
-        if importer.nil?
-          if exception.is_a?(NotFoundDownloadError)
-            set_general_failure_state_from(exception, 1017, 'File not found, you must import it again')
-          elsif exception.is_a?(CartoDB::Importer2::FileTooBigError)
-            set_general_failure_state_from(exception, exception.error_code,
-                                           CartoDB::IMPORTER_ERROR_CODES[exception.error_code][:title])
-          elsif exception.is_a?(AuthError)
-            set_general_failure_state_from(exception, 1011, 'Unauthorized')
-          else
-            set_general_failure_state_from(exception)
-          end
-        else
-          set_failure_state_from(importer)
-        end
-
-        store
-
-        if exception.is_a?(TokenExpiredOrInvalidError)
-          begin
-            user.oauths.remove(exception.service_name)
-          rescue => ex
-            log.append "Exception removing OAuth: #{ex.message}"
-            log.append ex.backtrace
-          end
-        end
-        notify
-        self
-      ensure
-        CartoDB::PlatformLimits::Importer::UserConcurrentSyncsAmount.new({
-              user: user, redis: { db: $users_metadata }
-            }).decrement!
+      def get_connector
+        CartoDB::Importer2::CDBDataLibraryConnector.new(service_item_id, user: user, pg: pg_options, log: log)
       end
 
       def notify
@@ -306,37 +367,37 @@ module CartoDB
         end
 
         if datasource_provider.providers_download_url?
-          resource_url = (metadata[:url].present? && datasource_provider.providers_download_url?) ? metadata[:url] : url
+          metadata_url = metadata[:url]
+          resource_url = (metadata_url.present? && datasource_provider.providers_download_url?) ? metadata_url : url
 
-          if resource_url.nil?
-            raise CartoDB::DataSourceError.new("Missing resource URL to download. Data:#{to_s}" )
-          end
+          raise CartoDB::DataSourceError.new("Missing resource URL to download. Data:#{self}") unless resource_url
 
-          downloader = CartoDB::Importer2::Downloader.new(
-              resource_url,
-              {
-                http_timeout:     DataImport.http_timeout_for(user),
-                etag:             etag,
-                last_modified:    modified_at,
-                checksum:         checksum,
-                verify_ssl_cert:  false
-              },
-              { importer_config: Cartodb.config[:importer] }
-          )
-          log.append "File will be downloaded from #{downloader.url}"
+          log.append "File will be downloaded from #{resource_url}"
+
+          http_options = {
+            http_timeout: DataImport.http_timeout_for(user),
+            etag: etag,
+            last_modified: modified_at,
+            checksum: checksum,
+            verify_ssl_cert: false
+          }
+
+          CartoDB::Importer2::Downloader.new(user.id,
+                                             resource_url,
+                                             http_options,
+                                             importer_config: Cartodb.config[:importer])
         else
           log.append 'Downloading file data from datasource'
-          downloader = CartoDB::Importer2::DatasourceDownloader.new(
-            datasource_provider, metadata,
-            {
-              http_timeout:     DataImport.http_timeout_for(user),
-              checksum: checksum,
-              importer_config: Cartodb.config[:importer]
-            }, log
-          )
-        end
 
-        downloader
+          options = {
+            http_timeout: DataImport.http_timeout_for(user),
+            checksum: checksum,
+            importer_config: Cartodb.config[:importer],
+            user_id: user.id
+          }
+
+          CartoDB::Importer2::DatasourceDownloader.new(datasource_provider, metadata, options, log)
+        end
       end
 
       def hit_platform_limit?(datasource, metadata, user)
@@ -349,7 +410,7 @@ module CartoDB
       end
 
       def set_success_state_from(importer)
-        log.append     '******** synchronization succeeded ********'
+        log.append_and_store     '******** synchronization succeeded ********'
         self.log_trace      = importer.runner_log_trace
         self.state          = STATE_SUCCESS
         self.etag           = importer.etag
@@ -360,12 +421,15 @@ module CartoDB
         self.run_at         = Time.now + interval
         self.modified_at    = importer.last_modified
         geocode_table
-      rescue
+      rescue => exception
+        CartoDB::Logger.error(exception: exception,
+                                message: 'Error updating state for sync table',
+                                sync_id: self.id)
         self
       end
 
       def set_failure_state_from(importer)
-        log.append     '******** synchronization failed ********'
+        log.append_and_store     '******** synchronization failed ********'
         self.log_trace      = importer.runner_log_trace
         log.append     "*** Runner log: #{self.log_trace} \n***" unless self.log_trace.nil?
         self.state          = STATE_FAILURE
@@ -376,7 +440,7 @@ module CartoDB
           default_message = CartoDB::IMPORTER_ERROR_CODES.fetch(self.error_code, {})
           self.error_message = default_message.fetch(:title, '')
         end
-        if self.retried_times < MAX_RETRIES - 1
+        if self.retried_times < MAX_RETRIES
           self.retried_times  += 1
           self.run_at         = Time.now + interval
         else
@@ -386,13 +450,12 @@ module CartoDB
       end
 
       def set_general_failure_state_from(exception, error_code = 99999, error_message = 'Unknown error, please try again')
-        log.append     '******** synchronization raised exception ********'
+        log.append_and_store     '******** synchronization raised exception ********'
         self.log_trace      = exception.message + ' ' + exception.backtrace.join("\n")
         self.state          = STATE_FAILURE
         self.error_code     = error_code
         self.error_message  = error_message
-        self.retried_times  += 1 unless self.retried_times >= MAX_RETRIES
-        if self.retried_times < MAX_RETRIES - 1
+        if self.retried_times < MAX_RETRIES
           self.retried_times  += 1
           self.run_at         = Time.now + interval
         else
@@ -511,13 +574,11 @@ module CartoDB
         false
       end
 
-      # @return mixed|nil
       def get_datasource(datasource_name)
         begin
           datasource = DatasourcesFactory.get_datasource(datasource_name, user, {
             http_timeout: ::DataImport.http_timeout_for(user)
           })
-          datasource.report_component = Rollbar
           if datasource.kind_of? BaseOAuth
             oauth = user.oauths.select(datasource_name)
             datasource.token = oauth.token unless oauth.nil?
@@ -541,4 +602,3 @@ module CartoDB
     end
   end
 end
-
