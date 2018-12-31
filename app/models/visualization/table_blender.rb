@@ -28,9 +28,13 @@ module CartoDB
       end
 
       def blended_privacy
-        return Visualization::Member::PRIVACY_PRIVATE if tables.any?(&:private?)
-        return Visualization::Member::PRIVACY_LINK if tables.any?(&:public_with_link_only?)
-        Visualization::Member::PRIVACY_PUBLIC
+        return Visualization::Member::PRIVACY_LINK 
+
+        # The code below will be revisited during the sharing usecases, 
+       
+        #return Visualization::Member::PRIVACY_PRIVATE if tables.any?(&:private?)
+        #return Visualization::Member::PRIVACY_LINK if tables.any?(&:public_with_link_only?)
+        #Visualization::Member::PRIVACY_PUBLIC
       end
 
       private

@@ -13,6 +13,13 @@ module Carto
       table_name = user_table.name
 
       query = %{select * from "#{table_name}"}
+
+      # Hack for Samples 2.0 - Save As.  Allow the SQL API to generate a proper gpkg
+      # but make sure it doesn't do a full table scan
+      if(format == 'gpkg' && is_remote)
+        query << ' limit 0'
+      end
+
       url = sql_api_query_url(query, table_name, user_table.user, privacy(user_table), format)
       exported_file = "#{folder}/#{table_name}.#{format}"
 

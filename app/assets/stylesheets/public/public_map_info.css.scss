@@ -23,7 +23,7 @@
 // Table or vis details (title, description, ...)
 
 .cartodb-info .inner .details h1 {
-  font-family: 'ProximaNova-Semibold', $text-fonts2;
+  font-family: $text-fonts2;
   font-weight: normal;
   font-size:27px;
   color: #444444;
@@ -79,7 +79,6 @@
   text-shadow: none;
   font-size:11px;
   line-height:27px;
-  font-family:'Arial';
   letter-spacing:0;
 }
 .user-options .button.grey.like .icon {
@@ -213,7 +212,7 @@
 .cartodb-info .inner .user h5,
 .cartodb-info .inner .user .count {
   margin: 0; padding: 0;
-  font-family: 'ProximaNova-Semibold', $text-fonts2;
+  font-family: $text-fonts2;
   font-weight: normal;
 }
 

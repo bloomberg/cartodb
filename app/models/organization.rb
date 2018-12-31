@@ -230,7 +230,12 @@ class Organization < Sequel::Model
   def get_twitter_imports_count(options = {})
     date_from, date_to = quota_dates(options)
 
-    SearchTweet.get_twitter_imports_count(users_dataset.join(:search_tweets, :user_id => :id), date_from, date_to)
+    org_search_tweets = Sequel::Model.db.fetch("
+      SELECT * FROM search_tweets st
+      JOIN users u ON u.id = st.user_id
+      WHERE u.organization_id = ?
+    ", id)
+    SearchTweet.get_twitter_imports_count(org_search_tweets, date_from, date_to)
   end
 
   def get_mapzen_routing_calls(options = {})
@@ -273,7 +278,10 @@ class Organization < Sequel::Model
   end
 
   def assigned_quota
-    users_dataset.sum(:quota_in_bytes).to_i
+    Sequel::Model.db.fetch("
+      SELECT sum(u.quota_in_bytes) AS quota_in_bytes
+      FROM users u WHERE u.organization_id = ?
+    ", id).first[:quota_in_bytes].to_i
   end
 
   def unassigned_quota
@@ -320,8 +328,15 @@ class Organization < Sequel::Model
       website:                   website,
       admin_email:               admin_email,
       avatar_url:                avatar_url,
-      user_count:                users.count
+      user_count:                user_count
     }
+  end
+
+  def user_count
+    Sequel::Model.db.fetch(
+      "SELECT COUNT(1) AS user_count
+      FROM users u WHERE u.organization_id = ?", id
+    ).first[:user_count].to_i
   end
 
   def public_visualizations(page_num = 1, items_per_page = 5, tag = nil)

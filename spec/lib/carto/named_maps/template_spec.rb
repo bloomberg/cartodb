@@ -70,6 +70,37 @@ module Carto
             @template_hash[:layergroup][:layers].second[:id].should eq @carto_layer.id
           end
 
+          describe 'without tooltip or infowindow' do
+            before(:all) do
+              @carto_layer.tooltip = nil
+              @carto_layer.infowindow = nil
+              @carto_layer.save
+
+              @visualization.reload
+
+              template_hash = Carto::NamedMaps::Template.new(@visualization).to_hash
+              @layer_options_hash = template_hash[:layergroup][:layers].second[:options]
+            end
+
+            after(:all) do
+              @carto_layer.tooltip = nil
+              @carto_layer.infowindow = nil
+              @carto_layer.save
+
+              @visualization.reload
+              @layer_options_hash = nil
+            end
+
+            it 'should use cartodb_id as the default interactivity' do
+              @layer_options_hash[:interactivity].should_not be_nil
+              @layer_options_hash[:interactivity].should eq 'cartodb_id'
+            end
+
+            it 'should not contain attributes' do
+              @layer_options_hash[:attributes].should be_nil
+            end
+          end
+
           describe 'with popups' do
             let(:dummy_infowindow) do
               {

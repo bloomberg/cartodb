@@ -88,12 +88,12 @@
   float:right;
   font-size: 11px;
   color: #CCCCCC;
-  font-family: 'ProximaNova', $text-fonts2;
+  font-family: $text-fonts2;
   line-height: 120%;
 }
 
 .cartodb-body .inner .map-info ul li span.help {
-  font-family: 'ProximaNova', $text-fonts2;
+  font-family: $text-fonts2;
   top: 3px;
 }
 

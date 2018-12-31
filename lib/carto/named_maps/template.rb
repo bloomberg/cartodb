@@ -171,7 +171,7 @@ module Carto
         attributes = {}
 
         if hover_fields.present?
-          interactivity << hover_fields.map { |hover_field| hover_field.fetch('name') }
+          interactivity = hover_fields.map { |hover_field| hover_field.fetch('name') }
         end
 
         if click_fields.present?
@@ -183,7 +183,11 @@ module Carto
           }
         end
 
-        [attributes, interactivity.join(',')]
+        if interactivity.empty?
+          interactivity = ['cartodb_id']
+        end
+
+        [attributes, interactivity.uniq.join(',')]
       end
 
       def dataviews

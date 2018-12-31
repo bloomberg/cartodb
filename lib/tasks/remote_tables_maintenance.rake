@@ -427,7 +427,7 @@ namespace :cartodb do
       sample_maps_username = Cartodb.config[:map_samples]["username"]
       common_data_user = Carto::User.find_by_username(common_data_username)
       sample_maps_user = Carto::User.find_by_username(sample_maps_username)
-      base_url = CartoDB.base_url(sample_maps_user.subdomain, sample_maps_user.organization_username)
+      base_url = CartoDB.base_url(sample_maps_user.subdomain)
       any_import_failed = false
 
       dataset_names.each do |dataset_name|

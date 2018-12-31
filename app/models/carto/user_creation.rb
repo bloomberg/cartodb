@@ -236,8 +236,10 @@ class Carto::UserCreation < ActiveRecord::Base
 
     # Bloomberg specific information from user_infos
     blp_user = ::UserInfo.where(username: username).first
-    puts  "user-auto-creation : initialize_user with #{blp_user.firstname} #{blp_user.lastname}"
-    @cartodb_user.name = "#{blp_user.firstname} #{blp_user.lastname}"
+    if (blp_user)
+      puts  "user-auto-creation : initialize_user with #{blp_user.firstname} #{blp_user.lastname}"
+      @cartodb_user.name = "#{blp_user.firstname} #{blp_user.lastname}"
+    end
 
     @cartodb_user
   rescue => e
