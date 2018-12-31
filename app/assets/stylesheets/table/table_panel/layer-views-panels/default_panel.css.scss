@@ -31,7 +31,7 @@
       color:white;
       text-align:center;
       @include border-radius(20px);
-      background:$Grey7;
+      background:$nGrey9;
       border:none;
       &:hover {
         text-decoration:none;
@@ -57,7 +57,7 @@
       padding:0 5px 0 5px;
       display:block;
       height:38px;
-      border-top:1px solid $DarkGrey6;
+      border-top:1px solid $nGrey16;
       z-index:1;
 
       a.next, a.back {

@@ -54,14 +54,14 @@
       .action.title {
         @include inline-block();
         &:hover {
-          color: $Teal1;
+          color: $nTeal4;
           cursor: pointer;
         }
       }
     }
 
      .title-layer-body {
-      border-top: 1px solid $DarkGrey8;
+      border-top: 1px solid $nGrey17;
       height: 100%;
       padding: 12px;
       width: auto;

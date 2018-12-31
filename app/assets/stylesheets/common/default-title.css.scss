@@ -5,7 +5,7 @@
 //
 // --------------------------------------------------
 .DefaultTitle {
-  color: $Grey1;
+  color: $nGrey1;
   font-weight: normal;
   margin: 0px;
   font-size: 15px;
@@ -14,7 +14,7 @@
   color: rgba($cTypography-paragraphs, 0.4);
 }
 .DefaultTitle-link {
-  color: $Grey1;
+  color: $nGrey1;
   &:hover {
     color: $White;
     text-decoration: none;

@@ -259,7 +259,7 @@ class Carto::UserCreation < ActiveRecord::Base
   end
 
   def load_common_data
-    @cartodb_user.load_common_data(@common_data_url) unless @common_data_url.nil?
+    @cartodb_user.load_common_data(@common_data_url, true) unless @common_data_url.nil?
   rescue => e
     handle_failure(e, mark_as_failure = false)
   end

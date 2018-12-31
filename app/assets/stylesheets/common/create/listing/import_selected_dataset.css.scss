@@ -8,7 +8,7 @@ $w: 820px;
 
 .DatasetSelected {
   width: $w;
-  background-color: $DarkGrey3;
+  background-color: $nGrey14;
   border-radius: 2px;
   padding: 6px 12px;
   margin: 0 0 0 -20px;
@@ -41,7 +41,7 @@ $w: 820px;
 .DatasetSelected-itemDescription {
   display: block;
   margin-top: 3px;
-  color: $Grey4;
+  color: $nGrey7
 }
 .DatasetSelected-sync {
   display: block;

@@ -40,8 +40,8 @@ $sHeight: 14px;
   border-radius: 2px;  
   cursor: pointer;
   @include transition(all 150ms ease);
-  background-color: $DarkGrey8;
-  border: 1px solid $DarkGrey9;
+  background-color: $nGrey17;
+  border: 1px solid $nGrey18;
 
 }
 .Toggler label:before {
@@ -50,7 +50,7 @@ $sHeight: 14px;
   position: absolute;
   width: 11px;
   height: 10px;
-  background-color: $Grey3;
+  background-color: $nGrey6;
   border-radius: 2px;
   @include transition(all 150ms ease);
   top: 1px;
@@ -60,5 +60,5 @@ $sHeight: 14px;
   left: 15px;
 }
 .Toggler input:checked + label {
-  background:$Blue4;
+  background:$nBlue7;
 }

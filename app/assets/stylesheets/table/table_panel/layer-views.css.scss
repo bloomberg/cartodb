@@ -29,8 +29,8 @@
     right:0;  
     left:65px;
     bottom:0;
-    background:$DarkGrey3;
-    border-left: 1px solid $DarkGrey6;
+    background:$nGrey14;
+    border-left: 1px solid $nGrey16;
     padding: 12px 0 12px 12px;
     z-index:5;
 
@@ -40,7 +40,7 @@
       font-size: 14px;
       font-weight: normal;
       line-height:normal;
-      color: $Grey1;
+      color: $nGrey1;
     }
 
     // For any 
@@ -111,7 +111,7 @@
         height:100%;
       }
       
-      &:before { left:36px; background:$DarkGrey6; }
+      &:before { left:36px; background:$nGrey16; }
 
       h3 { padding-left:22px }
       

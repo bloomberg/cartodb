@@ -24,13 +24,13 @@
 
 $sBorderCompensation: 2px;
 $opacityTransition: 250ms;
-$sEditButtonSize: 50px;
+$sEditButtonSize: 80px;
 
 .MapCard {
   position: relative;
   width: $sCard-width - 10px - $sBorderCompensation;
   margin: 0 auto;
-  background-color: $DarkGrey8;
+  background-color: $nGrey16;
 }
 .MapCard.MapCard--borderless .MapCard-header:after {
   display: none;
@@ -117,14 +117,14 @@ $sEditButtonSize: 50px;
 }
 .MapCard--selectable {
   &:hover {
-    background-color: $DarkGrey7;
+    background-color: $nGrey12;
     .MapviewsGraph-bar {
       cursor: pointer;
       fill: rgba(#FFFFFF, 1);
     }
   }
   &.is-selected {
-    background-color: $DarkGrey2;
+    background-color: $SelectionBlue4;
     
     .MapviewsGraph-bar {
      cursor: pointer;
@@ -135,7 +135,6 @@ $sEditButtonSize: 50px;
 .MapCard-header {
   @include background(image-url('layout/default-map-bkg.png') no-repeat center 0);
   @include opacity(1);
-  @include transition(opacity, $opacityTransition);
   display: block;
   position: relative;
   width: 100%;
@@ -152,26 +151,13 @@ $sEditButtonSize: 50px;
 .MapCard-header--compact {
   height: 130px;
 }
-.MapCard-header:after,
-.MapCard.MapCard--squared .MapCard-header.MapCard-header--fake:after {
-  @include opacity(0.1);
-  content: ' ';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: block;
-  height: 2px;
-  background: #000000;
-  z-index: 2;
-}
 
 .MapCard-header--fake,
 .MapCard.MapCard--squared .MapCard-header--fake {
   @include display-flex();
   @include justify-content(center);
   @include align-items(center);
-  background: $Grey10;
+  background: $nGrey11;
 }
 .MapCard-header--fake:after,
 .MapCard.MapCard--squared .MapCard-header.MapCard-header--fake:after {
@@ -231,7 +217,7 @@ $sEditButtonSize: 50px;
   @include animation(pulsate 1.5s linear infinite);
 }
 .MapCard-preview {
-  display: none;
+  display: block;
   position:absolute;
   top: 0;
   left: 0;
@@ -274,30 +260,27 @@ $sEditButtonSize: 50px;
 .MapCard-itemTitlePermission { background-color: $cStructure-mainBkg }
 .MapCard-editButton {
   position: absolute;
-  top: 0;
-  right: 18px;
+  top: -120px;
+  left: calc(50% - 40px);
   width: $sEditButtonSize;
   height: $sEditButtonSize;
-  background: #0090d7;
+  background: rgba(255,255,255,.50);
   border-radius: $sEditButtonSize;
   color: #fff;
   text-decoration:none;
   text-align: center;
   line-height:$sEditButtonSize;
-  font-size: 20px;
-  @include opacity(0);
-  @include css3-prefix(box-sizing, border-box);
-  @include transition(opacity, $opacityTransition);
-  @include transition(top, 200ms, ease-in);
-  &:hover {
-    background: #0082C2;
-    text-decoration: none;
-    color:#fff;
-  }
+  font-size: 35px;
+  display: none;
 }
-.MapCard:hover .MapCard-editButton {
-  @include opacity(1);
-  top: -$sEditButtonSize/2; 
+.MapCard:hover {
+  .MapCard-header {
+    opacity: .75;
+  }
+  .MapCard-editButton {
+    display: block;
+    color: $White;
+  }
 }
 .MapCard-contentBodyRow--flex {
   @include display-flex();
@@ -382,7 +365,6 @@ $sEditButtonSize: 50px;
   height: 352px;
   @include background(image-url('layout/map-placeholder.png') no-repeat center center);
   @include opacity(0);
-  @include transition(opacity, $opacityTransition);
   z-index: 0;
 }
 .MapCard-first-map {

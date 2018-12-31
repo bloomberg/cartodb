@@ -48,8 +48,8 @@ $corner_radius: 0px;
   .layer_panel {
     position:relative;
     height:100%;
-    background:$DarkGrey2;
-    border-top:1px solid $DarkGrey8; 
+    background:$nGrey13;
+    border-top:1px solid $nGrey17; 
     z-index:1;
     &:first-child {
       border-top: 1px solid transparent;
@@ -102,5 +102,5 @@ $corner_radius: 0px;
 }
 
 .subtext {
-  color: $Grey7;
+  color: $nGrey9;
 }

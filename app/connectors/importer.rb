@@ -161,6 +161,31 @@ module CartoDB
           data = JSON.parse(response.response_body)
           table_visualization_map_id = data['table_visualization']['map_id']
 
+          table.name_alias = data['name_alias']
+          table.column_aliases = data['column_aliases']
+
+          url = "#{remote_base_url}/api/v1/maps/#{table_visualization_map_id}"
+          response = http_client.get(url, params: {
+            api_key: remote_api_key
+          })
+
+          if response.code != 200
+            runner.log.append("Skipping remote vis copy: Error fetching #{url} - #{response.code} #{response.body}")
+            return
+          end
+
+          data = JSON.parse(response.response_body)
+          table.map.provider = data['provider']
+          table.map.bounding_box_sw = data['bounding_box_sw']
+          table.map.bounding_box_ne = data['bounding_box_ne']
+          table.map.center = data['center']
+          table.map.zoom = data['zoom']
+          table.map.view_bounds_sw = data['view_bounds_sw']
+          table.map.view_bounds_ne = data['view_bounds_ne']
+          table.map.legends = data['legends']
+          table.map.scrollwheel = data['scrollwheel']
+          table.save
+
           # Get remote vis layer configs
           url = "#{remote_base_url}/api/v1/maps/#{table_visualization_map_id}/layers"
           response = http_client.get(url, params: {
@@ -245,14 +270,14 @@ module CartoDB
 
         if data_import
           user_id = data_import.user_id
-          if exists_user_table_for_user_id(new_name, user_id)
+          if exists_user_table_for_user_id(new_name, user_id) || common_data_table(new_name)
             # Since get_valid_table_name should only return nonexisting table names (with a retry limit)
             # this is likely caused by a table deletion, so we run ghost tables to cleanup and retry
             if rename_attempts == 1
               runner.log.append("Triggering ghost tables for #{user_id} because collision on #{new_name}")
               ::User.where(id: user_id).first.link_ghost_tables
 
-              if exists_user_table_for_user_id(new_name, user_id)
+              if exists_user_table_for_user_id(new_name, user_id) || common_data_table(new_name)
                 runner.log.append("Ghost tables didn't fix the collision.")
                 raise "Existing #{new_name} already registered for #{user_id}. Running ghost tables did not help."
               else
@@ -334,6 +359,11 @@ module CartoDB
 
       def exists_user_table_for_user_id(table_name, user_id)
         !Carto::UserTable.where(name: table_name, user_id: user_id).first.nil?
+      end
+
+      def common_data_table(table_name)
+        @common_data_user ||= Carto::User.find_by_username(Cartodb.config[:common_data]["username"])
+        @common_data_user.visualizations.where(privacy: 'public', type: 'table', name: table_name).first
       end
 
       attr_reader :runner, :table_registrar, :quota_checker, :database, :data_import_id

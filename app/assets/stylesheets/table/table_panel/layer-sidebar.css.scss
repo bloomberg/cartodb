@@ -92,7 +92,7 @@
       &.edit {
         bottom:0;
         a.merge_datasets {
-          border-top:1px solid $DarkGrey8;
+          border-top:1px solid $nGrey17;
         }
       }
 
@@ -159,14 +159,14 @@
         }
 
         &.add_feature {
-          border-top:1px solid $DarkGrey8;
+          border-top:1px solid $nGrey17;
           background-image: url(../images/icons/add_feature.png);
           background-repeat: no-repeat;
           background-position: center;
         }
 
         &:hover {
-          background-color: $DarkGrey1;
+          background-color: $nGrey12;
         }
 
         &.disabled {
@@ -175,8 +175,8 @@
  
         &.selected {
           background-color: $tab_bg_selected;
-          border-top: 1px solid $DarkGrey6;
-          border-bottom: 1px solid $DarkGrey6;
+          border-top: 1px solid $nGrey16;
+          border-bottom: 1px solid $nGrey16;
 
 
           &:before {
@@ -185,7 +185,7 @@
             left: -1px;
             width: 2px;
             background-color: #fff;
-            border: 1px solid $DarkGrey6;
+            border: 1px solid $nGrey16;
             top: -1px;
             bottom: -1px;
             z-index: 1;
@@ -193,7 +193,7 @@
           }
           &:after {
             position:absolute;
-            background-color: $DarkGrey3;
+            background-color: $nGrey14;
             content:'';
             bottom: 0px;
             right:-1px;

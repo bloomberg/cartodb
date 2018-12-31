@@ -226,7 +226,7 @@
           & > span:first-child {
             float:left;
             margin-top:2px;
-            color:$Grey2;
+            color:$nGrey4;
           }
 
           & > span:last-child {
@@ -238,7 +238,7 @@
           }
 
           &.label_text { border:none; }
-          &.label_text.border { border-bottom: 1px solid $DarkGrey9; }
+          &.label_text.border { border-bottom: 1px solid $nGrey18; }
           &:last-child {border:none;}
 
           span.field > div {

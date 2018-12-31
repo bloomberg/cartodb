@@ -3,6 +3,7 @@ require_relative '../../models/visualization/member'
 require_relative '../../models/visualization/collection'
 require_relative '../../models/visualization/external_source'
 require_relative '../../models/common_data/singleton'
+require_relative '../../../lib/carto/url'
 
 module CartoDB
 
@@ -25,18 +26,28 @@ module CartoDB
         !Cartodb.config[:common_data].nil?
       end
 
-      def self.build_url(controller)
+      # Build url for common data list endpoint. If
+      # visualization_name is specified, the query will
+      # return only records for visualizations with that name.
+      # @param controller ActionController::Base
+      # @param visualization_name String
+      def self.build_url(controller, visualization_name: nil)
         common_data_config = Cartodb.config[:common_data]
         return nil unless common_data_config
 
         common_data_base_url = common_data_config['base_url']
         common_data_username = common_data_config['username']
         common_data_user = Carto::User.where(username: common_data_username).first
+
+        params = {type: 'table', privacy: 'public'}
+        params[:name] = visualization_name if !visualization_name.nil?
+
         if !common_data_base_url.nil?
           # We set user_domain to nil to avoid duplication in the url for subdomainfull urls. Ie. user.cartodb.com/u/cartodb/...
-          common_data_base_url + CartoDB.path(controller, 'api_v1_visualizations_index', {type: 'table', privacy: 'public', user_domain: nil})
+          params[:user_domain] = nil
+          common_data_base_url + CartoDB.path(controller, 'api_v1_visualizations_index', params)
         elsif !common_data_user.nil?
-          CartoDB.url(controller, 'api_v1_visualizations_index', {type: 'table', privacy: 'public'}, common_data_user)
+          CartoDB.url(controller, 'api_v1_visualizations_index', params, common_data_user)
         else
           CartoDB.notify_error(
             'cant create common-data url. User doesn\'t exist and base_url is nil',
@@ -45,7 +56,7 @@ module CartoDB
         end
       end
 
-      def load_common_data_for_user(user, visualizations_api_url)
+      def load_common_data_for_user(user, visualizations_api_url, update_only = false)
         update_user_date_flag(user)
 
         added = 0
@@ -55,10 +66,24 @@ module CartoDB
         failed = 0
 
         remotes_by_name = {}
-        user_remotes = CartoDB::Visualization::Collection.new.fetch(type: CartoDB::Visualization::Member::TYPE_REMOTE, user_id: user.id)
+        user_remotes_filters = {
+            type: CartoDB::Visualization::Member::TYPE_REMOTE,
+            user_id: user.id
+        }
+        # If the common data query specifies a particular visualization, ignore
+        # all other remotes for that user
+        visualization_name_filter = Carto::Url.new(visualizations_api_url).get_param(:name)
+        user_remotes_filters[:name] = visualization_name_filter.first if !visualization_name_filter.empty?
+
+        user_remotes = CartoDB::Visualization::Collection.new.fetch(user_remotes_filters)
         user_remotes.each { |r|
           remotes_by_name[r.name] = r
         }
+
+        if update_only && remotes_by_name.empty?
+          return added, updated, not_modified, deleted, failed
+        end
+
         get_datasets(visualizations_api_url).each do |dataset|
           begin
             visualization = remotes_by_name.delete(dataset['name'])
@@ -66,25 +91,29 @@ module CartoDB
               if visualization.update_remote_data(
                   Member::PRIVACY_PUBLIC,
                   dataset['description'], dataset['tags'], dataset['license'],
-                  dataset['source'], dataset['attributions'], dataset['display_name'], dataset['exportable'], dataset['export_geom'])
+                  dataset['source'], dataset['attributions'], dataset['name_alias'] || dataset['display_name'],
+                  dataset['exportable'], dataset['export_geom'], dataset['category'])
                 visualization.store
                 updated += 1
               else
                 not_modified += 1
               end
-            else
+            elsif !update_only
               visualization = Member.remote_member(
                 dataset['name'], user.id, Member::PRIVACY_PUBLIC,
                 dataset['description'], dataset['tags'], dataset['license'],
-                dataset['source'], dataset['attributions'], dataset['display_name'], dataset['exportable'], dataset['export_geom']).store
+                dataset['source'], dataset['attributions'], dataset['name_alias'] || dataset['display_name'],
+                dataset['exportable'], dataset['export_geom'], dataset['category']).store
               added += 1
             end
 
-            external_source = ExternalSource.where(visualization_id: visualization.id).first
-            if external_source
-              external_source.save if !(external_source.update_data(dataset['url'], dataset['geometry_types'], dataset['rows'], dataset['size'], 'common-data').changed_columns.empty?)
-            else
-              ExternalSource.new(visualization.id, dataset['url'], dataset['geometry_types'], dataset['rows'], dataset['size'], 'common-data').save
+            if visualization
+              external_source = ExternalSource.where(visualization_id: visualization.id).first
+              if external_source
+                external_source.save if !(external_source.update_data(dataset['url'], dataset['geometry_types'], dataset['rows'], dataset['size'], 'common-data').changed_columns.empty?)
+              else
+                ExternalSource.new(visualization.id, dataset['url'], dataset['geometry_types'], dataset['rows'], dataset['size'], 'common-data').save
+              end
             end
           rescue => e
             CartoDB.notify_exception(e, {

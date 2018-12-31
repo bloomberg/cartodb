@@ -6,7 +6,7 @@
 .CreateDialog-header {
   max-height: 100px;
   min-height: 100px!important;
-  background: $DarkGrey6;
+  background: $nGrey16;
 
 }
 .CreateDialog-header.with-separator {
@@ -104,3 +104,21 @@
   }
 }
 .CreateDialog-headerStep.is-selectable:hover { cursor: pointer }
+
+.Dialog-AddLayer {
+  .CreateDialog-header {
+    max-height: 25px;
+    min-height: 25px !important;
+    background-color: $nGrey8;
+  }
+  .Dialog-header {
+    padding-top: 0;
+  }
+  .Dialog-headerTitle {
+    padding-right: 5px;
+    color: $White !important;
+  }
+  .CreateDialog-headerSteps {
+    text-align: right;
+  }
+}

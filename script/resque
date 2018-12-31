@@ -1,2 +1,7 @@
 #!/bin/sh
-VVERBOSE=true QUEUE=imports,users,geocodings,synchronizations,tracker rake environment resque:work
+
+if [ "$#" -ge 1 ]; then
+  VVERBOSE=true QUEUE=$1 rake environment resque:work
+else
+  VVERBOSE=true QUEUE=imports,users,geocodings,synchronizations,tracker rake environment resque:work
+fi

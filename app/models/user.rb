@@ -233,8 +233,8 @@ class User < Sequel::Model
     last_common_data_update_date.nil? || last_common_data_update_date < Time.now - COMMON_DATA_ACTIVE_DAYS.day
   end
 
-  def load_common_data(visualizations_api_url)
-    CartoDB::Visualization::CommonDataService.new.load_common_data_for_user(self, visualizations_api_url)
+  def load_common_data(visualizations_api_url, update_only = false)
+    CartoDB::Visualization::CommonDataService.new.load_common_data_for_user(self, visualizations_api_url, update_only)
   rescue => e
     CartoDB.notify_error(
       "Error loading common data for user",

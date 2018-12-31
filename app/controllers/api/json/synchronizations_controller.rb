@@ -12,7 +12,7 @@ class Api::Json::SynchronizationsController < Api::ApplicationController
 
   ssl_required :create, :update, :destroy, :sync, :sync_now
 
-  before_filter :set_external_source, only: [ :create ]
+  before_filter :load_common_data, :set_external_source, only: [ :create ]
 
   # Upon creation, no rate limit checks
   def create
@@ -138,6 +138,23 @@ class Api::Json::SynchronizationsController < Api::ApplicationController
   end
 
   private
+
+  def load_common_data
+    load_common_data_needed = params.fetch(:needs_cd_import, false) == true
+
+    if load_common_data_needed
+      visualization_name = params.fetch(:value)
+      visualizations_api_url = CartoDB::Visualization::CommonDataService.build_url(
+          self,
+          visualization_name: visualization_name
+      )
+      current_user.load_common_data(visualizations_api_url)
+      new_vis = Carto::Visualization.where(type: 'remote', name: visualization_name, user_id: current_user.id).first
+      if new_vis
+        params[:remote_visualization_id] = new_vis.id
+      end
+    end
+  end
 
   def set_external_source
     @external_source =

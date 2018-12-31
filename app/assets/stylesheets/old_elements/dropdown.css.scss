@@ -30,7 +30,7 @@
       &.horizontal_left {
         &:before {
           left:-3px;
-          border-right:6px solid $Grey2;
+          border-right:6px solid $nGrey4;
           border-top:6px solid transparent;
           border-bottom:6px solid transparent;
         }
@@ -38,7 +38,7 @@
       &.horizontal_right {
         &:before {
           right:-4px;
-          border-left:6px solid $Grey2;
+          border-left:6px solid $nGrey4;
           border-top:6px solid transparent;
           border-bottom:6px solid transparent;
         }
@@ -75,7 +75,7 @@
 
     // With border
     &.border {
-      border:1px solid $Grey2;
+      border:1px solid $nGrey4;
 
       &:after {
         content:' ';
@@ -92,7 +92,7 @@
         &.horizontal_left {
           &:after {
             left:-6px;
-            border-right:6px solid $Grey2;
+            border-right:6px solid $nGrey4;
             border-top:6px solid transparent;
             border-bottom:6px solid transparent;
           }
@@ -100,7 +100,7 @@
         &.horizontal_right {
           &:after {
             right:-6px;
-            border-left:6px solid $Grey2;
+            border-left:6px solid $nGrey4;
             border-top:6px solid transparent;
             border-bottom:6px solid transparent;
           }
@@ -116,7 +116,7 @@
         &.vertical_top {
           &:after {
             bottom:-6px;
-            border-top:6px solid $Grey2;
+            border-top:6px solid $nGrey4;
             border-left:6px solid transparent;
             border-right:6px solid transparent;
           }
@@ -124,7 +124,7 @@
         &.vertical_bottom {
           &:after {
             top:-6px;
-            border-bottom:6px solid $Grey2;
+            border-bottom:6px solid $nGrey4;
             border-left:6px solid transparent;
             border-right:6px solid transparent;
           }
@@ -157,7 +157,7 @@
           display:block;
 
         a {
-	        color: $Amber1;
+	        color: $nAmber5;
           display:block;
           line-height: 19px;
           padding: 0px 12px;
@@ -165,7 +165,7 @@
 
 
         &:hover {
-          background:$DarkGrey2;
+          background:$nGrey13;
           a {text-decoration:none}
         }
 

@@ -178,7 +178,7 @@
 
       .filter { // generic styles for all the filters
         position:relative;
-        border-bottom: 1px solid $DarkGrey6;
+        border-bottom: 1px solid $nGrey16;
         padding-top:12px;
         padding-bottom: 12px;
         text-align:left;
@@ -201,11 +201,11 @@
 
           .hidden { display: none; }
 
-          .legend    { float:left; margin: 0 5px 0 0; color: $Grey1; text-align: left; max-width: 180px; }
+          .legend    { float:left; margin: 0 5px 0 0; color: $nGrey1; text-align: left; max-width: 180px; }
           .empty     { float: left; display:none; color: #FF9999; vertical-align: top; }
           .only      { float: left; display:none; color: #FFAB37; vertical-align: top; }
           .loading   { float: left; display:none; color: #FFAB37; vertical-align: top; }
-          .range, .range-number     { float:left;  display:none; color: $Amber1; }
+          .range, .range-number     { float:left;  display:none; color: $nAmber5; }
 
           .title  { float: left; }
           .min, .max {
@@ -276,7 +276,7 @@
 
           a {
             vertical-align: top;
-            color: $Teal1;
+            color: $nTeal4;
             
 
             &.selected { display:none; }
@@ -416,7 +416,7 @@
             @include border-radius(2px 0 0 2px);
             border-right: 1px solid $Black;
             &:before {
-              border-bottom: 4px solid $Grey1;
+              border-bottom: 4px solid $nGrey1;
               bottom: 7px;
               top: 0px;
             }
@@ -426,7 +426,7 @@
           &.down {
             @include border-radius(0 2px 2px 0);
             &:before {
-              border-top: 4px solid $Grey1;
+              border-top: 4px solid $nGrey1;
               top: 7px;
               
             }
@@ -494,7 +494,7 @@
             height: 11px;
             content: "";
             color: black;
-            background-color: $Grey10;
+            background-color: $nGrey11;
             border: 1px solid $Black;
             border-radius: 2px;
             position: absolute;
@@ -512,7 +512,7 @@
           .value {
             position:absolute;
             right: 0; 
-            color:$Grey1;
+            color:$nGrey1;
           }
         }
       }
@@ -534,7 +534,7 @@
       .axis path, .axis line { fill: none; stroke: #000; shape-rendering: crispEdges; }
       .axis text { font: 10px sans-serif; }
       .brush rect.extent { fill: $SelectionBlue3; fill-opacity: .2; }
-      .brush .resize path { fill: $Grey9; stroke: $Black; }
+      .brush .resize path { fill: $nGrey10; stroke: $Black; }
     }
   }
 

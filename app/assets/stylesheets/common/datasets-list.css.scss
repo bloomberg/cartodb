@@ -21,7 +21,7 @@ $bannedColor: #E1A7A5;
   position: relative;
   @include display-flex();
   border: 1px solid transparent;
-  border-bottom: 1px solid $DarkGrey8;
+  border-bottom: 1px solid $nGrey17;
   padding: 6px;
 }
 .DatasetsList-item--selectable:hover,
@@ -30,17 +30,11 @@ $bannedColor: #E1A7A5;
 .DatasetsList-item--selectable:hover {
   background-color: $gridRowBackgroundHover;
   cursor: pointer;
-  .DatasetsList-itemDescription .DefaultDescription:after {
-    @include background-horizontal(rgba(255,255,255,0), $gridRowBackgroundHover);
-  }
 }
 .DatasetsList-item--selectable.is--selected {
   background-color: $gridRowBackgroundSelected;
   border: 1px solid $SelectionBlue2;
   &:hover { cursor: default }
-  .DatasetsList-itemDescription .DefaultDescription:after {
-    @include background-horizontal(rgba(255,255,255,0), $gridRowBackgroundSelected);
-  }
 }
 .DatasetsList-fake {
   position: absolute;
@@ -189,10 +183,8 @@ $bannedColor: #E1A7A5;
     }
   }
   .DatasetsList-itemDescription {
-    margin-top: 4px;
-    height: $sLineHeight-normal;
     .DefaultDescription {
-      @include line-clamp(1);
+      line-height: 27px;
     }
   }
 

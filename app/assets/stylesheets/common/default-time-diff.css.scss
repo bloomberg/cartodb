@@ -8,10 +8,10 @@
 .DefaultTimeDiff {
   @include display-flex();
   @include align-items(center, center);  
-  color:$Grey7;
+  color:$nGrey9;
 }
 .DefaultTimeDiff-icon {
   margin-right: 5px;
-  color: $Grey7;
+  color: $nGrey9;
 }
 .DefaultTimeDiff p { margin-left: 5px }

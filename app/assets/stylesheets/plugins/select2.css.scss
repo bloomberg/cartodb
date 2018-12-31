@@ -47,7 +47,7 @@ Version: 3.1 Timestamp: Tue Aug 14 09:05:17 PDT 2012
 }
 // fonts combobox
 .select2-container .select2-choice {
-    background-color: $Amber1;
+    background-color: $nAmber5;
     -moz-background-clip: padding;
     -webkit-background-clip: padding-box;
     background-clip: padding-box;
@@ -105,8 +105,8 @@ Version: 3.1 Timestamp: Tue Aug 14 09:05:17 PDT 2012
     z-index: 9999;
     width:100%;
     margin-top:5px;
-    background: $DarkGrey7;
-    color: $Amber1;
+    background: $nGrey16;
+    color: $nAmber5;
     border: 1px solid $White;
 }
 
@@ -152,7 +152,7 @@ Version: 3.1 Timestamp: Tue Aug 14 09:05:17 PDT 2012
 
     &:after {
       bottom:7px;
-      border-top:4px solid $Grey2;
+      border-top:4px solid $nGrey4;
     }
 }
 
@@ -265,7 +265,7 @@ Version: 3.1 Timestamp: Tue Aug 14 09:05:17 PDT 2012
   display: list-item;
   height: 19px; 
   line-height: 17px;
-  color:$Amber1;
+  color:$nAmber5;
   padding: 0px 12px;
 }
 
@@ -285,7 +285,7 @@ Version: 3.1 Timestamp: Tue Aug 14 09:05:17 PDT 2012
 }
 
 .select2-results .select2-highlighted {
-  background: $DarkGrey2;
+  background: $nGrey13;
 }
 .select2-results li em {
   background: #feffde;

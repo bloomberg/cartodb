@@ -88,10 +88,10 @@ $cHighlight-mainHover: rgba(#007FBD, 1);
   }
 }
 .Button--link {
-  color: $Teal2;
+  color: $nTeal6;
   text-transform: inherit;
   &:hover {
-    color: $Teal3;
+    color: $nTeal6;
     text-decoration: none;
   }
 }
@@ -117,4 +117,18 @@ $cHighlight-mainHover: rgba(#007FBD, 1);
   color: $cTypography-linkSecondaryHover;
   font-size: $sFontSize-smallUpperCase;
   line-height: 24px;
+}
+
+.Button--toolbar {
+  height: 27px;
+  line-height: 25px;
+  padding: 0px 12px;
+  margin-right: 6px;
+}
+
+.Button--toolbar-negative {
+  background-color: $cHighlight-negative;
+  &:hover {
+    background-color: rgba(#B93F37, 1);
+  }
 }

@@ -35,7 +35,7 @@
       .label {
         margin: 0 4px 0 0;
         font-size: 11px;
-        color: $Grey2;
+        color: $nGrey4;
         cursor: default;
       }
 
@@ -44,11 +44,11 @@
         @include inline-block();
         min-width:20px;
         width:auto!important;
-        padding:0px 19px 0px 4px;
+        padding:0px 12px 0px 0px;
         height:19px;
         margin:0;
         border:1px solid $Black;
-        background-color: $Amber1;
+        background-color: $nAmber5;
         > .value {
           border: none;
         }
@@ -87,7 +87,7 @@
       height: 10px;
       &:before {
         top: 2px;
-        border-bottom:4px solid $Grey2;
+        border-bottom:4px solid $nGrey4;
       }
     }
     
@@ -95,7 +95,7 @@
       bottom:0;
       &:before {
         top: 3px;
-        border-top:4px solid $Grey2;
+        border-top:4px solid $nGrey4;
       }
     }
   }

@@ -43,22 +43,25 @@ class Table
   # @see services/importer/lib/importer/column.rb -> RESERVED_WORDS
   # @see config/initializers/carto_db.rb -> RESERVED_COLUMN_NAMES
   RESERVED_COLUMN_NAMES = %W{ oid tableoid xmin cmin xmax cmax ctid ogc_fid }
+
   PUBLIC_ATTRIBUTES = {
-      :id                           => :id,
-      :name                         => :name,
-      :privacy                      => :privacy_text,
-      :schema                       => :schema,
-      :updated_at                   => :updated_at,
-      :rows_counted                 => :rows_estimated,
-      :table_size                   => :table_size,
-      :map_id                       => :map_id,
-      :description                  => :description,
-      :geometry_types               => :geometry_types,
-      :table_visualization          => :table_visualization,
-      :dependent_visualizations     => :serialize_dependent_visualizations,
-      :non_dependent_visualizations => :serialize_non_dependent_visualizations,
-      :synchronization              => :serialize_synchronization
-  }
+    id: :id,
+    name: :name,
+    name_alias: :name_alias,
+    column_aliases: :column_aliases,
+    privacy: :privacy_text,
+    schema: :schema,
+    updated_at: :updated_at,
+    rows_counted: :rows_estimated,
+    table_size: :table_size,
+    map_id: :map_id,
+    description: :description,
+    geometry_types: :geometry_types,
+    table_visualization: :table_visualization,
+    dependent_visualizations: :serialize_dependent_visualizations,
+    non_dependent_visualizations: :serialize_non_dependent_visualizations,
+    synchronization: :serialize_synchronization
+  }.freeze
 
   DEFAULT_THE_GEOM_TYPE = 'geometry'
 
@@ -533,7 +536,8 @@ class Table
       user_id:      self.owner.id,
       kind:         kind,
       exportable:   esv.nil? ? true : esv.exportable,
-      export_geom:  esv.nil? ? true : esv.export_geom
+      export_geom:  esv.nil? ? true : esv.export_geom,
+      category:     esv.nil? ? -1 : esv.category
     )
 
     member.store
@@ -1353,6 +1357,22 @@ class Table
                           table_name: name)
   end
 
+  def name_alias=(name_alias)
+    @user_table.name_alias = name_alias
+  end
+
+  def name_alias
+    @user_table.name_alias
+  end
+
+  def column_aliases=(column_aliases)
+    @user_table.column_aliases = column_aliases
+  end
+
+  def column_aliases
+    @user_table.column_aliases
+  end
+
   private
 
   def external_source_visualization
@@ -1443,6 +1463,12 @@ class Table
     existing_names = []
     existing_names = options[:name_candidates] || options[:connection]["select relname from pg_stat_user_tables WHERE schemaname='#{database_schema}'"].map(:relname) if options[:connection]
     existing_names = existing_names + SYSTEM_TABLE_NAMES
+
+    common_data_username = Cartodb.config[:common_data]["username"]
+    common_data_user = Carto::User.find_by_username(common_data_username)
+    lib_names = common_data_user.visualizations.where(type: 'table', privacy: 'public').select(:name).map { |row| row.name }
+    existing_names += lib_names
+
     rx = /_(\d+)$/
     count = name[rx][1].to_i rescue 0
     while existing_names.include?(name)

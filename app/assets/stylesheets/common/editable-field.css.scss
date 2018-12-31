@@ -10,11 +10,13 @@ $fieldBorderColor: #DFE8EC;
 
 .EditableField {  
   .EditableField-button {
-    color: $Teal2;
+    color: $nTeal6;
     padding: 0px;
+    width: 100%;
+    text-align: left;
 
     &:hover {
-      color: $Teal1;
+      color: $nTeal4;
       text-decoration: none;
     }
   }

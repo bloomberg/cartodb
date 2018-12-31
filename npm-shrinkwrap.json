@@ -1,6 +1,6 @@
 {
   "name": "cartodb-ui",
-  "version": "3.23.66",
+  "version": "3.23.72",
   "dependencies": {
     "autoprefixer-core": {
       "version": "5.2.1",
@@ -6430,9 +6430,9 @@
           "resolved": "https://registry.npmjs.org/chalk/-/chalk-1.1.1.tgz",
           "dependencies": {
             "ansi-styles": {
-              "version": "2.2.0",
-              "from": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.0.tgz",
-              "resolved": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.0.tgz",
+              "version": "2.2.1",
+              "from": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.1.tgz",
+              "resolved": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.1.tgz",
               "dependencies": {
                 "color-convert": {
                   "version": "1.0.0",
@@ -6495,9 +6495,9 @@
           "resolved": "https://registry.npmjs.org/chalk/-/chalk-1.1.1.tgz",
           "dependencies": {
             "ansi-styles": {
-              "version": "2.2.0",
-              "from": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.0.tgz",
-              "resolved": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.0.tgz",
+              "version": "2.2.1",
+              "from": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.1.tgz",
+              "resolved": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.1.tgz",
               "dependencies": {
                 "color-convert": {
                   "version": "1.0.0",
@@ -7145,9 +7145,9 @@
           "resolved": "https://registry.npmjs.org/chalk/-/chalk-1.1.1.tgz",
           "dependencies": {
             "ansi-styles": {
-              "version": "2.2.0",
-              "from": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.0.tgz",
-              "resolved": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.0.tgz",
+              "version": "2.2.1",
+              "from": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.1.tgz",
+              "resolved": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.1.tgz",
               "dependencies": {
                 "color-convert": {
                   "version": "1.0.0",
@@ -7823,9 +7823,9 @@
           "resolved": "https://registry.npmjs.org/chalk/-/chalk-1.1.1.tgz",
           "dependencies": {
             "ansi-styles": {
-              "version": "2.2.0",
-              "from": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.0.tgz",
-              "resolved": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.0.tgz",
+              "version": "2.2.1",
+              "from": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.1.tgz",
+              "resolved": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.1.tgz",
               "dependencies": {
                 "color-convert": {
                   "version": "1.0.0",
@@ -8521,9 +8521,9 @@
               "resolved": "https://registry.npmjs.org/chalk/-/chalk-1.1.1.tgz",
               "dependencies": {
                 "ansi-styles": {
-                  "version": "2.2.0",
-                  "from": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.0.tgz",
-                  "resolved": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.0.tgz",
+                  "version": "2.2.1",
+                  "from": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.1.tgz",
+                  "resolved": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.1.tgz",
                   "dependencies": {
                     "color-convert": {
                       "version": "1.0.0",
@@ -9926,9 +9926,9 @@
                   "resolved": "https://registry.npmjs.org/disparity/-/disparity-2.0.0.tgz",
                   "dependencies": {
                     "ansi-styles": {
-                      "version": "2.2.0",
-                      "from": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.0.tgz",
-                      "resolved": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.0.tgz",
+                      "version": "2.2.1",
+                      "from": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.1.tgz",
+                      "resolved": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.1.tgz",
                       "dependencies": {
                         "color-convert": {
                           "version": "1.0.0",
@@ -10322,9 +10322,9 @@
                       "resolved": "https://registry.npmjs.org/chalk/-/chalk-1.1.1.tgz",
                       "dependencies": {
                         "ansi-styles": {
-                          "version": "2.2.0",
-                          "from": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.0.tgz",
-                          "resolved": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.0.tgz",
+                          "version": "2.2.1",
+                          "from": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.1.tgz",
+                          "resolved": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.1.tgz",
                           "dependencies": {
                             "color-convert": {
                               "version": "1.0.0",
@@ -11262,9 +11262,9 @@
                   "resolved": "https://registry.npmjs.org/chalk/-/chalk-1.1.1.tgz",
                   "dependencies": {
                     "ansi-styles": {
-                      "version": "2.2.0",
-                      "from": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.0.tgz",
-                      "resolved": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.0.tgz",
+                      "version": "2.2.1",
+                      "from": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.1.tgz",
+                      "resolved": "https://registry.npmjs.org/ansi-styles/-/ansi-styles-2.2.1.tgz",
                       "dependencies": {
                         "color-convert": {
                           "version": "1.0.0",

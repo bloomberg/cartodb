@@ -56,7 +56,7 @@
       // Layer name
       > .name {
         @include text-overflow();
-        color:$Grey1;
+        color:$nGrey1;
         font-size:15px;
         margin-left:12px;
         overflow:hidden;
@@ -88,7 +88,7 @@
         max-width: 80%;
         width: auto;
         font: normal 11px;
-        color: $Grey2;
+        color: $nGrey4;
         @include text-overflow();
         line-height:15px;
 
@@ -126,7 +126,7 @@
   }
 //active layer header
 .layer_panel.active > .layer-info {
-  background: $DarkGrey1;
+  background: $nGrey12;
    &:hover {
       background-color: $layer_header_background_active_hover;
     }
