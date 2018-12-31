@@ -12,6 +12,8 @@ $fieldBorderColor: #DFE8EC;
   .EditableField-button {
     color: $Teal2;
     padding: 0px;
+    width: 100%;
+    text-align: left;
 
     &:hover {
       color: $Teal1;

@@ -9,6 +9,7 @@
 @import "../variables/colors";
 @import "../variables/sizes";
 @import "../variables/mixins";
+@import "../bloomberg/bloomberg_style";
 
 // bloomberg fonts //
       @font-face {
@@ -41,7 +42,7 @@
 //end bloomberg fonts//
 
 /* scroll bar */
-            ::-webkit-scrollbar {
+        ::-webkit-scrollbar {
         width: 12px; 
         height: 12px;
         background: transparent;
@@ -91,18 +92,20 @@
 * {
   text-rendering: optimizeLegibility;
   box-sizing: border-box;
+  -webkit-user-drag: none;
 }
 
+html {
+    height: 100%;
+}
 
 body {
-  background: $DarkGrey6;
+  background: $Black;
   color: $Grey2;
   font-family: "Bloomberg_Prop_K";
-  font-size: 12px;
+  font-size: 13px;
+  height: 100%;
   line-height: 19px;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
   user-select: none;
   cursor: default;
 }

@@ -1,0 +1,73 @@
+@import "../variables/colors";
+// Content controller
+// 
+// Main view for new dashboard, where maps or
+// datasets results appear.
+// --------------------------------------------------
+
+.ContentController {
+  padding: 5px;
+  display: flex;
+  height: calc(100% - 40px);
+}
+
+.RightContent {
+  height: 100%;
+  flex: 1 1 auto;
+  background: $Black;
+  margin-left: 5px;
+
+  .ContentList {
+    background-color: $DarkGrey9;
+    height: calc(100% - 25px);
+    flex: 1 1 auto;
+    .ContentListContainer {
+      height: 100%;
+      &.is-hidden {
+        display: none;
+      }
+    }
+    .found-sub {
+      font-weight: bold;
+      color: $Grey1;
+    }
+    &.is-hidden {
+      display: none;
+    }
+  }
+
+  .SearchBar {
+    .search-bar-input {
+      color: black;
+      width: 100%;
+      height:25px;
+      line-height:25px;
+      &::-webkit-search-cancel-button {
+        cursor: default;
+        position:relative;
+        right: -5px;
+        background: url(../images/beam_msg_search_clear_normal.svg) no-repeat center;
+        background-size: 13px;
+        width: 17px;
+        height: 17px;
+        &:hover {
+          background-image: url(../images/beam_msg_search_clear_hover.svg)
+        }
+        &:active {
+          background-image: url(../images/beam_msg_search_clear_press.svg)
+        }
+      }
+    }
+  }
+
+  .IntermediateInfo {
+    min-height: 180px;
+    width: auto;
+  }
+}
+
+.ContentController.on-boarding { 
+  padding-top: 0;
+  min-height: initial;
+}
+

@@ -5,22 +5,25 @@
 @import "../variables/colors";
 @import "../variables/sizes";
 
-$height: 71px;
+$height: 40px;
 $cHeader-light: rgba(#61AEEC, 1);
 $cHeader-dark:  rgba(#3A91D7, 1);
 
 .Header {
   display: block;
   width: 100%;
-  height: $height;
+  height: 30px;
   background-color: $DarkGrey6;
-  border-bottom: 1px solid $Black;
+  height: 40px;
 }
 .Header-inner {
   position:relative;
-  @include display-flex();
-  @include justify-content(space-between, justify);
+  display: flex;
+  justify-content: flex-start;
   @include align-items(center);
+}
+.Header-navigation {
+  width: 210px;
 }
 .Header-navigationList {
   @include display-flex();
@@ -48,6 +51,32 @@ $cHeader-dark:  rgba(#3A91D7, 1);
 }
 .Header-navigationItem {
   margin-left: $sMargin-section;
+}
+.Header-navigationToggles {
+  padding: 5px;
+  border-right: 1px solid #000000;
+  display: flex;
+}
+.Header-navigationToggleItem {
+  background: #444444;
+  padding: 0;
+  width: 50%;
+  display: inline-block;
+  text-align: center;
+  border: 1px solid #000000;
+  &.selected {
+    background: #005AB5;
+    color: white;
+  }
+  &:first-child {
+    border-right: none;
+  }
+  & a {
+    padding: 3px 0 3px 0;
+    color: #d8d8d8;
+    display: block;
+    width: 100%;
+  }
 }
 .Header-navigationLink {
   font-weight: $sFontWeight-normal;
@@ -82,12 +111,20 @@ $cHeader-dark:  rgba(#3A91D7, 1);
     }
   }
 }
-.Header-settings { height: 70px }
+.Header-settings { height: 40px }
 .Header-settingsList {
   height: 100%;
   @include display-flex();
   @include justify-content(space-between, justify);
   @include align-items(center, center);
+  .UserAvatar {
+    background: url('../images/menu-icon.png');
+    background-size: contain;
+    opacity: 0.7;
+    margin: 2px 10px 2px 2px;
+    width: 24px;
+    height: 24px;
+  }
 }
 .Header-settingsItem {
   position: relative;

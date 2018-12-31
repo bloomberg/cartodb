@@ -17,6 +17,7 @@ body.is-inDialog {
   z-index: 50;
   background-color: $DarkGrey6;
 }
+
 .Dialog-contentWrapper { // this is necessary since the Dialog element might have `position: block` set by .hide/.show
   @include display-flex();
   @include flex-direction(column);
@@ -24,14 +25,6 @@ body.is-inDialog {
   @include justify-content(center);
   width: 100%;
   height: 100%;
-}
-/* If the animation duration is changed make sure to update the timeout value in Dialog's view! */
-.Dialog.is-opening {
-  @include animation(fade-and-scale-in 100ms ease-out);
-}
-.Dialog.is-closing {
-  /* "forwards" to keep the last keyframe's styles after animation ended */
-  @include animation(fade-and-scale-out 80ms ease-in forwards);
 }
 .Dialog.is-sticky .Dialog-closeBtn {
   display: none;
@@ -70,9 +63,6 @@ body.is-inDialog {
   width: 100%;
   position: fixed;
   bottom: 0;
-}
-.Dialog-content.is-newContent {
-  @include animation(fade-and-scale-in 100ms ease-out);
 }
 .Dialog-header {
   text-align: center;
@@ -359,3 +349,59 @@ $sNarrower-width: 620px;
   }
 }
 
+.Dialog-AddLayer {
+  background-color: rgba(0,0,0,0.6);
+
+  .Dialog-contentWrapper {
+    position: relative;
+    left: 10%;
+    top: 10%;
+    width: 80%;
+    height: 80%;
+    background-color: $Black;
+    border: 2px solid $Grey6;
+  }
+
+  .Dialog-body {
+    height: 100%;
+    overflow-y: hidden;
+  }
+
+  .CreateDialog-listing, .ListingContent, .ListingContent > div, .ContentController {
+    height: 100%;
+  }
+
+  .Dialog-footer {
+    width: 100%;
+    position: relative;
+  }
+
+  .CreateDialog-footerInner {
+    width: 100%;
+    min-height: 50px;
+    height: 50px;
+    background: $DarkGrey6;
+    padding: 10px 10px 10px 20px;
+
+    .CreateDialog-footerActions {
+      width: 100%;
+    }
+
+    .CreateDialog-footerActions-left {
+      flex: 1 1 auto;
+      text-align: left;
+    }
+    .CreateDialog-footerActions-right {
+      flex: 1 1 auto;
+      text-align: right;
+    }
+
+    .Button {
+      display: inline-block;
+    }
+  }
+
+  .IntermediateInfo {
+    width: 100%;
+  }
+}

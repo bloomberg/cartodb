@@ -22,19 +22,23 @@ module CartoDB
       private
 
       def accepted_parameters
-        %w(driver channel host port database table username password remote_schema)
+        %w(name driver channel host port database table username password remote_schema)
       end
 
       def server_options
-        %w(host port database)
+        %w(name host port database)
       end
 
       def server_name
-        server_string = [server_params['host'],
-                         server_params['port'],
-                         server_params['database']].join(';')
-        server_hash = Digest::SHA1.hexdigest server_string
-        "connector_#{channel_name}_#{server_hash}"
+        if (server_params['name'])
+          return server_params['name']
+        else
+          server_string = [server_params['host'],
+                           server_params['port'],
+                           server_params['database']].join(';')
+          server_hash = Digest::SHA1.hexdigest server_string
+          return "connector_#{channel_name}_#{server_hash}"
+        end
       end
 
       def run_pre_create
@@ -56,10 +60,10 @@ module CartoDB
       def run_create_schema
         execute_as_superuser %{ CREATE SCHEMA IF NOT EXISTS "#{@schema}" }
         execute_as_superuser %{ GRANT CREATE,USAGE ON SCHEMA "#{@schema}" TO postgres }
-        execute_as_superuser %{ GRANT CREATE,USAGE ON SCHEMA "#{@schema}" TO "#{@user.database_username}" }
+        #execute_as_superuser %{ GRANT CREATE,USAGE ON SCHEMA "#{@schema}" TO "#{@user.database_username}" }
         execute_as_superuser %{ GRANT USAGE ON SCHEMA "#{@schema}" TO publicuser }
         org_role = @user.in_database(as: :superuser).select{ CDB_Organization_Member_Group_Role_Member_Name{} }.first[:cdb_organization_member_group_role_member_name]
-        execute_as_superuser %{ GRANT USAGE ON SCHEMA "#{@schema}" to "#{org_role}" }
+        execute_as_superuser %{ GRANT CREATE,USAGE ON SCHEMA "#{@schema}" to "#{org_role}" }
       end
 
       def create_server_command
@@ -102,6 +106,7 @@ module CartoDB
         execute_as_superuser %{
           CREATE VIEW "#{@user.database_schema}".#{foreign_table_name}
             AS SELECT * FROM "#{@schema}".#{foreign_table_name};
+          ALTER VIEW "#{@user.database_schema}".#{foreign_table_name} OWNER TO "#{@user.database_username}";
         }
         # Ensure view has proper permissions
         execute_as_superuser %{ GRANT SELECT ON "#{@user.database_schema}".#{foreign_table_name} TO "#{@user.database_username}" }

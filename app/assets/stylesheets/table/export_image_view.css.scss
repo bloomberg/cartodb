@@ -10,6 +10,8 @@
   width: 100%;
   height: 100%;
   cursor: crosshair;
+  top: 0;
+  left: 0;
 }
 .ExportImageView-Header {
   @include transition(all, 200ms, ease-in-out);
@@ -205,6 +207,7 @@ $resizeHandlerSize: 8px;
 .CanvasExport {
   position: absolute;
   border: 1px dashed #FFF;
+  box-sizing: content-box; // important, do not remove
   &.draggable {
     cursor: move;
     z-index: 1000000000;

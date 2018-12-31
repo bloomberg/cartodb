@@ -11,6 +11,11 @@
   color: $Amber1;
   overflow-wrap: break-word;
   position: relative;
+
+  &.disabled {
+    color: $Grey2;
+    cursor: default;
+  }
 }
 .DefaultDescription > * {
   margin: 0;
