@@ -31,7 +31,7 @@ class SamlController < ApplicationController
 
     if user == nil
       @organization = BBOrganization.new
-      @signup_errors[:saml_error] = ["Single sing on athentication failed."]
+      @signup_errors[:saml_error] = ["Single sign on athentication failed."]
       logger.error @signup_errors[:saml_error].first
       render 'shared/signup_issue'
     else
@@ -47,9 +47,6 @@ class SamlController < ApplicationController
 
 
 end #end of the controller class
-
-class UserInfo < Sequel::Model
-end
 
 class BBOrganization
   class BBOwner

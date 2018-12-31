@@ -3,20 +3,10 @@
 require_relative '../../lib/internal-geocoder/query_generator_factory.rb'
 require_relative '../../lib/internal-geocoder/abstract_query_generator.rb'
 require_relative '../../../../spec/rspec_configuration.rb'
+require          'active_support/core_ext' # Needed for string.blank?
 
 RSpec.configure do |config|
   config.mock_with :mocha
-end
-
-class String
-  # We just need this instead of adding the whole rails thing
-  def squish
-    self.split.join(' ')
-  end
-
-  def blank?
-    !self || empty?
-  end
 end
 
 =begin
@@ -81,7 +71,7 @@ describe CartoDB::InternalGeocoder::QueryGeneratorFactory do
         SET the_geom = CASE WHEN orig.cartodb_georef_status THEN orig.the_geom ELSE dest.the_geom END,
             cartodb_georef_status = orig.cartodb_georef_status
         FROM any_temp_table AS orig
-        WHERE trim(dest."any_column_name"::text) = orig.geocode_string AND dest.cartodb_georef_status IS NULL
+        WHERE trim(dest."any_column_name"::text) = trim(orig.geocode_string) AND dest.cartodb_georef_status IS NULL
       }.squish
     end
   end
@@ -120,8 +110,8 @@ describe CartoDB::InternalGeocoder::QueryGeneratorFactory do
           SET the_geom = CASE WHEN orig.cartodb_georef_status THEN orig.the_geom ELSE dest.the_geom END,
               cartodb_georef_status = orig.cartodb_georef_status
           FROM any_temp_tablename AS orig
-          WHERE trim(dest.region_column_name::text) = orig.geocode_string
-            AND trim(dest.country_column_name::text) = orig.country
+          WHERE trim(dest.region_column_name::text) = trim(orig.geocode_string)
+            AND trim(dest.country_column_name::text) = trim(orig.country)
             AND dest.cartodb_georef_status IS NULL
         }.squish
     end

@@ -20,7 +20,11 @@ module CartoDB
       def initialize(source_file, temporary_directory, ogr2ogr_config = nil)
         @source_file = source_file
         @temporary_directory = temporary_directory
-        @ogr2ogr_binary = @ogr2ogr_config.nil? ? DEFAULT_OGR2OGR_BINARY : ogr2ogr_config['binary']
+        @ogr2ogr_binary = if ogr2ogr_config && ogr2ogr_config['binary'].present?
+                            `#{ogr2ogr_config['binary']}`.strip
+                          else
+                            DEFAULT_OGR2OGR_BINARY
+                          end
       end
 
       def run
@@ -47,7 +51,7 @@ module CartoDB
       end
 
       def extract(extracted_file_path, source_file, layer_name)
-        `#{@ogr2ogr_binary} -f 'GPX' -dsco GPX_USE_EXTENSIONS=YES #{extracted_file_path} #{source_file.fullpath} #{layer_name}`
+        system(@ogr2ogr_binary, '-f', 'GPX', '-dsco', 'GPX_USE_EXTENSIONS=YES', extracted_file_path, source_file.fullpath, layer_name)
       end
 
       def multiple_layers?(source_file)
@@ -57,7 +61,7 @@ module CartoDB
       def layers_in(source_file)
         layers = []
         GPX_LAYERS.each do |layer|
-          stdout, stderr, status = Open3.capture3("#{OGRINFO_BINARY} -so #{source_file.fullpath} #{layer}")
+          stdout, stderr, status = Open3.capture3(OGRINFO_BINARY, '-so', source_file.fullpath, layer)
           number_rows = stdout.split("\n")
                         .select { |line| line =~ /^#{ITEM_COUNT_REGEX}/ }
                         .map { |line| line.gsub(/#{ITEM_COUNT_REGEX}/, '') }.first

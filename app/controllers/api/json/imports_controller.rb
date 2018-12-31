@@ -44,12 +44,28 @@ class Api::Json::ImportsController < Api::ApplicationController
         elsif params[:fdw].present?
           options[:service_name] = 'connector'
           options[:service_item_id] = params[:fdw]
+        elsif params[:connector].present?
+          options[:service_name] = 'connector'
+          options[:service_item_id] = params[:connector].to_json
         elsif params[:remote_visualization_id].present?
           external_source = external_source(params[:remote_visualization_id])
           options[:data_source] = external_source.import_url.presence
         else
           options = @stats_aggregator.timing('upload-or-enqueue') do
-            results = file_upload_helper.upload_file_to_storage(params, request, Cartodb.config[:importer]['s3'])
+            results = file_upload_helper.upload_file_to_storage(
+              filename_param: params[:filename],
+              file_param: params[:file],
+              request_body: request.body,
+              s3_config: Cartodb.config[:importer]['s3'])
+
+            # In Rack < 1.6 / Rails < 4, tempfiles are not inmediately cleaned (https://github.com/rack/rack/pull/671).
+            # Instead they stay around until a GC cycle which can take a while in instances with low traffic.
+            # This forces the tempfile to be removed right away, just after we have saved it to our storage.
+            [:filename, :file].each do |param_name|
+              file = params[param_name]
+              file.tempfile.close! if file
+            end
+
             # Not queued import is set by skipping pending state and setting directly as already enqueued
             options.merge({
                               data_source: results[:file_uri].presence,
@@ -169,7 +185,7 @@ class Api::Json::ImportsController < Api::ApplicationController
     raise "service_item_id field should be empty or a string" unless (params[:service_item_id].is_a?(String) ||
                                                                       params[:service_item_id].is_a?(NilClass))
 
-    # Keep in sync with http://docs.cartodb.com/cartodb-platform/import-api.html#params
+    # Keep in sync with https://docs.carto.com/cartodb-platform/import-api.html#params
     {
       user_id:                current_user.id,
       table_name:             params[:table_name].presence,
@@ -188,7 +204,8 @@ class Api::Json::ImportsController < Api::ApplicationController
       upload_host:            Socket.gethostname,
       create_visualization:   ["true", true].include?(params[:create_vis]),
       user_defined_limits:    user_defined_limits,
-      privacy:                privacy
+      privacy:                privacy,
+      collision_strategy:     params[:collision_strategy]
     }
   end
 
@@ -240,7 +257,7 @@ class Api::Json::ImportsController < Api::ApplicationController
     if params[:privacy].present?
       privacy = (UserTable::PRIVACY_VALUES_TO_TEXTS.invert)[params[:privacy].downcase]
       raise "Unknown value '#{params[:privacy]}' for 'privacy'. Allowed values are: #{[UserTable::PRIVACY_VALUES_TO_TEXTS.values[0..-2].join(', '), UserTable::PRIVACY_VALUES_TO_TEXTS.values[-1]].join(' and ')}" if privacy.nil?
-      raise "Your account type (#{current_user.account_type.tr('[]','')}) does not allow to create private datasets. Check https://cartodb.com/pricing for more info." if !current_user.valid_privacy?(privacy)
+      raise "Your account type (#{current_user.account_type.tr('[]','')}) does not allow to create private datasets. Check https://carto.com/pricing for more info." if !current_user.valid_privacy?(privacy)
       privacy
     else
       nil

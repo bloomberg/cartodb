@@ -21,6 +21,12 @@ describe 'geojson regression tests' do
   include AcceptanceHelpers
   include_context "no stats"
 
+  let :ogr2ogr2_options do
+    {
+      ogr2ogr_binary: Cartodb.config[:ogr2ogr]['binary']
+    }
+  end
+
   before(:all) do
     @user = create_user
     @user.save
@@ -32,38 +38,41 @@ describe 'geojson regression tests' do
 
   it 'imports a file exported from CartoDB' do
     filepath    = path_to('tm_world_borders_simpl_0_8.geojson')
-    downloader  = ::CartoDB::Importer2::Downloader.new(filepath)
+    downloader  = ::CartoDB::Importer2::Downloader.new(@user.id, filepath)
     runner      = ::CartoDB::Importer2::Runner.new({
                                pg: @user.db_service.db_configuration_for,
                                downloader: downloader,
                                log: CartoDB::Importer2::Doubles::Log.new(@user),
                                user: @user
                              })
+    runner.loader_options = ogr2ogr2_options
     runner.run
   end
 
   it 'imports a file from a url with params' do
     filepath    = 'https://raw.github.com/benbalter/dc-wifi-social/master' +
                   '/bars.geojson?foo=bar'
-    downloader  = ::CartoDB::Importer2::Downloader.new(filepath)
+    downloader  = ::CartoDB::Importer2::Downloader.new(@user.id, filepath)
     runner      = ::CartoDB::Importer2::Runner.new({
                                pg: @user.db_service.db_configuration_for,
                                downloader: downloader,
                                log: CartoDB::Importer2::Doubles::Log.new(@user),
                                user: @user
                              })
+    runner.loader_options = ogr2ogr2_options
     runner.run
   end
 
   it "raises if GeoJSON isn't valid" do
     filepath    = path_to('invalid.geojson')
-    downloader  = ::CartoDB::Importer2::Downloader.new(filepath)
+    downloader  = ::CartoDB::Importer2::Downloader.new(@user.id, filepath)
     runner      = ::CartoDB::Importer2::Runner.new({
                                pg: @user.db_service.db_configuration_for,
                                downloader: downloader,
                                log: CartoDB::Importer2::Doubles::Log.new(@user),
                                user: @user
                              })
+    runner.loader_options = ogr2ogr2_options
     runner.run
 
     runner.results.first.error_code.should eq 1002

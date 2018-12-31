@@ -17,7 +17,7 @@ module CartoDB
       CONFIG_AUTH_REQUIRED = :auth_required
       CONFIG_AUTH_USERNAME = :username
       CONFIG_AUTH_PASSWORD = :password
-      CONFIG_SEARCH_URL    = :search_url
+      CONFIG_SEARCH_URL = :search_url
 
       CONFIG_REDIS_RL_ACTIVE          = :ratelimit_active
       CONFIG_REDIS_RL_MAX_CONCURRENCY = :ratelimit_concurrency
@@ -29,6 +29,7 @@ module CartoDB
       PARAM_TODATE      = :toDate
       PARAM_MAXRESULTS  = :maxResults
       PARAM_NEXT_PAGE   = :next
+      PARAM_PUBLISHER   = :publisher
 
       REDIS_KEY = 'importer:twittersearch:rl'
       # default values
@@ -49,7 +50,6 @@ module CartoDB
         raise TwitterConfigException.new(CONFIG_SEARCH_URL) if config[CONFIG_SEARCH_URL].nil? or config[CONFIG_SEARCH_URL].empty?
 
         @config = config
-
         # Defaults for ratelimit (not critical if not present)
         @config[CONFIG_REDIS_RL_ACTIVE] = true if config[CONFIG_REDIS_RL_ACTIVE].nil?
         @config[CONFIG_REDIS_RL_MAX_CONCURRENCY] = REDIS_RL_CONCURRENCY if config[CONFIG_REDIS_RL_MAX_CONCURRENCY].nil?
@@ -124,7 +124,6 @@ module CartoDB
 
       def query_payload(params)
         payload = {
-            publisher: 'twitter',
             PARAM_QUERY => params[PARAM_QUERY]
         }
         payload[PARAM_FROMDATE] = params[PARAM_FROMDATE] unless params[PARAM_FROMDATE].nil? or params[PARAM_FROMDATE].empty?

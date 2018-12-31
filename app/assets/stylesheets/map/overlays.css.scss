@@ -28,7 +28,7 @@
 }
 .cartodb-mobile .cartodb-attribution {
   max-width: 150px;
-  font:11px/1 "Helvetica Neue", Arial, Helvetica, sans-serif;
+  font:11px/1;
 }
 
 .cartodb-mobile .aside .layer-container .layers .cartodb-mobile-layer h3 {
@@ -86,7 +86,7 @@
     content: '';
     position: absolute;
     left: 8px;
-    top: 6px;
+    top: 4px;
     display: block;
     width: 10px;
     height: 9px;
@@ -183,6 +183,55 @@
     strong { font-weight: 700; }
   }
 
+  &.BWHaasGrotesk-55Fixed .content > .text {
+    font-family: 'BWHaasGrotesk-55Fixed', sans-serif; font-weight: 400;
+    strong { font-weight: 700; }
+  }
+
+  &.BWHaasGrotesk-65Fixed .content > .text {
+    font-family: 'BWHaasGrotesk-65Fixed', sans-serif; font-weight: 400;
+    strong { font-weight: 700; }
+  }
+
+  &.BWHaasHead-25XThin .content > .text {
+    font-family: 'BWHaasHead-25XThin', sans-serif; font-weight: 400;
+    strong { font-weight: 700; }
+  }
+
+  &.BWHaasHead-55Roman .content > .text {
+    font-family: 'BWHaasHead-55Roman', sans-serif; font-weight: 400;
+    strong { font-weight: 700; }
+  }
+
+  &.BWHaasHead-65Medium .content > .text {
+    font-family: 'BWHaasHead-65Medium', sans-serif; font-weight: 400;
+    strong { font-weight: 700; }
+  }
+
+  &.BWHaasHead-75Bold .content > .text {
+    font-family: 'BWHaasHead-75Bold', sans-serif; font-weight: 400;
+    strong { font-weight: 700; }
+  }
+
+  &.BWHaasHead-95Black .content > .text {
+    font-family: 'BWHaasHead-95Black', sans-serif; font-weight: 400;
+    strong { font-weight: 700; }
+  }
+
+  &.BWHaasText-55Roman .content > .text {
+    font-family: 'BWHaasText-55Roman', sans-serif; font-weight: 400;
+    strong { font-weight: 700; }
+  }
+
+  &.BWHaasText-65Medium .content > .text {
+    font-family: 'BWHaasText-65Medium', sans-serif; font-weight: 400;
+    strong { font-weight: 700; }
+  }
+
+  &.BWHaasText-75Bold .content > .text {
+    font-family: 'BWHaasText-75Bold', sans-serif; font-weight: 400;
+    strong { font-weight: 700; }
+  }
 
 }
 
@@ -197,15 +246,17 @@
 .overlay-properties {
   position: absolute;
   top: 100px;
-  left: 35px;
+  left: 12px;
   width: 1250px;
 }
 .overlay-properties ul {
-  margin: 3px 0 0 0;
+  margin-top: 3px;
+  padding-left: 0px;
+  float: left;
 }
 .overlay-properties ul li {
   @include inline-block();
-  padding: 0 10px;
+  padding-right: 12px;
   border-right: 1px solid $Black;
 }
 .overlay-properties ul li:last-child {
@@ -231,10 +282,8 @@
 }
 .overlay-properties ul li > span {
   margin: 0 0 5px 0;
-  font-size: 13px;
-  color: white;
+  color: $nGrey1;
   display:block;
-  font-family: "Helvetica", Arial;
   font-weight:normal;
   line-height:12px;
 }
@@ -527,7 +576,8 @@
     height: 16px;
     width: 17px;
     padding: 3px;
-    line-height: 16px;
+    line-height: 10px;
+    font-size: 8px;
 
     @include border-radius(90px);
 
@@ -631,7 +681,6 @@ div.cartodb-zoom .info {
   margin:17px 0 0 0;
   width: 28px;
   padding: 8px 0 7px 0;
-  font:normal 13px "Helvetica",Arial;
   line-height: normal;
   color:$White;
   text-align: center;
@@ -639,6 +688,7 @@ div.cartodb-zoom .info {
   border: 1px solid $Black;
   background-color: $btn_background_normal;
   z-index: 5;
+  cursor: default;
 }
 
 div.cartodb-zoom { 
@@ -789,9 +839,7 @@ div.dropdown.properties_dropdown {
       }
 
       &:hover { background: #fff; }
-
     }
-
   }
 
 } // .properties_dropdown

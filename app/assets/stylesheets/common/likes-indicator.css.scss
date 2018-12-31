@@ -8,7 +8,7 @@
 $cLiked: #D93F56;
 
 .LikesIndicator {
-  color: $Grey7;
+  color: $nGrey9;
 }
 .LikesIndicator-count {
   display: inline-block;
@@ -16,31 +16,33 @@ $cLiked: #D93F56;
   vertical-align: top; 
 }
 .LikesIndicator-icon {
-  @include transforms(1);
-  color: $Grey7;
-  font-size: $sFontSize-small;
-  width: $sFontSize-small;
-  height: $sFontSize-small;
+  width: 13px;
+  height: 13px;
+  background-image: url('../images/favorite_disabled.svg');
+  background-repeat: no-repeat;
 }
 .LikesIndicator-icon.LikesIndicator-icon--big {
   font-size: $sFontSize-largest;
 }
 .LikesIndicator.is-likeable {
   cursor: pointer;
+  .LikesIndicator-icon {
+    background-image: url('../images/favorite_off.svg');
+  }
 }
 .LikesIndicator.is-likeable:hover {
   color: $cTypography-paragraphs;
   text-decoration: none;
   .LikesIndicator-icon {
     color: $cLiked;
-    background-image: url('../images/sprites/common/star_32_selected.png');
+    background-image: url('../images/favorite_on.svg');
   }
 }
 .LikesIndicator.is-liked {
   color: $cLiked;
   .LikesIndicator-icon {
     color: $cLiked;
-    background-image: url('../images/sprites/common/star_32_selected.png');
+    background-image: url('../images/favorite_on.svg');
   }
   &:hover {
     color: $cLiked;

@@ -3,11 +3,7 @@ require_relative '../../spec_helper'
 
 describe Carto::UserService do
   before(:all) do
-    @user = create_user({
-        email: 'admin@cartotest.com',
-        username: 'admin',
-        password: '123456'
-      })
+    @user = create_user
 
   end
 
@@ -17,7 +13,7 @@ describe Carto::UserService do
   end
 
   after(:all) do
-    stub_named_maps_calls
+    bypass_named_maps
     @user.destroy
   end
 
@@ -73,7 +69,7 @@ describe Carto::UserService do
   end
 
   it "Tests search_path correctly set" do
-    expected_returned_normal_search_path = { search_path: "#{@user.database_schema}, cartodb, cdb_dataservices_client, public" }
+    expected_returned_normal_search_path = { search_path: "#{@user.database_schema}, cartodb, cdb_dataservices_client, \"#{Cartodb.config[:common_data]['username']}\", public" }
 
     @normal_search_path = nil
     @normal_search_path_new = nil

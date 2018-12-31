@@ -32,7 +32,7 @@ module CartoDB
           stats: visualization.stats,
           created_at: visualization.created_at,
           updated_at: visualization.updated_at,
-          permission: permission.nil? ? nil : permission.to_poro,
+          permission: permission.nil? ? nil : CartoDB::PermissionPresenter.new(permission).to_poro,
           locked: visualization.locked,
           source: visualization.source,
           title: visualization.title,
@@ -42,6 +42,9 @@ module CartoDB
           kind: visualization.kind,
           likes: visualization.likes_count,
           legend_style: visualization.legend_style,
+          exportable: visualization.exportable,
+          export_geom: visualization.export_geom,
+          category: visualization.category,
           prev_id: visualization.prev_id,
           next_id: visualization.next_id,
           transition_options: visualization.transition_options,
@@ -66,6 +69,9 @@ module CartoDB
           description:      visualization.description,
           updated_at:       visualization.updated_at,
           legend_style:     visualization.legend_style,
+          exportable:       visualization.exportable,
+          export_geom:      visualization.export_geom,
+          category:         visualization.category,
           title:            visualization.title,
           kind:             visualization.kind,
           privacy:          privacy_for_vizjson.upcase,
@@ -108,12 +114,17 @@ module CartoDB
         table_data = {
           id:           table.id,
           name:         table_name,
+          name_alias:   table.name_alias,
           permission:   nil
         }
         table_visualization = table.table_visualization
         unless table_visualization.nil?
-          table_data[:permission] = (!permission.nil? && table_visualization.id == permission.entity_id) ?
-                                      permission.to_poro : table_visualization.permission.to_poro
+          presented_permission = if !permission.nil? && table_visualization.id == permission.entity_id
+                                   permission
+                                 else
+                                   table_visualization.permission
+                                 end
+          table_data[:permission] = CartoDB::PermissionPresenter.new(presented_permission).to_poro
           table_data[:geometry_types] = table.geometry_types
         end
 
@@ -123,6 +134,7 @@ module CartoDB
         )
 
         table_data.merge!(table.row_count_and_size)
+        table_data[:synchronization] = synchronization_data_for(table)
 
         table_data
       end
@@ -170,4 +182,3 @@ module CartoDB
     end
   end
 end
-

@@ -5,32 +5,47 @@ require_relative 'user_service'
 require_relative 'user_db_service'
 require_relative 'synchronization_oauth'
 require_relative '../../helpers/data_services_metrics_helper'
+require_dependency 'carto/helpers/auth_token_generator'
+require_dependency 'carto/helpers/has_connector_configuration'
+require_dependency 'carto/helpers/batch_queries_statement_timeout'
+require_dependency 'carto/helpers/billing_cycle'
 
 # TODO: This probably has to be moved as the service of the proper User Model
 class Carto::User < ActiveRecord::Base
   extend Forwardable
   include DataServicesMetricsHelper
+  include Carto::AuthTokenGenerator
+  include Carto::HasConnectorConfiguration
+  include Carto::BatchQueriesStatementTimeout
+  include Carto::BillingCycle
 
   MIN_PASSWORD_LENGTH = 6
   MAX_PASSWORD_LENGTH = 64
   GEOCODING_BLOCK_SIZE = 1000
   HERE_ISOLINES_BLOCK_SIZE = 1000
+  OBS_SNAPSHOT_BLOCK_SIZE = 1000
+  OBS_GENERAL_BLOCK_SIZE = 1000
+  MAPZEN_ROUTING_BLOCK_SIZE = 1000
 
   # INFO: select filter is done for security and performance reasons. Add new columns if needed.
-  DEFAULT_SELECT = "users.email, users.username, users.admin, users.organization_id, users.id, users.avatar_url," +
-                   "users.api_key, users.database_schema, users.database_name, users.name, users.location," +
-                   "users.disqus_shortname, users.account_type, users.twitter_username, users.google_maps_key"
-
-  SELECT_WITH_DATABASE = DEFAULT_SELECT + ", users.quota_in_bytes, users.database_host"
+  DEFAULT_SELECT = "users.email, users.username, users.admin, users.organization_id, users.id, users.avatar_url," \
+                   "users.api_key, users.database_schema, users.database_name, users.name, users.location," \
+                   "users.disqus_shortname, users.account_type, users.twitter_username, users.google_maps_key, " \
+                   "users.viewer, users.quota_in_bytes, users.database_host, users.crypted_password, " \
+                   "users.builder_enabled, users.private_tables_enabled, users.private_maps_enabled".freeze
 
   has_many :tables, class_name: Carto::UserTable, inverse_of: :user
   has_many :visualizations, inverse_of: :user
   has_many :maps, inverse_of: :user
   has_many :layers_user
-  has_many :layers, :through => :layers_user
+  has_many :layers, through: :layers_user, after_add: Proc.new { |user, layer| layer.set_default_order(user) }
+
+  has_many :profiles_user, dependent: :destroy, foreign_key: :user_id, inverse_of: :user
+  has_many :profiles, through: :profiles_user
 
   belongs_to :organization, inverse_of: :users
   has_one :owned_organization, class_name: Carto::Organization, inverse_of: :owner, foreign_key: :owner_id
+  has_one :static_notifications, class_name: Carto::UserNotification, inverse_of: :user
 
   has_many :feature_flags_user, dependent: :destroy, foreign_key: :user_id, inverse_of: :user
   has_many :feature_flags, through: :feature_flags_user
@@ -49,10 +64,12 @@ class Carto::User < ActiveRecord::Base
   has_many :users_group, dependent: :destroy, class_name: Carto::UsersGroup
   has_many :groups, :through => :users_group
 
+  has_many :received_notifications, inverse_of: :user
+
   delegate [
       :database_username, :database_password, :in_database,
       :db_size_in_bytes, :get_api_calls, :table_count, :public_visualization_count, :all_visualization_count,
-      :visualization_count, :twitter_imports_count
+      :visualization_count, :owned_visualization_count, :twitter_imports_count
     ] => :service
 
   attr_reader :password
@@ -63,6 +80,19 @@ class Carto::User < ActiveRecord::Base
   alias_method :assets_dataset, :assets
   alias_method :data_imports_dataset, :data_imports
   alias_method :geocodings_dataset, :geocodings
+
+  before_create :set_database_host
+  before_create :generate_api_key
+
+  # Auto creates notifications on first access
+  def static_notifications_with_creation
+    static_notifications_without_creation || build_static_notifications(user: self, notifications: {})
+  end
+  alias_method_chain :static_notifications, :creation
+
+  def self.columns
+    super.reject { |c| c.name == "arcgis_datasource_enabled" }
+  end
 
   def name_or_username
     self.name.present? ? self.name : self.username
@@ -117,7 +147,8 @@ class Carto::User < ActiveRecord::Base
 
   # @return String public user url, which is also the base url for a given user
   def public_url(subdomain_override=nil, protocol_override=nil)
-    CartoDB.base_url(subdomain_override.nil? ? subdomain : subdomain_override, organization_username, protocol_override)
+    base_subdomain = subdomain_override.nil? ? subdomain : subdomain_override
+    CartoDB.base_url(base_subdomain, CartoDB.organization_username(self), protocol_override)
   end
 
   def subdomain
@@ -147,11 +178,7 @@ class Carto::User < ActiveRecord::Base
   end
 
   def remove_logo?
-    Carto::AccountType.new.remove_logo?(self)
-  end
-
-  def organization_username
-    CartoDB.subdomainless_urls? || organization.nil? ? nil : username
+    has_organization? ? organization.no_map_logo? : no_map_logo?
   end
 
   def sql_safe_database_schema
@@ -197,38 +224,59 @@ class Carto::User < ActiveRecord::Base
     Rack::Utils.parse_nested_query(google_maps_query_string)['client'] if google_maps_query_string
   end
 
-  # returnd a list of basemaps enabled for the user
+  # returns a list of basemaps enabled for the user
   # when google map key is set it gets the basemaps inside the group "GMaps"
   # if not it get everything else but GMaps in any case GMaps and other groups can work together
   # this may have change in the future but in any case this method provides a way to abstract what
   # basemaps are active for the user
+  #
+  # Basemaps may also be filtered by profile attributes - this implementation respects such filters.
   def basemaps
-    basemaps = Cartodb.config[:basemaps]
-    if basemaps
-      basemaps.select { |group|
-        g = group == 'GMaps'
-        google_maps_enabled? ? g : !g
-      }
+    basemaps = Cartodb.config[:basemaps] || []
+
+    def filter_basemaps(bms, whitelisted_bms)
+      # Inner join basemaps and whitelist on category
+      common_bms = whitelisted_bms.select { |wbm| bms.key? wbm['basemapCategory'] }
+
+      # Pick specific keys from hash
+      def pick_keys(hash, keys)
+        Hash[keys.map {|k| [k, hash[k]]}
+                 .select {|k, v| v}]
+      end
+
+      # Prune basemap labels within categories
+      pruned_bm_entries = common_bms.map do |cbm|
+        category = cbm['basemapCategory']
+        [category, pick_keys(bms[category], cbm['basemapLabels'])]
+      end
+      Hash[pruned_bm_entries]
     end
+
+    whitelisted_basemaps = profile_attributes['whitelistedBasemaps']
+
+    filtered_basemaps = whitelisted_basemaps ?
+        filter_basemaps(basemaps, whitelisted_basemaps) :
+        basemaps
+
+    filtered_basemaps.select { |group| group != 'GMaps' || google_maps_enabled? }
   end
 
   def google_maps_enabled?
     google_maps_query_string.present?
   end
 
-  # return the default basemap based on the default setting. If default attribute is not set, first basemaps is returned
+  # return the default basemap based on the default setting.
+  # If default attribute is not set, first basemaps is returned
   # it only takes into account basemaps enabled for that user
   def default_basemap
-    default = basemaps.find { |group, group_basemaps |
-      group_basemaps.find { |b, attr| attr['default'] }
-    }
-    if default.nil?
-      default = basemaps.first[1]
-    else
-      default = default[1]
-    end
+    default = if google_maps_enabled? && basemaps['GMaps'].present?
+                ['GMaps', basemaps['GMaps']]
+              else
+                basemaps.find { |_, group_basemaps| group_basemaps.find { |_, attr| attr['default'] } }
+              end
+    default ||= basemaps.first
     # return only the attributes
-    default.first[1]
+    default[1].first[1]
   end
 
   def remaining_geocoding_quota(options = {})
@@ -245,6 +293,33 @@ class Carto::User < ActiveRecord::Base
       remaining = organization.remaining_here_isolines_quota(options)
     else
       remaining = here_isolines_quota - get_here_isolines_calls(options)
+    end
+    (remaining > 0 ? remaining : 0)
+  end
+
+  def remaining_obs_snapshot_quota(options = {})
+    if organization.present?
+      remaining = organization.remaining_obs_snapshot_quota(options)
+    else
+      remaining = obs_snapshot_quota - get_obs_snapshot_calls(options)
+    end
+    (remaining > 0 ? remaining : 0)
+  end
+
+  def remaining_obs_general_quota(options = {})
+    if organization.present?
+      remaining = organization.remaining_obs_general_quota(options)
+    else
+      remaining = obs_general_quota - get_obs_general_calls(options)
+    end
+    (remaining > 0 ? remaining : 0)
+  end
+
+  def remaining_mapzen_routing_quota(options = {})
+    if organization.present?
+      remaining = organization.remaining_mapzen_routing_quota(options)
+    else
+      remaining = mapzen_routing_quota.to_i - get_mapzen_routing_calls(options)
     end
     (remaining > 0 ? remaining : 0)
   end
@@ -272,30 +347,8 @@ class Carto::User < ActiveRecord::Base
     synchronization_oauth
   end
 
-  def last_billing_cycle
-    day = period_end_date.day rescue 29.days.ago.day
-    date = (day > Date.today.day ? (Date.today - 1.month) : Date.today)
-    begin
-      Date.parse("#{date.year}-#{date.month}-#{day}")
-    rescue ArgumentError
-      day = day - 1
-      retry
-    end
-  end
-
   def get_geocoding_calls(options = {})
     date_to = (options[:to] ? options[:to].to_date : Date.today)
-    date_from = (options[:from] ? options[:from].to_date : last_billing_cycle)
-    if has_feature_flag?('new_geocoder_quota')
-      get_user_geocoding_data(self, date_from, date_to)
-    else
-      self.geocodings.where(kind: 'high-resolution').where('created_at >= ? and created_at <= ?', date_from, date_to + 1.days)
-        .sum("processed_rows + cache_hits".lit).to_i
-    end
-  end
-
-  def get_new_system_geocoding_calls(options = {})
-    date_to = (options[:to] ? options[:to].to_date : Date.current)
     date_from = (options[:from] ? options[:from].to_date : last_billing_cycle)
     get_user_geocoding_data(self, date_from, date_to)
   end
@@ -304,6 +357,24 @@ class Carto::User < ActiveRecord::Base
     date_to = (options[:to] ? options[:to].to_date : Date.today)
     date_from = (options[:from] ? options[:from].to_date : last_billing_cycle)
     get_user_here_isolines_data(self, date_from, date_to)
+  end
+
+  def get_obs_snapshot_calls(options = {})
+    date_to = (options[:to] ? options[:to].to_date : Date.today)
+    date_from = (options[:from] ? options[:from].to_date : last_billing_cycle)
+    get_user_obs_snapshot_data(self, date_from, date_to)
+  end
+
+  def get_obs_general_calls(options = {})
+    date_to = (options[:to] ? options[:to].to_date : Date.today)
+    date_from = (options[:from] ? options[:from].to_date : last_billing_cycle)
+    get_user_obs_general_data(self, date_from, date_to)
+  end
+
+  def get_mapzen_routing_calls(options = {})
+    date_to = (options[:to] ? options[:to].to_date : Date.today)
+    date_from = (options[:from] ? options[:from].to_date : last_billing_cycle)
+    get_user_mapzen_routing_data(self, date_from, date_to)
   end
 
   #TODO: Remove unused param `use_total`
@@ -347,6 +418,26 @@ class Carto::User < ActiveRecord::Base
   end
   alias_method :hard_here_isolines_limit, :hard_here_isolines_limit?
 
+  def soft_obs_snapshot_limit?
+    Carto::AccountType.new.soft_obs_snapshot_limit?(self)
+  end
+  alias_method :soft_obs_snapshot_limit, :soft_obs_snapshot_limit?
+
+  def hard_obs_snapshot_limit?
+    !self.soft_obs_snapshot_limit?
+  end
+  alias_method :hard_obs_snapshot_limit, :hard_obs_snapshot_limit?
+
+  def soft_obs_general_limit?
+    Carto::AccountType.new.soft_obs_general_limit?(self)
+  end
+  alias_method :soft_obs_general_limit, :soft_obs_general_limit?
+
+  def hard_obs_general_limit?
+    !self.soft_obs_general_limit?
+  end
+  alias_method :hard_obs_general_limit, :hard_obs_general_limit?
+
   def soft_twitter_datasource_limit?
     self.soft_twitter_datasource_limit  == true
   end
@@ -356,6 +447,15 @@ class Carto::User < ActiveRecord::Base
   end
   alias_method :hard_twitter_datasource_limit, :hard_twitter_datasource_limit?
 
+  def soft_mapzen_routing_limit?
+    Carto::AccountType.new.soft_mapzen_routing_limit?(self)
+  end
+  alias_method :soft_mapzen_routing_limit, :soft_mapzen_routing_limit?
+
+  def hard_mapzen_routing_limit?
+    !self.soft_mapzen_routing_limit?
+  end
+  alias_method :hard_mapzen_routing_limit, :hard_mapzen_routing_limit?
   def trial_ends_at
     if self.account_type.to_s.downcase == 'magellan' && self.upgraded_at && self.upgraded_at + 15.days > Date.today
       self.upgraded_at + 15.days
@@ -364,35 +464,140 @@ class Carto::User < ActiveRecord::Base
     end
   end
 
-  def dedicated_support?
-    Carto::AccountType.new.dedicated_support?(self)
-  end
-
-  def arcgis_datasource_enabled?
-    self.arcgis_datasource_enabled == true
-  end
-
-  def private_maps_enabled?
-    flag_enabled = self.private_maps_enabled
-    return true if flag_enabled.present? && flag_enabled == true
-
-    return true if self.private_tables_enabled # Note private_tables_enabled => private_maps_enabled
-    return false
-  end
-
   def viewable_by?(user)
     self.id == user.id || (has_organization? && self.organization.owner.id == user.id)
   end
 
   # Some operations, such as user deletion, won't ask for password confirmation if password is not set (because of Google sign in, for example)
   def needs_password_confirmation?
-    google_sign_in.nil? || !google_sign_in || !last_password_change_date.nil?
+    (!oauth_signin? || !last_password_change_date.nil?) &&
+      !created_with_http_authentication? &&
+      !organization.try(:auth_saml_enabled?)
+  end
+
+  def oauth_signin?
+    google_sign_in || github_user_id.present?
+  end
+
+  def created_with_http_authentication?
+    Carto::UserCreation.http_authentication.find_by_user_id(id).present?
   end
 
   def organization_owner?
     organization && organization.owner_id == id
   end
 
+  def mobile_sdk_enabled?
+    mobile_max_open_users > 0 || mobile_max_private_users > 0
+  end
+
+  def get_auth_tokens
+    tokens = [get_auth_token]
+
+    if has_organization?
+      tokens << organization.get_auth_token
+      tokens += groups.map(&:get_auth_token)
+    end
+
+    tokens
+  end
+
+  def get_auth_token
+    # Circumvent DEFAULT_SELECT, didn't add auth_token there for sercurity (presenters, etc)
+    auth_token = Carto::User.select(:auth_token).find(id).auth_token
+
+    auth_token || generate_auth_token
+  end
+
+  def notifications_for_category(category)
+    static_notifications.notifications[category] || {}
+  end
+
+  def builder_enabled?
+    if has_organization? && builder_enabled.nil?
+      organization.builder_enabled
+    else
+      !!builder_enabled
+    end
+  end
+
+  def engine_enabled?
+    if has_organization? && engine_enabled.nil?
+      organization.engine_enabled
+    else
+      !!engine_enabled
+    end
+  end
+
+  def new_visualizations_version
+    builder_enabled? ? 3 : 2
+  end
+
+  def can_change_email?
+    (!google_sign_in || last_password_change_date.present?) && !Carto::Ldap::Manager.new.configuration_present?
+  end
+
+  def can_change_password?
+    !Carto::Ldap::Manager.new.configuration_present?
+  end
+
+  # Key used to store a sorted set of all session profile ids
+  # which which this user is associated. Members are indexed
+  # by their expiration date in seconds since the Unix Epoch.
+  def session_profile_key
+    @session_profile_key ||= "user:#{id}:session_profiles"
+  end
+
+  # Replace session profiles with those with
+  # the specified profile_names.
+  def replace_session_profiles(profile_names)
+    # Set expiration date for each profile id
+    profile_ids = profile_names.empty? ? [] : Profile.where(name: profile_names).map(&:id).to_a
+    expiration_timestamp = Time.now.to_i + SESSION_PROFILE_TTL
+    timestamp_ids = profile_ids.flat_map { |id| [expiration_timestamp, id] }
+
+    $users_metadata.multi do
+      # Replace sorted set contents
+      $users_metadata.del(session_profile_key)
+      if !timestamp_ids.empty?
+        $users_metadata.zadd(session_profile_key, timestamp_ids)
+        # Cap lifetime of overall set
+        $users_metadata.expire(session_profile_key, SESSION_PROFILE_TTL)
+      end
+    end
+  end
+
+  # Remove session profiles with expiration dates in the past.
+  def flush_session_profiles
+    current_timestamp = Time.now.to_i
+    $users_metadata.zremrangebyscore(session_profile_key, 0, current_timestamp)
+  end
+
+  # Get the session profiles associated with this user
+  def session_profiles
+    # Remove expired profiles
+    flush_session_profiles
+    # Query Profile associated with stored ids
+    profile_ids = $users_metadata.zrange(session_profile_key, 0, -1)
+    profile_ids.empty? ? [] : Profile.where(id: profile_ids).to_a
+  end
+
+  # Return a collection of attributes containing all attributes
+  # of each profile to which this user is associated
+  def profile_attributes
+    all_profiles = (profiles + session_profiles).uniq(&:id)
+    all_profiles.reduce({}) do |attr, prof|
+      attr.merge(prof.attrs_hash)
+    end
+  end
+
   private
 
+  def set_database_host
+    self.database_host ||= ::Rails::Sequel.configuration.environment_for(Rails.env)['host']
+  end
+
+  def generate_api_key
+    self.api_key ||= service.class.make_token
+  end
 end

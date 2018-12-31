@@ -22,7 +22,6 @@ describe DataRepository::Backend::Sequel do
       String    :privacy
       String    :encrypted_password
       String    :password_salt
-      String    :url_options
       UUID      :permission_id
       Boolean   :locked
       String    :legend_style
@@ -105,4 +104,3 @@ describe DataRepository::Backend::Sequel do
     end
   end
 end
-

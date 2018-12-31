@@ -236,6 +236,48 @@ namespace :cartodb do
       execute_on_users_with_index(task_name, Proc.new { |user, i|
         begin
           log(sprintf("Trying on %-#{20}s %-#{20}s (%-#{4}s/%-#{4}s)...", user.username, user.database_name, i+1, count), task_name, database_host)
+          # Only load cartodb extensions once per database, i.e. for dedicated users and org owners
+          load_cartodb_extension = user.account_type == '[DEDICATED]' || user.organization_owner?
+          if load_cartodb_extension
+            log(sprintf("Loading cartodb extension on %-#{20}s %-#{20}s (%-#{4}s/%-#{4}s)...", user.username, user.database_name, i+1, count), task_name, database_host)
+          end
+          user.db_service.load_cartodb_functions(statement_timeout, extension_version, load_cartodb_extension)
+          log(sprintf("OK %-#{20}s %-#{20}s (%-#{4}s/%-#{4}s)", user.username, user.database_name, i+1, count), task_name, database_host)
+          sleep(sleep)
+        rescue => e
+          log(sprintf("FAIL %-#{20}s (%-#{4}s/%-#{4}s) #{e.message}", user.username, i+1, count), task_name, database_host)
+          puts "FAIL:#{i} #{e.message}"
+        end
+      }, threads, thread_sleep, database_host)
+    end
+
+    desc 'Install/upgrade CARTODB SQL functions - only organization owners for Bloomberg merge code release'
+    task :load_functions_for_dedicated_and_org_owners_only, [:database_host, :version, :num_threads, :thread_sleep, :sleep, :statement_timeout] => :environment do |task_name, args|
+      # Send this as string, not as number
+      extension_version = args[:version].blank? ? nil : args[:version]
+      database_host = args[:database_host].blank? ? nil : args[:database_host]
+      threads = args[:num_threads].blank? ? 1 : args[:num_threads].to_i
+      thread_sleep = args[:thread_sleep].blank? ? 0.25 : args[:thread_sleep].to_f
+      sleep = args[:sleep].blank? ? 1 : args[:sleep].to_i
+      statement_timeout = args[:statement_timeout].blank? ? 180000 : args[:statement_timeout]
+
+      puts "Running extension update with following config:"
+      puts "extension_version: #{extension_version.nil? ? 'UNSPECIFIED/LATEST' : extension_version}"
+      puts "database_host: #{database_host.nil? ? 'ALL' : database_host}"
+      puts "threads: #{threads}"
+      puts "thread_sleep: #{thread_sleep}"
+      puts "sleep: #{sleep}"
+      puts "statement_timeout: #{statement_timeout}"
+
+      if database_host.nil?
+        count = ::User.count
+      else
+        count = ::User.where(database_host: database_host).count
+      end
+      execute_on_dedicated_users_or_organization_owners_with_index(task_name, Proc.new { |user, i|
+        begin
+          log(sprintf("Trying on %-#{20}s %-#{20}s (%-#{4}s/%-#{4}s)...", user.username, user.database_name, i+1, count), task_name, database_host)
+          # Only load cartodb extensions once per database, i.e. for dedicated users and org owners
           user.db_service.load_cartodb_functions(statement_timeout, extension_version)
           log(sprintf("OK %-#{20}s %-#{20}s (%-#{4}s/%-#{4}s)", user.username, user.database_name, i+1, count), task_name, database_host)
           sleep(sleep)
@@ -381,20 +423,50 @@ namespace :cartodb do
       user.db_service.set_user_privileges_at_db
     end
 
+    desc 'Set org role privileges in all organizations'
+    task :set_org_privileges_in_cartodb_schema, [:org_name] => :environment do |_t, args|
+      org = ::Organization.find(name: args[:org_name])
+      owner = org.owner
+      if owner
+        owner.db_service.setup_organization_role_permissions
+      else
+        puts 'Organization without owner'
+      end
+    end
+
+    desc 'Set org role privileges in all organizations'
+    task set_all_orgs_privileges_in_cartodb_schema: :environment do |_t, _args|
+      Organization.each do |org|
+        owner = org.owner
+        if owner
+          owner.db_service.setup_organization_role_permissions
+        else
+          puts "Organization without owner: #{org.name}"
+        end
+      end
+    end
+
     ##########################
     # SET TRIGGER CHECK QUOTA
     ##########################
     desc 'reset check quota trigger on all user tables'
-    task :reset_trigger_check_quota => :environment do |t, args|
+    task :reset_trigger_check_quota, [:start] => :environment do |_, args|
+      start = args[:start]
       puts "Resetting check quota trigger for ##{::User.count} users"
-      ::User.all.each_with_index do |user, i|
+      i = 0
+
+      query = ::User.order(:id)
+      query = query.where('id > ?', start) if start
+      query.use_cursor(rows_per_fetch: 500).each do |user|
         begin
-          puts "Setting user quota in db '#{user.database_name}' (#{user.username})"
+          puts "Setting user quota in db '#{user.database_name}' (#{user.id} #{user.username})"
           user.db_service.rebuild_quota_trigger
         rescue => exception
           puts "\nERRORED #{user.id} (#{user.username}): #{exception.message}\n"
         end
-        if i % 500 == 0
+
+        i += 1
+        if (i % 500).zero?
           puts "\nProcessed ##{i} users"
         end
       end
@@ -453,6 +525,18 @@ namespace :cartodb do
       puts "Organization: #{organization.name} seats updated to: #{args[:seats]}."
     end
 
+    desc "set organization viewer_seats"
+    task :set_organization_viewer_seats, [:organization_name, :seats] => :environment do |_, args|
+      usage = 'usage: rake cartodb:db:set_organization_viewer_seats[organization_name,seats]'
+      raise usage if args[:organization_name].blank? || args[:seats].blank?
+
+      organization = Organization.filter(name: args[:organization_name]).first
+      seats = args[:seats].to_i
+      organization.viewer_seats = seats
+      organization.save
+
+      puts "Organization: #{organization.name} seats updated to: #{args[:seats]}."
+    end
 
     #################
     # SET TABLE QUOTA
@@ -681,24 +765,6 @@ namespace :cartodb do
       end
     end
 
-    desc 'Runs the specified CartoDB migration script'
-    task :migrate_to, [:version] => :environment do |t, args|
-      usage = 'usage: rake cartodb:db:migrate_to[version]'
-      raise usage if args[:version].blank?
-      require Rails.root.join 'lib/cartodb/generic_migrator.rb'
-
-      CartoDB::GenericMigrator.new(args[:version]).migrate!
-    end
-
-    desc 'Undo migration changes USE WITH CARE'
-    task :rollback_migration, [:version] => :environment do |t, args|
-      usage = 'usage: rake cartodb:db:rollback_migration[version]'
-      raise usage if args[:version].blank?
-      require Rails.root.join 'lib/cartodb/generic_migrator.rb'
-
-      CartoDB::GenericMigrator.new(args[:version]).rollback!
-    end
-
     desc 'Save users metadata in redis'
     task :save_users_metadata => :environment do
       ::User.all.each do |u|
@@ -806,6 +872,60 @@ namespace :cartodb do
       log(end_message, task_name, database_host)
     end
 
+    # Executes a ruby code proc/block on all existing users who are dedicated or organization owners, outputting some info
+    # @param task_name string
+    # @param block Proc
+    # @example:
+    # execute_on_dedicated_users_or_organization_owners_with_index(:populate_new_fields.to_s, Proc.new { |user, i| ... })
+    def execute_on_dedicated_users_or_organization_owners_with_index(task_name, block, num_threads=1, sleep_time=0.1, database_host=nil)
+      if database_host.nil?
+        puts "NO database host"
+        count = ::User.with_sql("select users.* from users LEFT JOIN organizations ON users.organization_id=organizations.id where (users.account_type = '[DEDICATED]' OR users.id = organizations.owner_id)").count
+      else
+        puts "database host"
+        count = ::User.with_sql("select users.* from users LEFT JOIN organizations ON users.organization_id=organizations.id where database_host = ? and (users.account_type = '[DEDICATED]' OR users.id = organizations.owner_id)", database_host).count
+      end
+
+      start_message = ">Running #{task_name} for #{count} users"
+      puts start_message
+      log(start_message, task_name, database_host)
+      if database_host.nil?
+        puts "Detailed log stored at log/rake_db_maintenance_#{task_name}.log"
+      else
+        puts "Detailed log stored at log/rake_db_maintenance_#{task_name}_#{database_host}.log"
+      end
+
+      thread_pool = ThreadPool.new(num_threads, sleep_time)
+
+      if database_host.nil?
+        ::User.with_sql("select users.* from users LEFT JOIN organizations ON users.organization_id=organizations.id where (users.account_type = '[DEDICATED]' OR users.id = organizations.owner_id) order by created_at asc").each_with_index do |user, i|
+          thread_pool.schedule do
+            if i % 100 == 0
+              puts "PROGRESS: #{i}/#{count} users queued"
+            end
+            block.call(user, i)
+          end
+        end
+      else
+        ::User.with_sql("select users.* from users LEFT JOIN organizations ON users.organization_id=organizations.id where database_host = ? and (users.account_type = '[DEDICATED]' OR users.id = organizations.owner_id) order asc", database_host).each_with_index do |user, i|
+          thread_pool.schedule do
+            if i % 100 == 0
+              puts "PROGRESS: #{i}/#{count} users queued"
+            end
+            block.call(user, i)
+          end
+        end
+      end
+
+      at_exit { thread_pool.shutdown }
+
+      puts "PROGRESS: #{count}/#{count} users queued"
+      end_message = "\n>Finished #{task_name}\n"
+      puts end_message
+      log(end_message, task_name, database_host)
+    end
+
+
     def log(entry, task_name, filename_suffix='')
       if filename_suffix.nil? || filename_suffix.empty?
         log_path = Rails.root.join('log', "rake_db_maintenance_#{task_name}.log")
@@ -842,6 +962,9 @@ namespace :cartodb do
         organization.display_name = ENV['ORGANIZATION_DISPLAY_NAME']
         organization.seats = ENV['ORGANIZATION_SEATS']
         organization.quota_in_bytes = ENV['ORGANIZATION_QUOTA']
+        if ENV['BUILDER_ENABLED'] == "true"
+          organization.builder_enabled = true
+        end
         organization.save
       end
       uo = CartoDB::UserOrganization.new(organization.id, user.id)
@@ -862,6 +985,9 @@ namespace :cartodb do
         organization.display_name = ENV['ORGANIZATION_DISPLAY_NAME']
         organization.seats = ENV['ORGANIZATION_SEATS']
         organization.quota_in_bytes = ENV['ORGANIZATION_QUOTA']
+        if ENV['BUILDER_ENABLED'] == "true"
+          organization.builder_enabled = true
+        end
         organization.save
       end
     end
@@ -1266,6 +1392,96 @@ namespace :cartodb do
         user = ::User.where(username: args[:username]).first
         update_user_metadata(user)
         update_organization_metadata(user)
+      end
+    end
+
+    # usage:
+    #   bundle exec rake cartodb:db:connect_aggregation_fdw_tables[username]
+    desc 'Connect aggregation tables through FDW to user'
+    task :connect_aggregation_fdw_tables_to_user, [:username] => [:environment] do |task, args|
+      args.with_defaults(:username => nil)
+      raise 'Not a valid username' if args[:username].blank?
+      user = ::User.find(username: args[:username])
+      user.db_service.connect_to_aggregation_tables
+    end
+
+    # usage:
+    #   bundle exec rake cartodb:db:connect_aggregation_fdw_tables[orgname]
+    desc 'Connect aggregation tables through FDW to orgname'
+    task :connect_aggregation_fdw_tables_to_org, [:orgname] => [:environment] do |task, args|
+      args.with_defaults(:orgname => nil)
+      raise 'Not a valid orgname' if args[:orgname].blank?
+      org = ::Organization.find(name: args[:orgname])
+      org.users.each do |u|
+        begin
+          u.db_service.connect_to_aggregation_tables
+        rescue => e
+          puts "Error trying to connect  #{u.username}: #{e.message}"
+        end
+      end
+    end
+
+    desc 'Connect aggregation tables through FDW to builder users'
+    task :connect_aggregation_fdw_tables_to_builder_users => :environment do
+      unless Cartodb.get_config(:aggregation_tables).present?
+        raise "Aggregation tables not configured!"
+      end
+      # We're using a PostgreSQL cursor to avoid loading all the users
+      # in memory at once. (For ActiveRecord we'd use `find_each`)
+      User.where.use_cursor(rows_per_fetch: 100).each do |user|
+        if user.has_feature_flag?('editor-3')
+          begin
+            user.db_service.connect_to_aggregation_tables
+          rescue => e
+            puts "Error trying to connect #{user.username}: #{e.message}"
+            puts e.backtrace
+          end
+        end
+      end
+    end
+
+    desc 'Connect aggregation tables through FDW to all users'
+    task :connect_aggregation_fdw_tables_to_all_users => :environment do
+      unless Cartodb.get_config(:aggregation_tables).present?
+        raise "Aggregation tables not configured!"
+      end
+      # We're using a PostgreSQL cursor to avoid loading all the users
+      # in memory at once. (For ActiveRecord we'd use `find_each`)
+      User.where.use_cursor(rows_per_fetch: 100).each do |user|
+        begin
+          user.db_service.connect_to_aggregation_tables
+        rescue => e
+          puts "Error trying to connect #{user.username}: #{e.message}"
+          puts e.backtrace
+        end
+      end
+    end
+
+    # usage:
+    #   bundle exec rake cartodb:db:obs_quota_enterprise[1000]
+    desc 'Give data observatory quota to all the enterprise users'
+    task :obs_quota_enterprise, [:quota] => [:environment] do |task, args|
+      args.with_defaults(:quota => 1000)
+      raise 'Not a valid quota' if args[:quota].blank?
+      do_quota = args[:quota]
+      users = User.where("account_type ilike 'enterprise%' or account_type ilike 'partner'").all
+      puts "Number of enterprise users to process: #{users.size}"
+      users.each do |u|
+        begin
+          if u.organization_owner? && !u.organization.nil?
+            u.organization.obs_general_quota = do_quota if u.organization.obs_general_quota.to_i == 0
+            u.organization.obs_snapshot_quota = do_quota if u.organization.obs_snapshot_quota.to_i == 0
+            u.organization.save
+            puts "Organization #{u.organization.name} processed OK"
+          else
+            u.obs_general_quota = do_quota if u.obs_general_quota.to_i == 0
+            u.obs_snapshot_quota = do_quota if u.obs_snapshot_quota.to_i == 0
+            u.save
+            puts "User #{u.username} processed OK"
+          end
+        rescue => e
+          puts "Error trying to give DO quota to #{u.username}: #{e.message}"
+        end
       end
     end
 

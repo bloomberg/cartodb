@@ -12,11 +12,11 @@ module CartoDB
   module Importer2
     class Unp
       HIDDEN_FILE_REGEX     = /^(\.|\_{2})/
-      COMPRESSED_EXTENSIONS = %w{ .zip .gz .tgz .tar.gz .bz2 .tar .kmz .rar }
+      COMPRESSED_EXTENSIONS = %w{ .zip .gz .tgz .tar.gz .bz2 .tar .kmz .rar .carto }.freeze
       SUPPORTED_FORMATS     = %w{
         .csv .shp .ods .xls .xlsx .tif .tiff .kml .kmz
-        .js .json .tar .gz .tgz .osm .bz2 .geojson
-        .gpx .sql .tab .tsv .txt
+        .js .json .tar .gz .tgz .osm .bz2 .geojson .gpkg
+        .gpx .tab .tsv .txt
       }
       SPLITTERS = [KmlSplitter, OsmSplitter, GpxSplitter]
 
@@ -34,6 +34,14 @@ module CartoDB
 
       def get_temporal_subfolder_path
         @temporal_subfolder_path ||= DEFAULT_IMPORTER_TMP_SUBFOLDER
+      end
+
+      # Uncompress, yields the block with the files as argument, and cleanups
+      def open(compressed_file_path)
+        run(compressed_file_path)
+        yield(source_files)
+      ensure
+        clean_up
       end
 
       def run(path)
@@ -87,7 +95,7 @@ module CartoDB
         path = normalize(local_path)
         current_directory = Dir.pwd
         Dir.chdir(temporary_directory)
-        stdout, stderr, status  = Open3.capture3(command_for(path))
+        stdout, stderr, status = Open3.capture3(*command_for(path))
         Dir.chdir(current_directory)
 
         if unp_failure?(stdout + stderr, status)
@@ -97,7 +105,7 @@ module CartoDB
           if stderr =~ /incorrect password/
             raise PasswordNeededForExtractionError
           else
-            raise ExtractionError
+            raise ExtractionError.new(stderr)
           end
         end
         FileUtils.rm(path)
@@ -111,7 +119,7 @@ module CartoDB
       end
 
       def command_for(path)
-        stdout, stderr, status  = Open3.capture3('which unp')
+        stdout, stderr, status = Open3.capture3('which unp')
         if status != 0
           puts "Cannot find command 'unp' (required for import task) #{stderr}"
           raise InstallError
@@ -119,15 +127,15 @@ module CartoDB
         unp_path = stdout.chop
         puts "Path to 'unp': #{unp_path} -- stderr was #{stderr} and status was #{status}" if (stderr.size > 0)
 
-        command = "#{unp_path} #{path} --"
+        command = [unp_path, path, '--']
         if !(path.end_with?('.tar.gz') || path.end_with?('.tgz') || path.end_with?('.tar'))
           # tar doesn't allows -o, which doesn't makes too much sense as each import comes in a different folder
-          command = "#{command} -o"
+          command << '-o'
         end
         if path.end_with?('.zip')
           # There's no "fail if password needed" parameter, so we always send a password.
           # If it's not needed it's ignored, and if it's needed it will fail
-          command = "#{command} -P 'fail-if-prompts-for-password'"
+          command += ['-P', 'fail-if-prompts-for-password']
         end
         command
       end

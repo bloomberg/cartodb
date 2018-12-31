@@ -12,7 +12,7 @@ module CartoDB
     class Column
       DEFAULT_SRID    = 4326
       WKB_RE          = /^\d{2}/
-      GEOJSON_RE      = /{.*\"type\".*\"coordinates\"/
+      GEOJSON_RE      = /{.*(type|coordinates).*(type|coordinates).*}/
       WKT_RE          = /POINT|LINESTRING|POLYGON/
       KML_MULTI_RE    = /<Line|<Polygon/
       KML_POINT_RE    = /<Point>/
@@ -220,7 +220,7 @@ module CartoDB
 
       def geometry_type
         sample = db[%Q{
-          SELECT public.GeometryType(ST_Force_2D(#{column_name}::geometry))
+          SELECT public.GeometryType(ST_Force2D(#{column_name}::geometry))
           AS type
           FROM #{schema}.#{table_name}
           WHERE #{column_name} IS NOT NULL

@@ -8,6 +8,7 @@ require_relative '../../lib/importer/unp'
 
 describe CartoDB::Importer2::KmlSplitter do
   before do
+    pending("Bloomberg does not officially support KML files yet")
     @one_layer_filepath       = path_to('one_layer.kml')
     @multiple_layer_filepath  = path_to('multiple_layer.kml')
     @temporary_directory      = '/var/tmp'

@@ -15,7 +15,7 @@ FactoryGirl.define do
         "subdomains": "abcd",
         "minZoom": "0",
         "maxZoom": "18",
-        "attribution": "\u00a9 <a href=\"http://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors \u00a9 <a href=\"http://cartodb.com/attributions#basemaps\">CartoDB</a>",
+        "attribution": "\u00a9 <a href=\"http://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors \u00a9 <a href=\"https://carto.com/attributions\">CARTO</a>",
         "urlTemplate": "http://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png",
         "type": "Tiled",
         "name": "Positron Labels"
@@ -59,6 +59,19 @@ FactoryGirl.define do
       }.to_json
 
       tooltip tooltip_light
+    end
+
+    factory :carto_layer_with_sql do
+      ignore do
+        table_name 'default_table'
+      end
+      options do
+        {
+          table_name: table_name,
+          query:      "select * from #{table_name}",
+          sql_wrap:   "select * from (<%= sql %>) __wrap"
+        }
+      end
     end
   end
 
@@ -107,7 +120,10 @@ module Fixtures
       def v2_infowindow_light_template_fragment
         "<div class=\"cartodb-popup v2\">\n  <a href=\"#close\" class=\"cartodb-popup-close-button close\">x</a>\n  "\
         "<div class=\"cartodb-popup-content-wrapper\">\n    <div class=\"cartodb-popup-content\">\n      "\
-        "{{#content.fields}}\n        {{#title}}<h4>{{title}}</h4>{{/title}}\n        {{#value}}\n          "\
+        "{{#content.fields}}\n        "\
+        "{{#title}}\n        {{#alias}}\n        <h4>{{alias}}</h4>\n        {{/alias}}\n        "\
+        "{{^alias}}\n        <h4>{{title}}</h4>\n        {{/alias}}\n        {{/title}}\n        "\
+        "{{#value}}\n          "\
         "<p {{#type}}class=\"{{ type }}\"{{/type}}>{{{ value }}}</p>\n        {{/value}}\n        "\
         "{{^value}}\n          <p class=\"empty\">null</p>\n        {{/value}}\n      {{/content.fields}}\n    "\
         "</div>\n  </div>\n  <div class=\"cartodb-popup-tip-container\"></div>\n</div>\n"

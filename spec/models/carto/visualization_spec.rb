@@ -7,21 +7,21 @@ describe Carto::Visualization do
   include UniqueNamesHelper
 
   before(:all) do
-    @user = create_user(
-      email: 'admin@cartotest.com',
-      username: 'admin',
-      password: '123456'
-    )
+    @user = create_user
+    @carto_user = Carto::User.find(@user.id)
+    @user2 = create_user
+    @carto_user2 = Carto::User.find(@user2.id)
   end
 
   before(:each) do
-    stub_named_maps_calls
+    bypass_named_maps
     delete_user_data(@user)
   end
 
   after(:all) do
-    stub_named_maps_calls
+    bypass_named_maps
     @user.destroy
+    @user2.destroy
   end
 
   describe '#estimated_row_count and #actual_row_count' do
@@ -100,4 +100,82 @@ describe Carto::Visualization do
 
   end
 
+  describe '#related_tables_readable_by' do
+    include Carto::Factories::Visualizations
+
+    it 'only returns tables that a user can read' do
+      @carto_user.update_attribute(:private_tables_enabled, true)
+      map = FactoryGirl.create(:carto_map, user: @carto_user)
+
+      private_table = FactoryGirl.create(:private_user_table, user: @carto_user)
+      public_table = FactoryGirl.create(:public_user_table, user: @carto_user)
+
+      private_layer = FactoryGirl.create(:carto_layer, options: { table_name: private_table.name }, maps: [map])
+      FactoryGirl.create(:carto_layer, options: { table_name: public_table.name }, maps: [map])
+
+      map, table, table_visualization, visualization = create_full_visualization(@carto_user,
+                                                                                 map: map,
+                                                                                 table: private_table,
+                                                                                 data_layer: private_layer)
+
+      related_table_ids_readable_by_owner = visualization.related_tables_readable_by(@carto_user).map(&:id)
+      related_table_ids_readable_by_owner.should include(private_table.id)
+      related_table_ids_readable_by_owner.should include(public_table.id)
+
+      related_table_ids_readable_by_others = visualization.related_tables_readable_by(@carto_user2).map(&:id)
+      related_table_ids_readable_by_others.should_not include(private_table.id)
+      related_table_ids_readable_by_others.should include(public_table.id)
+
+      destroy_full_visualization(map, table, table_visualization, visualization)
+    end
+  end
+
+  describe '#published?' do
+    before(:each) do
+      @visualization = FactoryGirl.build(:carto_visualization)
+    end
+
+    it 'returns true for visualizations without version' do
+      @visualization.version = nil
+      @visualization.published?.should eq true
+    end
+
+    it 'returns true for v2 visualizations' do
+      @visualization.version = 2
+      @visualization.published?.should eq true
+    end
+
+    it 'returns false for v3 visualizations' do
+      @visualization.version = 3
+      @visualization.published?.should eq false
+    end
+
+    it 'returns true for mapcapped v3 visualizations' do
+      @visualization.version = 3
+      @visualization.stubs(:mapcapped?).returns(true)
+      @visualization.published?.should eq true
+    end
+  end
+
+  describe '#can_be_private?' do
+    before(:all) do
+      bypass_named_maps
+      @visualization = FactoryGirl.create(:carto_visualization, user: @carto_user)
+      @visualization.reload # to clean up the user relation (see #11134)
+    end
+
+    after(:all) do
+      @visualization.destroy
+    end
+
+    it 'returns private_tables_enabled for tables' do
+      @visualization.type = 'table'
+      @visualization.can_be_private?.should eq @carto_user.private_tables_enabled
+    end
+
+    it 'returns private_maps_enabled for maps' do
+      @visualization.type = 'derived'
+      @visualization.can_be_private?.should eq @carto_user.private_maps_enabled
+    end
+  end
 end

@@ -50,7 +50,7 @@ describe ApplicationController do
         stub_load_common_data
         get dashboard_url, {}, authentication_headers(@user.email)
         response.status.should == 200
-        response.body.should_not include("Login to Carto")
+        response.body.should_not include("Sessions-form")
       end
 
       it 'does not load the dashboard for an unknown user email' do
@@ -73,7 +73,7 @@ describe ApplicationController do
         stub_load_common_data
         get dashboard_url, {}, authentication_headers(@user.username)
         response.status.should == 200
-        response.body.should_not include("Login to Carto")
+        response.body.should_not include("Sessions-form")
       end
 
       it 'does not load the dashboard for an unknown user username' do
@@ -96,7 +96,7 @@ describe ApplicationController do
         stub_load_common_data
         get dashboard_url, {}, authentication_headers(@user.id)
         response.status.should == 200
-        response.body.should_not include("Login to Carto")
+        response.body.should_not include("Sessions-form")
       end
 
       it 'does not load the dashboard for an unknown user id' do
@@ -119,21 +119,21 @@ describe ApplicationController do
         stub_load_common_data
         get dashboard_url, {}, authentication_headers(@user.id)
         response.status.should == 200
-        response.body.should_not include("Login to Carto")
+        response.body.should_not include("Sessions-form")
       end
 
       it 'loads the dashboard for a known user username' do
         stub_load_common_data
         get dashboard_url, {}, authentication_headers(@user.username)
         response.status.should == 200
-        response.body.should_not include("Login to Carto")
+        response.body.should_not include("Sessions-form")
       end
 
       it 'loads the dashboard for a known user email' do
         stub_load_common_data
         get dashboard_url, {}, authentication_headers(@user.email)
         response.status.should == 200
-        response.body.should_not include("Login to Carto")
+        response.body.should_not include("Sessions-form")
       end
 
       it 'does not load the dashboard for an unknown user id' do
@@ -163,7 +163,7 @@ describe ApplicationController do
           response.status.should == 302
           follow_redirect!
           response.status.should == 200
-          response.body.should include("Login to Carto")
+          response.body.should include("Sessions-form")
         end
       end
 
@@ -187,12 +187,23 @@ describe ApplicationController do
           response.location.should match /#{signup_http_authentication_path}/
         end
 
-        # This behaviour avoids filling `user_creations` table with failed repetitions because of polling.
-        it 'returns 409 instead of redirecting to user creation if there is another user creation not finished for that email' do
+        # This behaviour avoids filling `user_creations` table with failed repetitions because of polling
+        # and makes frontend to redirect nicely to the dashboard on finish (failing stopped redirection from working)
+        it 'redirects to creation in progress instead of creation if that user has a not finished user creation' do
           email = 'unknown2@company.com'
           FactoryGirl.create(:user_creation, state: 'enqueuing', email: email)
           get dashboard_url, {}, authentication_headers(email)
-          response.status.should == 409
+          response.status.should eq 302
+          response.location.should match(/#{signup_http_authentication_in_progress_path}/)
+        end
+
+        it 'redirects to user creation for unknown emails if there is other enqueued user creation (for other user)' do
+          email1 = 'unknown1@company.com'
+          email2 = 'unknown2@company.com'
+          FactoryGirl.create(:user_creation, state: 'enqueuing', email: email1)
+          get dashboard_url, {}, authentication_headers(email2)
+          response.status.should eq 302
+          response.location.should match(/#{signup_http_authentication_path}/)
         end
       end
     end

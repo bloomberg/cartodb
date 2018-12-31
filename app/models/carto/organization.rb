@@ -1,13 +1,21 @@
 require 'active_record'
 require_relative '../../helpers/data_services_metrics_helper'
+require_dependency 'carto/helpers/auth_token_generator'
 
 module Carto
   class Organization < ActiveRecord::Base
     include DataServicesMetricsHelper
+    include AuthTokenGenerator
+
+    serialize :auth_saml_configuration, CartoJsonSymbolizerSerializer
+    before_validation :ensure_auth_saml_configuration
+    validates :auth_saml_configuration, carto_json_symbolizer: true
 
     has_many :users, inverse_of: :organization, order: :username
     belongs_to :owner, class_name: Carto::User, inverse_of: :owned_organization
     has_many :groups, inverse_of: :organization, order: :display_name
+    has_many :assets, class_name: Carto::Asset, dependent: :destroy
+    has_many :notifications, dependent: :destroy
 
     before_destroy :destroy_groups_with_extension
 
@@ -18,43 +26,53 @@ module Carto
     end
 
     def get_geocoding_calls(options = {})
+      require_organization_owner_presence!
       date_to = (options[:to] ? options[:to].to_date : Date.today)
-      date_from = (options[:from] ? options[:from].to_date : owner.last_billing_cycle)
-      if owner.has_feature_flag?('new_geocoder_quota')
-        get_organization_geocoding_data(self, date_from, date_to)
-      else
-        users.
-          joins(:geocodings).
-          where('geocodings.kind' => 'high-resolution').
-          where('geocodings.created_at >= ? and geocodings.created_at <= ?', date_from, date_to + 1.days).
-          sum("processed_rows + cache_hits".lit).to_i
-      end
-    end
-
-    def period_end_date
-      owner.period_end_date
-    end
-
-    def get_new_system_geocoding_calls(options = {})
-      date_to = (options[:to] ? options[:to].to_date : Date.current)
       date_from = (options[:from] ? options[:from].to_date : owner.last_billing_cycle)
       get_organization_geocoding_data(self, date_from, date_to)
     end
 
+    def period_end_date
+      owner && owner.period_end_date
+    end
+
     def get_here_isolines_calls(options = {})
+      require_organization_owner_presence!
       date_to = (options[:to] ? options[:to].to_date : Date.today)
       date_from = (options[:from] ? options[:from].to_date : owner.last_billing_cycle)
       get_organization_here_isolines_data(self, date_from, date_to)
     end
 
+    def get_mapzen_routing_calls(options = {})
+      require_organization_owner_presence!
+      date_to = (options[:to] ? options[:to].to_date : Date.today)
+      date_from = (options[:from] ? options[:from].to_date : owner.last_billing_cycle)
+      get_organization_mapzen_routing_data(self, date_from, date_to)
+    end
+
+    def get_obs_snapshot_calls(options = {})
+      require_organization_owner_presence!
+      date_to = (options[:to] ? options[:to].to_date : Date.today)
+      date_from = (options[:from] ? options[:from].to_date : owner.last_billing_cycle)
+      get_organization_obs_snapshot_data(self, date_from, date_to)
+    end
+
+    def get_obs_general_calls(options = {})
+      require_organization_owner_presence!
+      date_to = (options[:to] ? options[:to].to_date : Date.today)
+      date_from = (options[:from] ? options[:from].to_date : owner.last_billing_cycle)
+      get_organization_obs_general_data(self, date_from, date_to)
+    end
+
     def twitter_imports_count(options = {})
+      require_organization_owner_presence!
       date_to = (options[:to] ? options[:to].to_date : Date.today)
       date_from = (options[:from] ? options[:from].to_date : owner.last_billing_cycle)
       Carto::SearchTweet.twitter_imports_count(users.joins(:search_tweets), date_from, date_to)
     end
 
-    def is_owner_user?(user)
-      self.owner_id == user.id
+    def owner?(user)
+      owner_id == user.id
     end
 
     def remaining_geocoding_quota(options = {})
@@ -67,8 +85,27 @@ module Carto
       (remaining > 0 ? remaining : 0)
     end
 
+    def remaining_mapzen_routing_quota(options = {})
+      remaining = mapzen_routing_quota.to_i - get_mapzen_routing_calls(options)
+      (remaining > 0 ? remaining : 0)
+    end
+
+    def remaining_obs_snapshot_quota(options = {})
+      remaining = obs_snapshot_quota.to_i - get_obs_snapshot_calls(options)
+      (remaining > 0 ? remaining : 0)
+    end
+
+    def remaining_obs_general_quota(options = {})
+      remaining = obs_general_quota.to_i - get_obs_general_calls(options)
+      (remaining > 0 ? remaining : 0)
+    end
+
     def signup_page_enabled
-      !whitelisted_email_domains.nil? && !whitelisted_email_domains.empty?
+      whitelisted_email_domains.present? && auth_enabled?
+    end
+
+    def auth_enabled?
+      auth_username_password_enabled || auth_google_enabled || auth_github_enabled || auth_saml_enabled?
     end
 
     def database_name
@@ -91,7 +128,29 @@ module Carto
       self.quota_in_bytes - assigned_quota
     end
 
+    def require_organization_owner_presence!
+      if owner.nil?
+        raise ::Organization::OrganizationWithoutOwner.new(self)
+      end
+    end
+
+    def auth_saml_enabled?
+      auth_saml_configuration.present?
+    end
+
+    def builder_users
+      users.reject(&:viewer)
+    end
+
+    def viewer_users
+      users.select(&:viewer)
+    end
+
     private
+
+    def ensure_auth_saml_configuration
+      self.auth_saml_configuration ||= Hash.new
+    end
 
     def destroy_groups_with_extension
       return unless groups
@@ -100,7 +159,5 @@ module Carto
 
       reload
     end
-
   end
-
 end

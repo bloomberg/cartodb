@@ -5,6 +5,7 @@ require 'json'
 require_relative '../util/csv_file_dumper'
 
 require_relative '../../../../twitter-search/twitter-search'
+require_relative '../../../../../lib/cartodb/logger'
 require_relative '../base_file_stream'
 
 module CartoDB
@@ -47,7 +48,7 @@ module CartoDB
         # Gnip's 30 limit minus 'has:geo' one
         MAX_SEARCH_TERMS = 30 - 1
 
-        MAX_QUERY_SIZE   = 1024
+        MAX_QUERY_SIZE = 2048
 
         MAX_TABLE_NAME_SIZE = 30
 
@@ -71,7 +72,7 @@ module CartoDB
           raise MissingConfigurationError.new('missing auth_required', DATASOURCE_NAME) unless config.include?('auth_required')
           raise MissingConfigurationError.new('missing username', DATASOURCE_NAME) unless config.include?('username')
           raise MissingConfigurationError.new('missing password', DATASOURCE_NAME) unless config.include?('password')
-          raise MissingConfigurationError.new('missing search_url', DATASOURCE_NAME) unless config.include?('search_url')
+          raise MissingConfigurationError.new('missing search_url for GNIP API', DATASOURCE_NAME) unless config.include?('search_url')
 
           @user_defined_limits = user_defined_limits
 
@@ -95,7 +96,6 @@ module CartoDB
           @logger = nil
           @used_quota = 0
           @user_semaphore = Mutex.new
-          @error_report_component = nil
         end
 
         # Factory method
@@ -182,8 +182,6 @@ module CartoDB
 
         # Hide sensitive fields
         def to_s
-          config_public_values =
-
           "<CartoDB::Datasources::Search::Twitter @user=#{@user.username} @filters=#{@filters} @search_api_config=#{search_api_config_public_values}>"
         end
 
@@ -224,17 +222,6 @@ module CartoDB
           raise DatasourceBaseError.new("Couldn't fetch SearchTweet entry for data import #{@data_import_item.id}", \
                                         DATASOURCE_NAME) if entry.nil?
           { :retrieved_items => entry.retrieved_items }
-        end
-
-        # Sets an error reporting component
-        # @param component mixed
-        # @throws DatasourceBaseError
-        def report_component=(component)
-          if component.respond_to?(:report_message)
-            @error_report_component = component
-          else
-            raise DatasourceBaseError.new('Attempted to set invalid report component', DATASOURCE_NAME)
-          end
         end
 
         private
@@ -302,9 +289,7 @@ module CartoDB
         # Signature must be like: .report_message('Import error', 'error', error_info: stacktrace)
         def report_error(message, additional_data)
           log("Error: #{message} Additional Info: #{additional_data}")
-          unless @error_report_component.nil?
-            @error_report_component.report_message(message, 'error', error_info: additional_data)
-          end
+          CartoDB::Logger.error(message: message, error_info: additional_data)
         end
 
         # @param api_config Hash

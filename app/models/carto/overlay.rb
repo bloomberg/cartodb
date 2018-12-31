@@ -9,9 +9,11 @@ module Carto
 
     serialize :options, JSON
 
-    validates :visualization_id, presence: true
     validates :type, presence: true
     validate :unique_overlay_not_duplicated
+    validate :validate_user_not_viewer
+
+    before_destroy :validate_user_not_viewer
 
     after_save :invalidate_cache
     after_destroy :invalidate_cache
@@ -20,6 +22,9 @@ module Carto
     UNIQUE_TYPES = [
       'search', 'layer_selector', 'share', 'zoom', 'logo', 'loader', 'fullscreen', 'inset_map'
     ].freeze
+
+    BUILDER_COMPATIBLE_TYPES = ['search', 'layer_selector', 'share', 'fullscreen', 'loader', 'logo', 'zoom'].freeze
+    scope :builder_incompatible, where("type NOT IN ('#{BUILDER_COMPATIBLE_TYPES.join("','")}')")
 
     def hide
       options['display'] = false
@@ -46,6 +51,18 @@ module Carto
         unless other_overlay.first.nil?
           errors.add(:base, "Unique overlay of type #{type} already exists")
         end
+      end
+    end
+
+    def validate_user_not_viewer
+      # TODO: `visualization` check is needed because the creation of default overlays for visualization
+      # is yet done from the old models (Member). Member assigns the id (because it can't assign itself, as
+      # it's not a `Carto::Visualization`), but since that happens in a transaction managed by Sequel
+      # we can't get the `Carto::Visualization` here. When `Member` is gone the `visualization` check can
+      # be removed, as an `Overlay` must have a `Visualization`.
+      if visualization && visualization.user.viewer
+        errors.add(:visualization, "Viewer users can't edit overlays")
+        return false
       end
     end
 
