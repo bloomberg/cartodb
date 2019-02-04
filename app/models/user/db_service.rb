@@ -116,7 +116,7 @@ module CartoDB
         Thread.new do
           create_db_user
         end.join
-        create_own_schema
+        create_own_schema(load_cartodb_extension: false)
 
         # WIP: CartoDB/cartodb-management#4467
         # Added after commenting it in setup_organization_user_schema to avoid configure_database to reset permissions
@@ -1034,8 +1034,8 @@ module CartoDB
         end
       end
 
-      def create_own_schema
-        load_cartodb_functions
+      def create_own_schema(load_cartodb_extension: true)
+        load_cartodb_functions(nil, nil, load_cartodb_extension, true)
         @user.database_schema = @user.username
         @user.this.update(database_schema: @user.database_schema)
         create_user_schema
