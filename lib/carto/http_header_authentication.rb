@@ -32,8 +32,7 @@ module Carto
 
     def autocreation_valid?(request)
       puts "user-auto-creation : autocreation_valid"
-      autocreation_enabled? && field(request) == 'username'
-      #autocreation_enabled? && field(request) == 'email'
+      autocreation_enabled? && (field(request) == 'username' || field(request) == 'email')
     end
 
     def identity(request)

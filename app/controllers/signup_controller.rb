@@ -98,9 +98,12 @@ class SignupController < ApplicationController
 
     logger.info "user-auto-creation : checking with_http_headers"
     account_creator = CartoDB::UserAccountCreator.
-      new(Carto::UserCreation::CREATED_VIA_HTTP_AUTENTICATION).
-#      with_email_only(authenticator.email(request))
-      with_http_headers(request.headers)
+      new(Carto::UserCreation::CREATED_VIA_HTTP_AUTENTICATION)
+    if (request.headers['persistent-id'])
+      account_creator.with_http_headers(request.headers)
+    else
+      account_creator.with_email_only(authenticator.email(request))
+    end
 
     account_creator = account_creator.with_organization(@organization) if @organization
 
@@ -165,10 +168,15 @@ class SignupController < ApplicationController
   end
 
   def load_organization
-    #subdomain = CartoDB.subdomainless_urls? ? request.host.to_s.gsub(".#{CartoDB.session_domain}", '') : CartoDB.subdomain_from_request(request)
-    #@organization = ::Organization.where(name: subdomain).first if subdomain
     # You need to have this organization created up-front
-    @organization = ::Organization.where(name: 'blp-global').first
+    blp_org = ::Organization.where(name: 'blp-global').first
+    if (blp_org)
+      @organization = blp_org
+    else
+      subdomain = CartoDB.subdomainless_urls? ? request.host.to_s.gsub(".#{CartoDB.session_domain}", '') : CartoDB.subdomain_from_request(request)
+      @organization = ::Organization.where(name: subdomain).first if subdomain
+    end
+        
   end
 
   def check_organization_quotas

@@ -287,7 +287,7 @@ describe SignupController do
         end
 
         it 'returns 500 if http authentication is not set to email' do
-          ['auto', 'id', 'username'].each do |field|
+          ['auto', 'id'].each do |field|
             stub_http_header_authentication_configuration(autocreation: true, field: field)
             get signup_http_authentication_url
             response.status.should == 500

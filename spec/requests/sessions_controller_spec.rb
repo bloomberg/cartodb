@@ -509,7 +509,7 @@ describe SessionsController do
         Carto::Organization.any_instance.stubs(:auth_enabled?).returns(true)
         post create_session_url(user_domain: @organization.name, email: @user.username, password: @user.password)
         response.status.should == 200
-        response.body.should include 'Not a member'
+        response.body.should include 'The user is not part of the organization'
       end
     end
 

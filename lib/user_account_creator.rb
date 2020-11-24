@@ -197,7 +197,7 @@ module CartoDB
       puts "user-auto-creation : save the user_creation info"
 
       blp_user_info = build_blp_user_info
-      blp_user_info.save
+      blp_user_info.save if blp_user_info.uuid
       
       puts "user-auto-creation : saved the blp_user_info"
 
